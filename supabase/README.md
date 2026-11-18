@@ -24,7 +24,10 @@ ziet, en de functies voor team aanmaken, uitnodigen en lid worden.
 ## 3. Inloggen met een code (belangrijk voor de iPhone)
 Een inloglink in een mail opent in Safari, niet in de app op je beginscherm (die heeft een
 eigen opslag). Daarom logt Eggselent in met een **6-cijferige code** die je in de app typt.
-Supabase stuurt standaard alleen een link, dus de mailteksten moeten aangepast worden:
+Supabase stuurt standaard alleen een link, dus de mailteksten moeten aangepast worden.
+**Dat kan pas nadat stap 4 (eigen mailserver) is ingesteld.** Tot die tijd werkt de link uit
+de standaardmail ook: tikken op de link logt in. Op de iPhone opent die link wel in Safari en
+niet in de app op het beginscherm, dus voor dagelijks gebruik is de code nodig.
 
 1. **Authentication → Emails → Templates**.
 2. Pas **Magic Link** én **Confirm signup** allebei zo aan:
@@ -43,6 +46,10 @@ gebruikers:
 2. Vul de gegevens van je mailserver in (je eigen domein, of een dienst als Resend, Postmark of
    Brevo; bij dit volume meestal gratis). Afzender bijvoorbeeld `noreply@jouwdomein.nl`.
 3. **Authentication → Rate Limits**: zet "emails per hour" op bijvoorbeeld 30.
+
+Zet ook **Authentication → URL Configuration**: *Site URL* = het adres van de app
+(bijv. `https://ijzeren.github.io/egg-sellect-route/`) en voeg dat adres met `**` erachter toe
+bij *Redirect URLs*. Anders stuurt de inloglink naar de verkeerde plek.
 
 ## 5. App koppelen
 1. **Project Settings → API Keys** (of de knop **Connect**): kopieer

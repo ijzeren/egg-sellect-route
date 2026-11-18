@@ -195,7 +195,7 @@ table.h th:first-child,table.h td:first-child{text-align:left}
 
 <script>
 'use strict';
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -379,10 +379,27 @@ function setSession(d){
   if (d.user) S.newUserId = d.user.id;
   saveS();
 }
-async function sendCode(email){ await api('/auth/v1/otp', { method: 'POST', auth: false, body: { email, create_user: true } }); }
+const appUrl = () => location.origin + location.pathname;
+// redirect_to: als de mail een inloglink bevat (standaardmail van Supabase), komt die terug in de app
+async function sendCode(email){ await api('/auth/v1/otp?redirect_to=' + encodeURIComponent(appUrl()), { method: 'POST', auth: false, body: { email, create_user: true } }); }
 async function verifyCode(email, token){
   const d = await api('/auth/v1/verify', { method: 'POST', auth: false, body: { type: 'email', email, token } });
   setSession(d);
+  await afterLogin();
+}
+// Inloggen via de link in de mail: Supabase stuurt terug naar de app met #access_token=…
+async function loginFromLink(){
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.get('access_token') && !h.get('error_description')) return false;
+  history.replaceState(null, '', appUrl());
+  if (h.get('error_description')) { alert('Inloggen mislukt: ' + h.get('error_description')); return false; }
+  let claims = {};
+  try { claims = JSON.parse(atob(h.get('access_token').split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch (e) {}
+  setSession({ access_token: h.get('access_token'), refresh_token: h.get('refresh_token'), expires_at: +h.get('expires_at') || undefined, expires_in: +h.get('expires_in') || undefined, user: { id: claims.sub, email: claims.email } });
+  await afterLogin();
+  return true;
+}
+async function afterLogin(){
   if (S.userId && S.userId !== S.newUserId) wipeLocal(); // andere gebruiker op deze telefoon
   S.userId = S.newUserId; delete S.newUserId;
   const teams = await rpc('my_teams');
@@ -1127,8 +1144,9 @@ function vLogin(){
     <div class="card">${!sent ? `<h2>Inloggen of account aanmaken</h2>
       <label class="f"><span>E-mailadres</span><input type="email" id="loginEmail" autocomplete="email" inputmode="email" autocapitalize="off" value="${esc(ui.loginEmail || (S.session && S.session.email) || '')}" placeholder="naam@voorbeeld.nl"></label>
       <button class="btn primary big" data-act="sendcode">Stuur inlogcode</button>
-      <p class="muted" style="font-size:14px;margin-bottom:0">Je krijgt een code per mail; geen wachtwoord nodig. Nog geen account? Dan wordt die vanzelf aangemaakt.</p>`
-    : `<h2>Code invullen</h2><p style="margin-top:0">We hebben een code gestuurd naar <b>${esc(ui.loginEmail)}</b>. Kijk ook even in je spam.</p>
+      <p class="muted" style="font-size:14px;margin-bottom:0">Je krijgt een mail met een code; geen wachtwoord nodig. Nog geen account? Dan wordt die vanzelf aangemaakt.</p>`
+    : `<h2>Code invullen</h2><p style="margin-top:0">We hebben een mail gestuurd naar <b>${esc(ui.loginEmail)}</b>. Kijk ook even in je spam.</p>
+      <p class="muted" style="font-size:14px">Staat er een <b>link</b> in de mail in plaats van een code? Tik daarop; je komt dan ingelogd in de app.</p>
       <label class="f"><span>Code uit de mail</span><input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" style="font-size:28px;letter-spacing:6px;text-align:center"></label>
       <button class="btn primary big mb" data-act="verifycode">Inloggen</button>
       <div class="minilinks"><button class="link" data-act="resendcode">Code opnieuw sturen</button><button class="link" data-act="otheremail">Ander e-mailadres</button></div>`}
@@ -1564,6 +1582,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 render();
+if (CLOUD) loginFromLink().then(ok => { if (ok) { ui.loginSent = false; saveUi(); render(); syncNow(); } }).catch(e => alert(e.message));
 syncNow();
 </script>
 </body>

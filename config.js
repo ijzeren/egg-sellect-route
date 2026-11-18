@@ -11,6 +11,6 @@
 //
 // Na het wijzigen van dit bestand: verhoog VERSION in sw.js, anders houden telefoons de oude versie.
 window.EGGSELENT_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: '',
+  supabaseUrl: 'https://istqegonfkfrkyddfajd.supabase.co',
+  supabaseKey: 'sb_publishable_antF0IJbE25Ie9I3i_KmBQ_qxF0vR8q',
 };
