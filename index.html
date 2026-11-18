@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Eggselent">
+<meta name="theme-color" content="#f7f2e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Eggselent</title>
+<style>
+:root{
+  --bg:#f7f2e8; --card:#ffffff; --ink:#2b2118; --muted:#7a6b5b; --line:#e7dccb;
+  --accent:#d97a12; --accent-ink:#fff; --soft:#fbe9cf;
+  --ok:#2f8f4e; --ok-soft:#dff1e5; --bad:#c0392b; --bad-soft:#f8dedb; --info:#2d6cb5; --info-soft:#dde8f6;
+  --grey-soft:#efe8dc;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#17130f; --card:#231d17; --ink:#f3ebe0; --muted:#a8998a; --line:#3a3027;
+    --accent:#f0962e; --accent-ink:#1b1206; --soft:#3a2a14;
+    --ok:#5cc27e; --ok-soft:#1f3a29; --bad:#ec7366; --bad-soft:#40211d; --info:#7fb0ef; --info-soft:#1d2c40;
+    --grey-soft:#2c251e;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:17px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.top{position:sticky;top:0;z-index:10;background:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;min-height:56px}
+.top h1{font-size:20px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .side{min-width:70px;display:flex}
+.top .side.r{justify-content:flex-end}
+main{padding:14px 16px calc(env(safe-area-inset-bottom) + 110px);max-width:640px;margin:0 auto}
+.link{background:none;border:0;color:var(--accent);font-weight:600;padding:8px 0;font-size:17px}
+.muted{color:var(--muted)}
+small{font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.card h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.card h3{font-size:15px;color:var(--muted);margin:14px 0 8px;font-weight:600}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:17px;padding:10px 14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.big{min-height:64px;font-size:19px}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mb{margin-bottom:10px}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);display:flex;padding:6px 8px calc(env(safe-area-inset-bottom) + 6px)}
+.tabs button{flex:1;background:none;border:0;padding:8px 4px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:600}
+.tabs button .ic{font-size:22px;line-height:1}
+.tabs button.on{color:var(--accent)}
+.bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--bg);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1.4fr;gap:10px;padding:10px 12px calc(env(safe-area-inset-bottom) + 10px)}
+.datebar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.datebar .d{flex:1;text-align:center}
+.datebar .d b{display:block;font-size:20px}
+.datebar .d b::first-letter{text-transform:uppercase}
+.round{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.notice{border-radius:14px;padding:12px 14px;margin-bottom:14px;background:var(--soft)}
+.notice.info{background:var(--info-soft)}
+.notice.bad{background:var(--bad-soft);color:var(--bad)}
+.notice.bad b{color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center}
+.stat b{display:block;font-size:24px}
+.stat span{font-size:13px;color:var(--muted)}
+.list{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 14px;min-height:60px}
+.row:last-child{border-bottom:0}
+.row .no{width:28px;color:var(--muted);font-size:14px;text-align:right;flex:none}
+.row .adr{flex:1;min-width:0}
+.row .adr b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .adr small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.dim{opacity:.55}
+.row.cur{background:var(--soft)}
+.st{flex:none;min-width:44px;height:34px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;padding:0 10px}
+.st.open{border:2px dashed var(--line);color:var(--muted)}
+.st.sold{background:var(--ok-soft);color:var(--ok)}
+.st.none{background:var(--grey-soft);color:var(--muted)}
+.st.nothome{background:var(--bad-soft);color:var(--bad)}
+.badge{display:inline-block;font-size:13px;font-weight:600;border-radius:8px;padding:2px 8px;margin:2px 4px 2px 0}
+.badge.bad{background:var(--bad-soft);color:var(--bad)}
+.badge.info{background:var(--info-soft);color:var(--info)}
+.badge.grey{background:var(--grey-soft);color:var(--muted)}
+.sectiontoggle{width:100%;background:none;border:0;text-align:left;color:var(--muted);font-weight:600;padding:8px 2px;font-size:15px}
+/* huis */
+.addr h2{font-size:30px;margin:0;line-height:1.15;color:var(--ink)}
+.addr .sub{color:var(--muted);margin-top:4px}
+.addr .fixednote{margin-top:8px;background:var(--soft);border-radius:10px;padding:8px 10px;font-size:15px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tile{border-radius:12px;padding:8px 4px;text-align:center;background:var(--grey-soft);min-height:76px;display:flex;flex-direction:column;justify-content:center}
+.tile .dt{font-size:12px;color:var(--muted)}
+.tile .v{font-size:24px;font-weight:700;line-height:1.1}
+.tile .l{font-size:12px}
+.tile.sold{background:var(--ok-soft)} .tile.sold .v{color:var(--ok)}
+.tile.nothome{background:var(--bad-soft)} .tile.nothome .v,.tile.nothome .l{color:var(--bad)}
+.tile.empty{opacity:.5}
+.agree{margin-top:10px;font-size:15px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.seg button{min-height:50px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-weight:600}
+.seg button.on.nh{background:var(--bad);border-color:var(--bad);color:#fff}
+.seg button.on.no{background:var(--muted);border-color:var(--muted);color:var(--bg)}
+.stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 12px}
+.stepper button{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:32px;font-weight:500;line-height:1}
+.stepper .val{min-width:96px;text-align:center}
+.stepper .val b{font-size:50px;line-height:1;display:block}
+.stepper .val span{font-size:14px;color:var(--muted)}
+.stepper.sm button{width:52px;height:52px;font-size:26px}
+.stepper.sm .val b{font-size:38px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{min-height:44px;min-width:52px;border-radius:22px;border:1px solid var(--line);background:var(--card);font-weight:600;padding:0 14px}
+.chips.eggchips{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.chips.eggchips button{min-width:0;padding:0}
+.chips button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chips button.abs{text-decoration:line-through;color:var(--bad);background:var(--bad-soft);border-color:var(--bad-soft);opacity:.8}
+.dim-block{opacity:.4;pointer-events:none}
+.nextline{margin-top:12px;font-size:17px;background:var(--soft);border-radius:12px;padding:10px 12px}
+.nextline b{font-size:18px}
+.alertcard{border:2px solid var(--bad);background:var(--bad-soft);border-radius:16px;padding:14px;margin-bottom:14px}
+.alertcard .at{font-weight:800;color:var(--bad);font-size:18px;line-height:1.25;margin-bottom:10px}
+.wkstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px;margin-bottom:12px}
+.wkstrip div{border-radius:12px;padding:8px 6px;text-align:center;background:var(--card);border:2px solid var(--ok);color:var(--ok)}
+.wkstrip div b{display:block;font-size:19px}
+.wkstrip div span{font-size:12px;font-weight:600}
+.wkstrip div.x{background:var(--bad);border-color:var(--bad);color:#fff}
+.wkstrip div.x b{text-decoration:line-through}
+.wkstrip em{display:block;font-size:11px;font-style:normal;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.script{background:var(--card);border-radius:12px;padding:10px 12px;font-size:16px;margin-bottom:12px;font-style:italic}
+.btn.chosen{background:var(--ok);border-color:var(--ok);color:#fff}
+.absline{background:var(--bad-soft);color:var(--bad);border-radius:12px;padding:8px 12px;font-size:15px;font-weight:600;margin-bottom:12px}
+textarea,input[type=text],input[type=email],input[type=number],input[type=date],select{width:100%;font-size:17px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--card);-webkit-appearance:none;appearance:none}
+textarea{min-height:64px;resize:vertical}
+label.f{display:block;margin-bottom:12px}
+label.f>span,.flabel{display:block;font-size:14px;color:var(--muted);margin-bottom:4px;font-weight:600}
+.minilinks{display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:center;margin-top:6px}
+.daytoggles{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.daytoggles button{min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-weight:700}
+.daytoggles button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.mv{display:flex;flex-direction:column;gap:4px;flex:none}
+.mv button{width:40px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-size:13px;line-height:1}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px}
+.switch input{width:26px;height:26px}
+.hist{font-size:15px}
+.hist div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:6px 0}
+/* planning */
+.bignum{font-size:56px;font-weight:800;line-height:1;color:var(--accent)}
+.calc{font-size:15px;margin-top:10px}
+.calc div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+.calc div:last-child{border-bottom:0}
+.calc div span:last-child{font-weight:700;white-space:nowrap}
+.dayrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.dayrow:last-child{border-bottom:0}
+.dayrow .dd{flex:1}
+.dayrow .dd b{display:block}
+.dayrow .dd small{color:var(--muted)}
+.dayrow .amt{font-size:22px;font-weight:800;min-width:56px;text-align:right}
+.absbtn{min-height:40px;border-radius:20px;border:1px solid var(--line);background:var(--card);font-weight:600;padding:0 12px;font-size:14px}
+.absbtn.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.dayrow.isabs .dd b,.dayrow.isabs .amt{color:var(--bad)}
+.warn{color:var(--bad);font-size:14px;font-weight:600;margin-top:4px}
+table.h{width:100%;border-collapse:collapse;font-size:15px}
+table.h th{text-align:right;color:var(--muted);font-weight:600;font-size:13px;padding:4px}
+table.h td{text-align:right;padding:6px 4px;border-top:1px solid var(--line)}
+table.h th:first-child,table.h td:first-child{text-align:left}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 90px);z-index:30;display:flex;justify-content:center;pointer-events:none}
+#toast .t{background:var(--ink);color:var(--bg);border-radius:14px;padding:12px 16px;display:flex;gap:16px;align-items:center;pointer-events:auto;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:520px}
+#toast .t button{background:none;border:0;color:var(--accent);font-weight:700;padding:4px}
+.syncpill{border:0;border-radius:12px;padding:4px 10px;font-size:13px;font-weight:700;background:var(--grey-soft);color:var(--muted);margin-left:8px;white-space:nowrap}
+.syncpill.ok{background:var(--ok-soft);color:var(--ok)}
+.syncpill.busy{background:var(--info-soft);color:var(--info)}
+.syncpill.err,.syncpill.off{background:var(--bad-soft);color:var(--bad)}
+.codebox{font-size:40px;font-weight:800;letter-spacing:8px;text-align:center;padding:14px;background:var(--soft);border-radius:14px;margin:10px 0}
+.brand{text-align:center;margin:30px 0 20px}
+.brand img{width:84px;height:84px;border-radius:20px}
+.brand h1{margin:10px 0 2px;font-size:28px}
+#saved{position:fixed;top:calc(env(safe-area-inset-top) + 14px);right:14px;z-index:20;background:var(--ok);color:#fff;border-radius:12px;padding:4px 10px;font-size:13px;font-weight:700;opacity:0;transition:opacity .25s;pointer-events:none}
+#saved.on{opacity:1}
+#update{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:40}
+#update button{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--info);color:#fff;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div id="saved">✓ opgeslagen</div>
+<div id="update" hidden><button id="updatebtn">Nieuwe versie beschikbaar — tik om te vernieuwen</button></div>
+<script src="config.js"></script>
+<input type="file" id="importfile" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+const APP_VERSION = '2.0.0';
+const KEY = 'eggselent-data-v1';
+const UIKEY = 'eggselent-ui-v1';
+
+/* ---------- datums (altijd lokale tijd, nooit toISOString) ---------- */
+const DAYS = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+const DSH  = ['zo','ma','di','wo','do','vr','za'];
+const MON  = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+const MONL = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+const WEEK = [1,2,3,4,5,6,0]; // maandag eerst
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pd = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d, 12); };
+const addDays = (s, n) => { const d = pd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const dow = s => pd(s).getDay();
+const monIdx = day => (day + 6) % 7;
+const byMon = (x, y) => monIdx(x) - monIdx(y);
+const weekStart = s => addDays(s, -monIdx(dow(s)));
+const todayStr = () => ymd(new Date());
+const fmtShort = s => { const d = pd(s); return `${DSH[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
+const fmtLong = s => { const d = pd(s); return `${DAYS[d.getDay()]} ${d.getDate()} ${MONL[d.getMonth()]}`; };
+const daysBetween = (a, b) => Math.round((pd(b) - pd(a)) / 864e5);
+const weeksBetween = (a, b) => Math.round(daysBetween(weekStart(a), weekStart(b)) / 7);
+function isoWeek(s){
+  const d = pd(s); const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 864e5 + 1) / 7);
+}
+const weekLabel = T => { const E = addDays(T, 6), a = pd(T), b = pd(E); return `${a.getDate()}${a.getMonth() !== b.getMonth() ? ' ' + MON[a.getMonth()] : ''}–${b.getDate()} ${MON[b.getMonth()]}`; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
+
+/* ---------- opslag ---------- */
+function emptyDb(){ return migrate({}); }
+function migrate(d){
+  d.version = 2;
+  d.settings = Object.assign({ walkDays: [], lastBackup: null, orderRound: 1, absenceScript: '' }, d.settings || {});
+  d.addresses = Array.isArray(d.addresses) ? d.addresses : [];
+  d.visits = Array.isArray(d.visits) ? d.visits : [];
+  d.absences = Array.isArray(d.absences) ? d.absences : [];
+  d.orders = (d.orders && typeof d.orders === 'object') ? d.orders : {};
+  for (const a of d.addresses) {
+    if (!Array.isArray(a.prefDays)) a.prefDays = (a.prefDay != null && a.prefDay !== '') ? [+a.prefDay] : [];
+    delete a.prefDay;
+  }
+  for (const v of d.visits) if (v.status !== 'nothome' && v.nextEggs == null) v.nextEggs = v.eggs || 0;
+  return d;
+}
+function load(){
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.addresses) return migrate(d); } catch (e) {}
+  return emptyDb();
+}
+let db = load();
+let _idx = null;
+// fromServer = wijziging komt uit de synchronisatie: niet opnieuw naar de server sturen
+function save(quiet, fromServer){
+  _idx = null;
+  try { localStorage.setItem(KEY, JSON.stringify(db)); if (!quiet) flashSaved(); }
+  catch (e) { alert('Opslaan is mislukt: ' + e.message + '\nMaak zo snel mogelijk een backup via Instellingen.'); }
+  syncDiff(!fromServer);
+}
+function vIdx(){
+  if (!_idx) {
+    _idx = new Map();
+    for (const v of db.visits) { if (!_idx.has(v.addressId)) _idx.set(v.addressId, []); _idx.get(v.addressId).push(v); }
+    for (const arr of _idx.values()) arr.sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+  }
+  return _idx;
+}
+const visitsOf = id => vIdx().get(id) || [];
+const byId = id => db.addresses.find(a => a.id === id);
+const label = a => `${a.street} ${a.number}`.trim();
+
+let persisted = null;
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persisted().then(p => p ? true : navigator.storage.persist()).then(p => { persisted = p; }).catch(() => {});
+}
+
+/* ---------- account + synchronisatie (Supabase) ----------
+   Werkwijze: alles blijft eerst lokaal opgeslagen (werkt zonder bereik). Bij elke save() vergelijken we
+   elk record met een hash van de vorige keer; wat anders is gaat in de wachtrij (outbox). Die wordt
+   verstuurd zodra er internet is. Daarna halen we op wat teamgenoten hebben gewijzigd (server_ts).
+   Conflict: laatste wijziging wint (updated_at), ook op de server afgedwongen. */
+const CFG = Object.assign({ supabaseUrl: '', supabaseKey: '' }, window.EGGSELENT_CONFIG || {},
+  (() => { try { return JSON.parse(localStorage.getItem('eggselent-config')) || {}; } catch (e) { return {}; } })()); // laatste: alleen voor testen
+CFG.supabaseUrl = (CFG.supabaseUrl || '').replace(/\/+$/, '');
+const CLOUD = !!(CFG.supabaseUrl && CFG.supabaseKey);
+const SKEY = 'eggselent-sync-v1', HKEY = 'eggselent-hash-v1';
+const TABLES = ['addresses', 'visits', 'absences', 'orders'];
+const CONFLICT = { addresses: 'team_id,id', visits: 'team_id,id', absences: 'team_id,date', orders: 'team_id,week_start' };
+const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+let S = Object.assign({ session: null, userId: null, team: null, teams: [], lastPull: null, settingsU: null, outbox: {}, lastSync: null }, readJson(SKEY, {}));
+let H = readJson(HKEY, {});
+const saveS = () => { try { localStorage.setItem(SKEY, JSON.stringify(S)); } catch (e) {} };
+const saveH = () => { try { localStorage.setItem(HKEY, JSON.stringify(H)); } catch (e) {} };
+const syncOn = () => CLOUD && S.session && !S.session.expired && S.team;
+const pendingCount = () => Object.keys(S.outbox).length;
+const isAdmin = () => !CLOUD || !S.team || S.team.role === 'admin';
+let syncing = false, syncErr = null, syncTimer = null, renderDeferred = false;
+
+function hash(s){ let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36) + s.length.toString(36); }
+// ISO-tijden van telefoon en server (microseconden) vergelijkbaar maken
+const tsMs = s => s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1').replace(' ', 'T')) : 0;
+
+function syncRecords(){
+  const out = [];
+  db.addresses.forEach((a, i) => out.push(['addresses', a.id, { id: a.id, street: a.street || '', number: a.number || '', name: a.name || '', note: a.note || '', pref_days: a.prefDays || [], sort: i, excluded: !!a.excluded }]));
+  for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered }]);
+  for (const d of db.absences) out.push(['absences', d, { date: d }]);
+  for (const [w, n] of Object.entries(db.orders)) out.push(['orders', w, { week_start: w, amount: n }]);
+  out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '' }]);
+  return out;
+}
+function tombstone(t, k){
+  if (t === 'visits') return { id: k, address_id: k.slice(0, -11), date: k.slice(-10), status: 'none' };
+  if (t === 'absences') return { date: k };
+  if (t === 'orders') return { week_start: k };
+  return { id: k };
+}
+// queue=false: alleen de hashes bijwerken (na ophalen van de server)
+function syncDiff(queue){
+  if (!CLOUD || !S.team) return;
+  const now = new Date().toISOString(), seen = new Set();
+  let n = 0;
+  for (const [t, k, row] of syncRecords()) {
+    const key = t + ':' + k, h = hash(JSON.stringify(row));
+    seen.add(key);
+    if (H[key] !== h) { H[key] = h; if (queue) { S.outbox[key] = { t, k, row, u: now }; n++; } }
+  }
+  for (const key of Object.keys(H)) if (!seen.has(key)) {
+    const i = key.indexOf(':'), t = key.slice(0, i), k = key.slice(i + 1);
+    delete H[key];
+    if (queue && t !== 'settings') { S.outbox[key] = { t, k, row: tombstone(t, k), u: now, del: true }; n++; }
+  }
+  saveH();
+  if (n) { saveS(); syncBadge(); scheduleSync(1500); }
+}
+
+async function api(path, opts){
+  const { method = 'GET', body, headers = {}, auth = true } = opts || {};
+  if (auth) await ensureToken();
+  const go = () => fetch(CFG.supabaseUrl + path, {
+    method,
+    headers: Object.assign({ apikey: CFG.supabaseKey, 'Content-Type': 'application/json' }, auth && S.session ? { Authorization: 'Bearer ' + S.session.access_token } : {}, headers),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let res = await go();
+  if (res.status === 401 && auth && S.session) { await refreshToken(); res = await go(); }
+  const text = await res.text();
+  let data = null; try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+  if (!res.ok) {
+    const m = data && (data.msg || data.error_description || data.message || data.error);
+    const err = new Error(m || 'Serverfout ' + res.status); err.status = res.status; throw err;
+  }
+  return data;
+}
+const rpc = (fn, args) => api('/rest/v1/rpc/' + fn, { method: 'POST', body: args || {} });
+
+let refreshing = null;
+async function ensureToken(){
+  if (!S.session) throw Object.assign(new Error('Niet ingelogd'), { auth: true });
+  if (S.session.expires_at * 1000 - 60000 < Date.now()) await refreshToken();
+}
+function refreshToken(){
+  if (!refreshing) refreshing = (async () => {
+    try {
+      const res = await fetch(CFG.supabaseUrl + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: { apikey: CFG.supabaseKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: S.session.refresh_token }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status >= 400 && res.status < 500) { S.session.expired = true; saveS(); render(); } // opnieuw inloggen; gegevens + wachtrij blijven bewaard
+        throw Object.assign(new Error('Sessie verlopen, log opnieuw in'), { auth: true });
+      }
+      setSession(d);
+    } finally { refreshing = null; }
+  })();
+  return refreshing;
+}
+function setSession(d){
+  S.session = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at || Math.floor(Date.now() / 1000) + (d.expires_in || 3600), email: d.user ? d.user.email : (S.session && S.session.email) };
+  if (d.user) S.newUserId = d.user.id;
+  saveS();
+}
+async function sendCode(email){ await api('/auth/v1/otp', { method: 'POST', auth: false, body: { email, create_user: true } }); }
+async function verifyCode(email, token){
+  const d = await api('/auth/v1/verify', { method: 'POST', auth: false, body: { type: 'email', email, token } });
+  setSession(d);
+  if (S.userId && S.userId !== S.newUserId) wipeLocal(); // andere gebruiker op deze telefoon
+  S.userId = S.newUserId; delete S.newUserId;
+  const teams = await rpc('my_teams');
+  S.teams = teams || [];
+  if (S.team && !S.teams.some(t => t.team_id === S.team.id)) S.team = null;
+  saveS();
+}
+function wipeLocal(){
+  db = emptyDb(); H = {}; S.outbox = {}; S.team = null; S.lastPull = null; S.settingsU = null;
+  saveH(); saveS(); save(true, true);
+}
+function logout(){
+  if (pendingCount() && !confirm(`${pendingCount()} wijziging(en) zijn nog niet verstuurd (geen internet?). Als je nu uitlogt, gaan ze verloren. Toch uitloggen?`)) return;
+  const tok = S.session && S.session.access_token;
+  if (tok) fetch(CFG.supabaseUrl + '/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + tok } }).catch(() => {});
+  wipeLocal();
+  S = Object.assign(S, { session: null, userId: null, teams: [] }); saveS();
+  ui = { view: 'login' }; fixDate(); saveUi(); render();
+}
+
+// Bezoeken krijgen een vaste sleutel per huis per dag, zodat twee telefoons hetzelfde bezoek niet dubbel aanmaken.
+function rekeyVisits(){
+  const m = new Map();
+  for (const v of db.visits) { const id = `${v.addressId}_${v.date}`, ex = m.get(id); v.id = id; if (!ex || (v.ts || 0) >= (ex.ts || 0)) m.set(id, v); }
+  db.visits = [...m.values()];
+}
+const hasLocalData = () => db.addresses.length > 0 || db.visits.length > 0;
+
+async function createTeam(name, memberName){
+  const id = await rpc('create_team', { p_name: name, p_member_name: memberName });
+  S.team = { id, name, role: 'admin', memberName };
+  S.teams = await rpc('my_teams');
+  rekeyVisits();
+  H = {}; S.outbox = {}; S.lastPull = null; S.settingsU = null;
+  saveS(); save(true);            // alles wat op deze telefoon staat gaat in de wachtrij → naar het team
+  await syncNow();
+}
+async function chooseTeam(t){
+  db = emptyDb(); H = {}; S.outbox = {}; S.lastPull = null; S.settingsU = null;
+  S.team = { id: t.team_id, name: t.team_name, role: t.role, memberName: t.member_name };
+  saveH(); saveS(); save(true, true);
+  await syncNow();
+}
+async function joinTeam(code, memberName){
+  await rpc('join_team', { p_code: code, p_member_name: memberName });
+  S.teams = await rpc('my_teams');
+  const t = S.teams[S.teams.length - 1];
+  await chooseTeam(S.teams.find(x => x.team_id === t.team_id));
+}
+
+function scheduleSync(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms || 0); }
+async function syncNow(){
+  if (!syncOn() || syncing) return;
+  if (!navigator.onLine) { syncBadge(); return; }
+  syncing = true; syncBadge();
+  try {
+    await push(); await pull(); if (pendingCount()) await push();
+    syncErr = null; S.lastSync = new Date().toISOString();
+  } catch (e) { syncErr = e; console.warn('sync', e); }
+  finally { syncing = false; saveS(); syncBadge(); }
+}
+async function push(){
+  const entries = Object.values(S.outbox);
+  if (!entries.length) return;
+  const done = e => { const key = e.t + ':' + e.k; if (S.outbox[key] === e) delete S.outbox[key]; };
+  const st = entries.find(e => e.t === 'settings');
+  if (st) {
+    if (S.team.role === 'admin') await api(`/rest/v1/teams?id=eq.${S.team.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: Object.assign({}, st.row, { settings_updated_at: st.u }) });
+    done(st);
+  }
+  for (const t of TABLES) for (const del of [false, true]) {
+    const list = entries.filter(e => e.t === t && !!e.del === del);
+    for (let i = 0; i < list.length; i += 500) {
+      const chunk = list.slice(i, i + 500);
+      await api(`/rest/v1/${t}?on_conflict=${CONFLICT[t]}`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: chunk.map(e => Object.assign({}, e.row, { team_id: S.team.id, updated_at: e.u, deleted: del })) });
+      chunk.forEach(done); saveS();
+    }
+  }
+}
+async function pull(){
+  const tid = S.team.id;
+  const since = S.lastPull ? new Date(tsMs(S.lastPull) - 60000).toISOString() : null; // minuut overlap: veilig, samenvoegen is herhaalbaar
+  let maxTs = S.lastPull, changed = false;
+  const teams = await api(`/rest/v1/teams?id=eq.${tid}&select=*`);
+  if (!teams || !teams.length) { S.team = null; saveS(); toast('Je bent geen lid meer van dit team.'); render(); return; }
+  const team = teams[0];
+  S.team.name = team.name;
+  const pend = S.outbox['settings:team'];
+  if ((!S.settingsU || tsMs(team.settings_updated_at) > tsMs(S.settingsU)) && !(pend && tsMs(pend.u) > tsMs(team.settings_updated_at))) {
+    Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '' });
+    S.settingsU = team.settings_updated_at; if (pend) delete S.outbox['settings:team']; changed = true;
+  }
+  for (const t of TABLES) {
+    for (let off = 0; ; off += 1000) {
+      const rows = await api(`/rest/v1/${t}?team_id=eq.${tid}${since ? '&server_ts=gt.' + encodeURIComponent(since) : ''}&order=server_ts.asc&limit=1000&offset=${off}`);
+      for (const r of rows) { if (mergeRow(t, r)) changed = true; if (!maxTs || tsMs(r.server_ts) > tsMs(maxTs)) maxTs = r.server_ts; }
+      if (rows.length < 1000) break;
+    }
+  }
+  if (changed) sortAddresses();
+  S.lastPull = maxTs || team.server_ts; // servertijd, niet de klok van de telefoon
+  saveS();
+  if (changed) { save(true, true); safeRender(); }
+}
+let pulledSort = {};
+function mergeRow(t, r){
+  const k = t === 'absences' ? r.date : t === 'orders' ? r.week_start : r.id;
+  const key = t + ':' + k, pend = S.outbox[key];
+  if (pend && tsMs(pend.u) > tsMs(r.updated_at)) return false; // eigen nieuwere wijziging wacht nog
+  if (pend) delete S.outbox[key];
+  if (t === 'addresses') {
+    const i = db.addresses.findIndex(a => a.id === r.id);
+    if (r.deleted) { if (i < 0) return false; db.addresses.splice(i, 1); return true; }
+    const a = { id: r.id, street: r.street, number: r.number, name: r.name, note: r.note, prefDays: r.pref_days || [], excluded: r.excluded };
+    if (i < 0) db.addresses.push(a); else Object.assign(db.addresses[i], a);
+    pulledSort[r.id] = r.sort; return true;
+  }
+  if (t === 'visits') {
+    const i = db.visits.findIndex(v => v.id === r.id);
+    if (r.deleted) { if (i < 0) return false; db.visits.splice(i, 1); return true; }
+    const v = { id: r.id, addressId: r.address_id, date: r.date, status: r.status, eggs: r.eggs, nextDate: r.next_date, nextEggs: r.next_eggs, nextManual: r.next_manual, note: r.note, double: r.double, offered: r.offered, ts: tsMs(r.updated_at) };
+    if (i < 0) db.visits.push(v); else db.visits[i] = Object.assign(db.visits[i], v);
+    return true;
+  }
+  if (t === 'absences') {
+    const has = db.absences.includes(r.date);
+    if (r.deleted === has) { db.absences = r.deleted ? db.absences.filter(d => d !== r.date) : [...db.absences, r.date].sort(); return true; }
+    return false;
+  }
+  if (t === 'orders') {
+    if (r.deleted) { if (!(r.week_start in db.orders)) return false; delete db.orders[r.week_start]; return true; }
+    db.orders[r.week_start] = r.amount; return true;
+  }
+}
+function sortAddresses(){
+  const pos = new Map(db.addresses.map((a, i) => [a.id, a.id in pulledSort ? pulledSort[a.id] : i]));
+  db.addresses = db.addresses.map((a, i) => ({ a, i })).sort((x, y) => pos.get(x.a.id) - pos.get(y.a.id) || x.i - y.i).map(x => x.a);
+  pulledSort = {};
+}
+function safeRender(){
+  const el = document.activeElement;
+  if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) { renderDeferred = true; return; }
+  render();
+}
+document.addEventListener('focusout', () => { if (renderDeferred) setTimeout(() => { if (renderDeferred && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName)) { renderDeferred = false; render(); } }, 50); });
+
+function syncState(){
+  if (!syncOn()) return null;
+  const n = pendingCount();
+  if (!navigator.onLine) return { cls: 'off', txt: `offline${n ? ' · ' + n : ''}` };
+  if (syncing) return { cls: 'busy', txt: '⟳' };
+  if (syncErr) return { cls: 'err', txt: '⚠️ sync' };
+  if (n) return { cls: 'busy', txt: `⟳ ${n}` };
+  return { cls: 'ok', txt: '✓' };
+}
+const syncPill = () => { const s = syncState(); return s ? `<button id="syncpill" class="syncpill ${s.cls}" data-act="syncnow">${s.txt}</button>` : ''; };
+function syncBadge(){ const el = document.getElementById('syncpill'), s = syncState(); if (el && s) { el.className = 'syncpill ' + s.cls; el.textContent = s.txt; } }
+if (CLOUD) {
+  window.addEventListener('online', () => { syncBadge(); syncNow(); });
+  window.addEventListener('offline', syncBadge);
+  setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, 60000);
+}
+
+/* ---------- afspraken ---------- */
+const DEC = v => v.status !== 'nothome';                 // koop / geen eieren = beslissend bezoek
+const agEggs = v => v ? (v.nextEggs ?? v.eggs ?? 0) : 0;   // afgesproken aantal voor volgende keer
+const weeksOf = v => (v && v.nextDate) ? Math.max(1, weeksBetween(v.date, v.nextDate)) : null;
+const isAbsent = d => db.absences.includes(d);
+function lastDecisive(vs, before){ let r = null; for (const v of vs) { if (v.date >= before) break; if (DEC(v)) r = v; } return r; }
+// Een bezoek "sluit de week af", behalve als er is afgesproken later in dezelfde week terug te komen.
+const isFinal = (v, WE) => DEC(v) && !(v.nextDate && v.nextDate > v.date && v.nextDate <= WE);
+const walkDaysSorted = () => db.settings.walkDays.slice().sort(byMon);
+const walkDates = T => walkDaysSorted().map(d => addDays(T, monIdx(d)));
+const prefsOf = a => (a.prefDays || []).filter(d => db.settings.walkDays.includes(d)).sort(byMon);
+
+// Standaard volgende datum: voorkeursdag in de doelweek; is de bezorger dan afwezig, de eerstvolgende loopdag waarop wél gelopen wordt.
+function nextCandidates(a, D, k){
+  const T = addDays(weekStart(D), 7 * k);
+  let c = [...prefsOf(a).map(d => addDays(T, monIdx(d)))];
+  if (db.settings.walkDays.includes(dow(D))) c.push(addDays(T, monIdx(dow(D))));
+  c.push(...walkDates(T));
+  c = [...new Set(c)];
+  if (k === 0) c = c.filter(x => x > D);
+  return c;
+}
+function defaultNext(a, D, k){
+  if (!db.settings.walkDays.length) return addDays(D, 7 * Math.max(1, k));
+  const c = nextCandidates(a, D, k);
+  return c.find(x => !isAbsent(x)) || c[0] || addDays(D, 7 * Math.max(1, k));
+}
+// Valt de vaste dag van deze klant bij het volgende bezoek op een dag dat de bezorger afwezig is?
+function nextVisitImpact(a, D){
+  if (!db.settings.walkDays.length || !db.absences.length) return null;
+  const ag = lastDecisive(visitsOf(a.id), D);
+  const k = weeksOf(ag) || 1;
+  const c = nextCandidates(a, D, k);
+  if (!c.length || !isAbsent(c[0])) return null;
+  const T = addDays(weekStart(D), 7 * k);
+  return { k, T, date: c[0], alt: c.find(x => !isAbsent(x)) || null, days: walkDates(T), agreed: agEggs(ag) };
+}
+const DEFAULT_SCRIPT = 'Volgende week kan ik op {dag} niet langskomen. Onze eieren blijven veel langer vers dan eieren uit de supermarkt. Wilt u deze keer voor 2 weken nemen?';
+
+/* ---------- route van de dag ---------- */
+function plan(D){
+  const W = weekStart(D), WE = addDays(W, 6), di = monIdx(dow(D));
+  const shown = [], hidden = [];
+  db.addresses.forEach((a, i) => {
+    if (a.excluded) return;
+    const vs = visitsOf(a.id);
+    const today = vs.find(v => v.date === D) || null;
+    const earlier = vs.filter(v => v.date >= W && v.date < D);
+    const done = earlier.filter(v => isFinal(v, WE)).pop();
+    const nothome = earlier.filter(v => v.status === 'nothome');
+    const ag = lastDecisive(vs, D);
+    const badges = [];
+    let show = true, reason = '';
+    if (nothome.length) badges.push(['bad', 'Niet thuis op ' + nothome.map(v => DSH[dow(v.date)]).join(', ')]);
+    if (done) { show = false; reason = `Al gedaan op ${fmtShort(done.date)}`; }
+    else if (ag && ag.nextDate && ag.nextDate > WE) { show = false; reason = `Volgende keer: ${fmtShort(ag.nextDate)}`; }
+    else if (ag && ag.nextDate && ag.nextDate >= W) {
+      // afspraak valt in deze week: die dag telt, niet de voorkeursdag
+      if (ag.nextDate > D) { show = false; reason = `Afgesproken op ${fmtShort(ag.nextDate)}`; }
+      else if (ag.nextDate < D && !nothome.length) badges.push(['info', `Inhalen: afspraak was ${DSH[dow(ag.nextDate)]}${isAbsent(ag.nextDate) ? ' (afwezig)' : ''}`]);
+    } else {
+      const prefs = prefsOf(a);
+      if (prefs.length) {
+        if (!prefs.some(d => monIdx(d) <= di)) { show = false; reason = 'Voorkeur ' + prefs.map(d => DAYS[d]).join(' of '); }
+        else if (!prefs.includes(dow(D)) && !nothome.length) {
+          const missed = prefs.filter(d => monIdx(d) < di);
+          badges.push(['info', 'Inhalen van ' + missed.map(d => DSH[d] + (isAbsent(addDays(W, monIdx(d))) ? ' (afwezig)' : '')).join(', ')]);
+        }
+      }
+      if (ag && ag.nextDate && ag.nextDate < W) badges.push(['grey', `Gepland was ${fmtShort(ag.nextDate)}`]);
+    }
+    const it = { a, i, today, badges, ag, exp: ag ? agEggs(ag) : null, reason };
+    if (today || show) shown.push(it); else hidden.push(it);
+  });
+  return { shown, hidden };
+}
+
+/* ---------- voorspelling ---------- */
+// Per adres: wat verwachten we in week T?
+function forecast(T){
+  const TE = addDays(T, 6), rows = [];
+  for (const a of db.addresses) {
+    const vs = visitsOf(a.id);
+    const inT = vs.filter(v => v.date >= T && v.date <= TE);
+    if (inT.some(v => isFinal(v, TE))) {
+      rows.push({ a, kind: 'verkocht', eggs: sum(inT.filter(DEC), v => v.eggs || 0), date: inT.filter(DEC).pop().date });
+      continue;
+    }
+    if (a.excluded) continue;
+    const ag = lastDecisive(vs, addDays(TE, 1));
+    if (!ag) { rows.push({ a, kind: 'nieuw', eggs: 0 }); continue; }
+    let n = ag.nextDate; const e = agEggs(ag);
+    if (!n || n > TE) continue;
+    if (n >= T) { rows.push({ a, kind: 'afgesproken', eggs: e, date: n }); continue; }
+    if (daysBetween(n, T) > 56) { rows.push({ a, kind: 'onzeker', eggs: 0 }); continue; }
+    const k = weeksOf(ag) || 1;
+    while (n < T) n = addDays(n, 7 * k);
+    if (n <= TE) {
+      // ritme doorgetrokken; valt dat op een afwezige dag, dan schuift het (net als in de app) naar een loopdag
+      if (db.settings.walkDays.length && (isAbsent(n) || !db.settings.walkDays.includes(dow(n)))) {
+        const alt = defaultNext(a, addDays(T, -7), 1); if (alt >= T && alt <= TE) n = alt;
+      }
+      rows.push({ a, kind: 'verwacht', eggs: e, date: n });
+    }
+  }
+  return rows;
+}
+// Hoe betrouwbaar waren de afspraken in de afgelopen (max 8) afgeronde weken?
+function realisation(beforeWeek){
+  let agreed = 0, got = 0, extra = 0, weeks = 0;
+  const perWeek = [];
+  for (let k = 8; k >= 1; k--) {
+    const w = addDays(beforeWeek, -7 * k), wE = addDays(w, 6);
+    let wa = 0, wg = 0, wx = 0, any = false;
+    for (const a of db.addresses) {
+      const vs = visitsOf(a.id);
+      const inW = vs.filter(v => v.date >= w && v.date <= wE);
+      const sold = sum(inW.filter(DEC), v => v.eggs || 0);
+      if (inW.length) any = true;
+      const ag = lastDecisive(vs, w);
+      if (ag && ag.nextDate && ag.nextDate >= w && ag.nextDate <= wE) {
+        // "voor 2 weken" genomen: het extra deel was een bewuste keuze, geen afwijking van de afspraak
+        const dbl = inW.some(v => v.double) ? Math.max(0, sold - agEggs(ag)) : 0;
+        wa += agEggs(ag) + dbl; wg += sold;
+      }
+      else wx += sold;
+    }
+    perWeek.push({ w, agreed: wa, sold: wg + wx });
+    if (any) { weeks++; agreed += wa; got += wg; extra += wx; }
+  }
+  return { ratio: agreed ? got / agreed : null, extraPerWeek: weeks ? extra / weeks : 0, weeks, perWeek };
+}
+const soldIn = (T) => { const TE = addDays(T, 6); return sum(db.visits.filter(v => v.date >= T && v.date <= TE && DEC(v)), v => v.eggs || 0); };
+
+function statusPill(v, exp){
+  if (!v) return `<span class="st open">${exp != null ? exp : 'open'}</span>`;
+  if (v.status === 'nothome') return '<span class="st nothome">✗ n.t.</span>';
+  if (v.status === 'none') return '<span class="st none">0</span>';
+  return `<span class="st sold">${v.eggs}</span>`;
+}
+
+/* ---------- UI-status (onthoudt waar je was, ook na afsluiten) ---------- */
+let ui = (() => { try { return JSON.parse(localStorage.getItem(UIKEY)) || {}; } catch (e) { return {}; } })();
+function fixDate(){
+  const t = todayStr();
+  if (!ui.date || ui.dateSetOn !== t) {
+    ui.date = t; ui.dateSetOn = t; ui.ow = addDays(weekStart(t), 7);
+    if (ui.view === 'house') ui.view = 'home';
+  }
+  ui.ow ||= addDays(weekStart(t), 7);
+}
+fixDate();
+ui.view ||= 'home';
+const saveUi = () => { try { localStorage.setItem(UIKEY, JSON.stringify(ui)); } catch (e) {} };
+function go(view, extra){ Object.assign(ui, { view }, extra || {}); saveUi(); render(); window.scrollTo(0, 0); }
+
+function upcomingAbsences(from, days){
+  const to = addDays(from, days);
+  return db.absences.filter(d => d >= from && d <= to).sort();
+}
+
+/* ---------- schermen ---------- */
+function tabs(on){
+  const t = (v, ic, l) => `<button data-act="tab" data-v="${v}" class="${on === v ? 'on' : ''}"><span class="ic">${ic}</span>${l}</button>`;
+  return `<nav class="tabs">${t('home', '🥚', 'Ronde')}${t('order', '📦', 'Planning')}${t('route', '🗺️', 'Route')}${t('settings', '⚙️', 'Instellingen')}</nav>`;
+}
+
+function vHome(){
+  const D = ui.date, T = todayStr(), p = plan(D), wd = db.settings.walkDays;
+  const isWalk = wd.includes(dow(D));
+  let sold = 0, eggs = 0, nh = 0, open = 0, expOpen = 0;
+  for (const x of p.shown) {
+    if (!x.today) { open++; expOpen += x.exp || 0; }
+    else if (x.today.status === 'nothome') nh++;
+    else { sold++; eggs += x.today.eggs || 0; }
+  }
+  const next = p.shown.find(x => !x.today);
+  let h = `<header class="top"><h1>${esc(S.team ? S.team.name : 'Eggselent')}</h1><div class="side r">${D !== T ? '<button class="link" data-act="today">Vandaag</button>' : ''}${syncPill()}</div></header><main>`;
+  h += `<div class="datebar"><button class="round" data-act="day" data-n="-1" aria-label="Vorige dag">‹</button>
+    <div class="d"><b>${esc(fmtLong(D))}</b><small class="muted">week ${isoWeek(D)}${D === T ? ' · vandaag' : ''}</small></div>
+    <button class="round" data-act="day" data-n="1" aria-label="Volgende dag">›</button></div>`;
+
+  if (!db.addresses.length) {
+    h += `<div class="notice"><b>Welkom!</b><br>1. Kies bij <b>Instellingen</b> op welke dagen jullie lopen.<br>2. Zet bij <b>Route</b> de adressen in looprichting (je kunt een hele lijst in één keer plakken).<br>3. Daarna kun je hier de ronde lopen.</div>
+      <button class="btn primary big mb" data-act="tab" data-v="route">Route invoeren</button>`;
+    return h + '</main>' + tabs('home');
+  }
+  if (isAbsent(D)) h += `<div class="notice bad"><b>Afwezig gemeld voor vandaag.</b> Er is geen ronde gepland; adressen schuiven door naar de volgende loopdag.</div>`;
+  const abs = upcomingAbsences(D, 14).filter(d => d !== D);
+  const imps = new Map();
+  for (const x of p.shown) { const im = nextVisitImpact(x.a, D); if (im) imps.set(x.a.id, im); }
+  const openImp = p.shown.filter(x => !x.today && imps.has(x.a.id));
+  const extra = sum(openImp, x => imps.get(x.a.id).agreed);
+  const doubled = p.shown.filter(x => x.today && x.today.double).length;
+  if (abs.length) h += `<div class="notice bad">🚫 <b>Geen ronde op ${abs.map(fmtShort).join(', ')}.</b> ${imps.size
+    ? `Bij <b>${imps.size}</b> klant${imps.size > 1 ? 'en' : ''} van vandaag valt dan de vaste dag uit (⚠️ in de lijst): bied aan om voor 2 weken te nemen.${extra ? ` Neem tot <b>+${extra} eieren</b> extra mee.` : ''}${doubled ? ` Al ${doubled}× voor 2 weken genomen.` : ''}`
+    : 'Vertel het aan de deur en spreek zo nodig een andere dag af.'}</div>`;
+  if (!wd.length) h += `<div class="notice info">Tip: stel bij <b>Instellingen</b> de loopdagen in. Nu worden alle adressen elke dag getoond.</div>`;
+  else if (!isWalk && !isAbsent(D)) h += `<div class="notice info">${esc(DAYS[dow(D)])} is geen vaste loopdag. Je ziet hier alles wat deze week nog open staat.</div>`;
+
+  const lb = db.settings.lastBackup;
+  if (db.visits.length > 20 && (!lb || daysBetween(lb.slice(0, 10), T) > 7))
+    h += `<div class="notice">💾 ${lb ? `Laatste backup ${daysBetween(lb.slice(0, 10), T)} dagen geleden.` : 'Er is nog geen backup gemaakt.'} <button class="link" data-act="tab" data-v="settings">Backup maken</button></div>`;
+
+  h += `<div class="stats"><div class="stat"><b>${sold + nh}/${p.shown.length}</b><span>gedaan${nh ? ` · ${nh} n.t.` : ''}</span></div><div class="stat"><b>${eggs}</b><span>verkocht</span></div><div class="stat"><b>${expOpen}</b><span>nog verwacht</span></div></div>`;
+  if (next) h += `<button class="btn primary big mb" data-act="open" data-id="${next.a.id}">${sold + nh === 0 ? 'Start ronde' : 'Verder'} bij ${esc(label(next.a))} ›</button>`;
+  else if (p.shown.length) h += `<div class="notice">🎉 Alle adressen van vandaag zijn gedaan.</div>`;
+  else h += `<div class="notice">Vandaag staan er geen adressen gepland.</div>`;
+
+  if (p.shown.length) {
+    h += '<div class="list">';
+    p.shown.forEach((x, n) => {
+      const im = imps.get(x.a.id);
+      const bad = (im ? `<span class="badge bad">⚠️ ${DSH[dow(im.date)]} ${pd(im.date).getDate()} uit${x.today && x.today.double ? ' · 2× ✓' : ''}</span>` : '') + x.badges.map(b => `<span class="badge ${b[0]}">${esc(b[1])}</span>`).join('');
+      const nm = x.a.name ? esc(x.a.name) : '';
+      h += `<button class="row ${x.a.id === ui.id ? 'cur' : ''}" data-act="open" data-id="${x.a.id}"><span class="no">${n + 1}</span>
+        <span class="adr"><b>${esc(label(x.a))}</b>${bad || nm ? `<small>${bad}${nm}</small>` : ''}</span>${statusPill(x.today, x.exp)}</button>`;
+    });
+    h += '</div>';
+  }
+  if (p.hidden.length) {
+    h += `<button class="sectiontoggle" data-act="togglehidden">${ui.showHidden ? '▾' : '▸'} Niet vandaag (${p.hidden.length})</button>`;
+    if (ui.showHidden) {
+      h += '<div class="list">';
+      for (const x of p.hidden) h += `<button class="row dim" data-act="open" data-id="${x.a.id}"><span class="no"></span><span class="adr"><b>${esc(label(x.a))}</b><small>${esc(x.reason)}</small></span></button>`;
+      h += '</div>';
+    }
+  }
+  return h + '</main>' + tabs('home');
+}
+
+function vHouse(){
+  const D = ui.date, a = byId(ui.id);
+  if (!a) { ui.view = 'home'; return vHome(); }
+  const p = plan(D);
+  const pos = p.shown.findIndex(x => x.a.id === a.id);
+  const item = p.shown[pos] || p.hidden.find(x => x.a.id === a.id);
+  const vs = visitsOf(a.id);
+  const v = vs.find(x => x.date === D);
+  const before = vs.filter(x => x.date < D);
+  const last4 = before.slice(-4).reverse();
+  const ag = lastDecisive(vs, D);
+
+  let h = `<header class="top"><div class="side"><button class="link" data-act="tab" data-v="home">‹ Ronde</button></div>
+    <h1 style="text-align:center;font-size:16px" class="muted">${pos >= 0 ? `${pos + 1} van ${p.shown.length}` : 'niet in ronde vandaag'}</h1>
+    <div class="side r"><button class="link" data-act="edit" data-id="${a.id}">Wijzig</button></div></header><main>`;
+
+  const imp = nextVisitImpact(a, D);
+  const abs = upcomingAbsences(addDays(D, 1), 21);
+  if (abs.length && !imp) h += `<div class="absline">🚫 Geen ronde op ${abs.map(fmtShort).join(', ')} — vertel het even</div>`;
+
+  h += `<div class="addr mb"><h2>${esc(label(a))}</h2>`;
+  const sub = [];
+  if (a.name) sub.push(esc(a.name));
+  const prefs = (a.prefDays || []).slice().sort(byMon);
+  if (prefs.length) sub.push('voorkeur ' + prefs.map(d => DAYS[d]).join(' / '));
+  if (sub.length) h += `<div class="sub">${sub.join(' · ')}</div>`;
+  if (item) {
+    const b = item.badges.map(b => `<span class="badge ${b[0]}">${esc(b[1])}</span>`).join('');
+    const r = (pos < 0 && item.reason) ? `<span class="badge grey">${esc(item.reason)}</span>` : '';
+    if (b || r) h += `<div style="margin-top:6px">${b}${r}</div>`;
+  }
+  if (a.excluded) h += `<div style="margin-top:6px"><span class="badge bad">Uitgesloten van de route</span></div>`;
+  if (a.note) h += `<div class="fixednote">📝 ${esc(a.note)}</div>`;
+  h += '</div>';
+
+  // vaste dag valt bij het volgende bezoek uit: groot in beeld, met tekst en twee oplossingen
+  if (imp) {
+    const nhNow = v && v.status === 'nothome';
+    const dayTxt = `${DAYS[dow(imp.date)]} ${pd(imp.date).getDate()} ${MONL[pd(imp.date).getMonth()]}`;
+    const script = (db.settings.absenceScript || DEFAULT_SCRIPT).replace(/\{dag\}/g, dayTxt);
+    const dblLabel = imp.k === 1 ? 'Voor 2 weken' : 'Voor 2 keer';
+    const isDbl = v && v.double, isAlt = v && !v.double && DEC(v) && imp.alt && v.nextDate === imp.alt;
+    h += `<div class="alertcard"><div class="at">⚠️ ${imp.k === 1 ? 'Volgende week' : 'Bij het volgende bezoek'} valt hun dag uit: ${esc(dayTxt)} geen ronde</div>
+      <div class="wkstrip">${imp.days.map(d => `<div class="${isAbsent(d) ? 'x' : 'ok'}"><b>${DSH[dow(d)]} ${pd(d).getDate()}</b><span>${isAbsent(d) ? 'geen ronde' : 'wel ronde'}</span>${d === imp.date ? '<em>hun dag</em>' : ''}</div>`).join('')}</div>
+      <div class="script">💬 "${esc(script)}"</div>`;
+    if (nhNow) h += `<div style="color:var(--bad);font-weight:600">Niet thuis: probeer het bij het inhalen nog eens.</div>`;
+    else {
+      if (imp.agreed > 0) h += `<button class="btn big mb ${isDbl ? 'chosen' : 'primary'}" data-act="double">${isDbl ? '✓ ' : ''}${dblLabel}: ${2 * imp.agreed} eieren nu</button>`;
+      if (imp.alt) h += `<button class="btn ${isAlt ? 'chosen' : ''}" data-act="altday" data-date="${imp.alt}">${isAlt ? '✓ ' : ''}Liever andere dag: ${esc(fmtShort(imp.alt))}</button>`;
+      else h += `<div style="color:var(--bad);font-weight:600">Die hele week is er geen ronde: alleen "${dblLabel.toLowerCase()}" kan.</div>`;
+    }
+    h += '</div>';
+  }
+
+  // laatste 4 keer
+  h += '<div class="card"><h2>Laatste 4 keer</h2><div class="tiles">';
+  for (let k = 0; k < 4; k++) {
+    const x = last4[k];
+    if (!x) { h += '<div class="tile empty"><div class="dt">&nbsp;</div><div class="v">–</div><div class="l">&nbsp;</div></div>'; continue; }
+    if (x.status === 'nothome') h += `<div class="tile nothome"><div class="dt">${esc(fmtShort(x.date))}</div><div class="v">✗</div><div class="l">niet thuis</div></div>`;
+    else h += `<div class="tile ${x.status === 'sold' ? 'sold' : ''}"><div class="dt">${esc(fmtShort(x.date))}</div><div class="v">${x.eggs}</div><div class="l">${x.status === 'none' ? 'geen' : 'eieren'}</div></div>`;
+  }
+  h += '</div>';
+  if (ag) h += `<div class="agree">Afgesproken voor nu: <b>${agEggs(ag)} eieren</b>${ag.nextDate && ag.nextDate !== D ? ` <span class="muted">(was gepland ${esc(fmtShort(ag.nextDate))})</span>` : ''}${ag.note ? `<br><i>${esc(ag.note)}</i>` : ''}</div>`;
+  else if (!before.length) h += `<div class="agree muted">Nog geen eerdere bezoeken.</div>`;
+  h += '</div>';
+
+  // nu
+  const nhOn = v && v.status === 'nothome', noOn = v && v.status === 'none';
+  h += `<div class="card"><h2>Nu · ${esc(fmtShort(D))}</h2>
+    <div class="seg"><button data-act="nothome" class="${nhOn ? 'on nh' : ''}">✗ Niet thuis</button><button data-act="none" class="${noOn ? 'on no' : ''}">Geen eieren</button></div>`;
+  if (!v && ag && agEggs(ag) > 0) h += `<button class="btn primary big mb" data-act="same">✓ Zoals afgesproken: ${agEggs(ag)}</button>`;
+  h += `<div class="${nhOn ? 'dim-block' : ''}"><div class="stepper"><button data-act="minus" aria-label="Minder">−</button>
+      <div class="val"><b>${v && !nhOn ? v.eggs : '–'}</b><span>eieren nu</span></div>
+      <button data-act="plus" aria-label="Meer">+</button></div>
+    <div class="chips eggchips">${[6, 10, 12, 15, 20, 30].map(n => `<button data-act="eggs" data-n="${n}" class="${v && v.status === 'sold' && v.eggs === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
+  h += '</div>';
+
+  // volgende keer: aantal + wanneer
+  const dis = !v || nhOn;
+  h += `<div class="card ${dis ? 'dim-block' : ''}"><h2>Volgende keer</h2>`;
+  if (dis) {
+    h += `<div class="muted" style="font-size:15px">${nhOn ? `Niet thuis: de afspraak blijft staan${ag ? ` (${agEggs(ag)} eieren)` : ''}.` : 'Vul eerst in wat er nu is afgenomen (of "Geen eieren").'}</div></div>`;
+  } else {
+    h += `<span class="flabel">Hoeveel eieren</span>
+      <div class="stepper sm"><button data-act="nminus" aria-label="Minder">−</button><div class="val"><b>${v.nextEggs ?? 0}</b><span>eieren</span></div><button data-act="nplus" aria-label="Meer">+</button></div>
+      <div class="chips eggchips mb">${[6, 10, 12, 15, 20, 30].map(n => `<button data-act="negg" data-n="${n}" class="${v.nextEggs === n ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    const W = weekStart(D);
+    const kSel = v.nextDate ? weeksBetween(D, v.nextDate) : null;
+    const laterThisWeek = walkDates(W).some(x => x > D);
+    h += `<span class="flabel">Wanneer</span><div class="chips mb">
+      ${laterThisWeek ? `<button data-act="nweek" data-n="0" class="${kSel === 0 ? 'on' : ''}">Deze week</button>` : ''}
+      ${[1, 2, 3, 4].map(n => `<button data-act="nweek" data-n="${n}" class="${kSel === n ? 'on' : ''}">${n === 1 ? 'Volgende week' : n + ' wkn'}</button>`).join('')}</div>`;
+    let dayChips = [];
+    if (kSel != null && kSel >= 0 && kSel <= 4 && db.settings.walkDays.length) {
+      dayChips = walkDates(addDays(W, 7 * kSel)).filter(x => kSel > 0 || x > D);
+    }
+    const custom = v.nextDate && !dayChips.includes(v.nextDate);
+    h += `<div class="chips">${dayChips.map(x => isAbsent(x)
+        ? `<button class="abs" disabled>${esc(fmtShort(x))} ✗</button>`
+        : `<button data-act="nday" data-date="${x}" class="${v.nextDate === x ? 'on' : ''}">${esc(fmtShort(x))}</button>`).join('')}
+      <button data-act="pickdate" class="${custom ? 'on' : ''}">Datum…</button></div>`;
+    if (custom || ui.dateOpen) h += `<label class="f" style="margin:10px 0 0"><input type="date" data-field="nextDate" value="${esc(v.nextDate || '')}" min="${addDays(D, 1)}"></label>`;
+    if (v.nextDate) {
+      const k = Math.max(0, weeksBetween(D, v.nextDate));
+      const pref = nextCandidates(a, D, k)[0];
+      const moved = pref && pref !== v.nextDate && isAbsent(pref);
+      h += `<div class="nextline">${moved ? `<span style="color:var(--bad)">${esc(fmtShort(pref))} geen ronde</span> → ` : '→ '}<b>${esc(fmtLong(v.nextDate))}</b> · <b>${v.nextEggs ?? 0} eieren</b>${isAbsent(v.nextDate) ? '<div class="warn">Let op: op die dag ben je afwezig gemeld.</div>' : ''}</div>`;
+    }
+    h += '</div>';
+  }
+
+  h += `<div class="card"><h2>Opmerking bij dit bezoek</h2><textarea data-field="vnote" placeholder="Bijv. betaalt volgende keer, wil liever grote eieren…" ${v ? '' : 'disabled'}>${esc(v ? v.note || '' : '')}</textarea>${v ? '' : '<small class="muted">Kan zodra er iets is ingevuld.</small>'}</div>`;
+
+  h += `<div class="minilinks">${v ? '<button class="link" data-act="clear">Invoer wissen</button>' : ''}
+    ${a.excluded ? '<button class="link" data-act="include">Weer opnemen in route</button>' : '<button class="link" data-act="exclude" style="color:var(--bad)">Uitsluiten (komt niet meer)</button>'}</div>`;
+  h += '</main>';
+  h += `<div class="bottombar"><button class="btn" data-act="prev">‹ Vorige</button><button class="btn primary" data-act="next">Volgende ›</button></div>`;
+  return h;
+}
+
+function vOrder(){
+  const T = ui.ow, TE = addDays(T, 6), cur = weekStart(todayStr());
+  const rows = forecast(T);
+  const r = realisation(cur);
+  const enough = r.weeks >= 3 && r.ratio != null;
+  const ratio = enough ? Math.min(1.1, Math.max(0.5, r.ratio)) : 1;
+  const sold = sum(rows.filter(x => x.kind === 'verkocht'), x => x.eggs);
+  const agreed = rows.filter(x => x.kind === 'afgesproken'), proj = rows.filter(x => x.kind === 'verwacht');
+  const sA = sum(agreed, x => x.eggs), sP = sum(proj, x => x.eggs);
+  const exact = sold + (sA + sP) * ratio;
+  const rnd = db.settings.orderRound || 1;
+  const advice = Math.round(exact / rnd) * rnd;
+  const nNew = rows.filter(x => x.kind === 'nieuw').length, nUnsure = rows.filter(x => x.kind === 'onzeker').length;
+  // klanten in deze week van wie de dag bij het volgende bezoek uitvalt: kunnen nu voor 2 weken nemen
+  const dblRows = [...agreed, ...proj].filter(x => x.date && nextVisitImpact(x.a, x.date));
+  const dblExtra = sum(dblRows, x => x.eggs);
+  const dblDays = [...new Set(dblRows.map(x => nextVisitImpact(x.a, x.date).date))].sort();
+  const adviceDbl = Math.round((exact + dblExtra * ratio) / rnd) * rnd;
+  const offered = db.visits.filter(v => v.offered && v.date >= addDays(cur, -182));
+  const acc = offered.length >= 5 ? offered.filter(v => v.double).length / offered.length : null;
+  const adviceAcc = acc != null ? Math.round((exact + dblExtra * acc * ratio) / rnd) * rnd : null;
+  const adviceMain = adviceAcc ?? advice;
+  const rel = T === cur ? 'deze week' : T === addDays(cur, 7) ? 'volgende week' : T < cur ? 'voorbij' : `over ${weeksBetween(cur, T)} weken`;
+
+  let h = `<header class="top"><h1>Planning</h1><div class="side r">${syncPill()}</div></header><main>
+    <div class="datebar"><button class="round" data-act="ow" data-n="-1" aria-label="Vorige week">‹</button>
+    <div class="d"><b>Week ${isoWeek(T)}</b><small class="muted">${esc(weekLabel(T))} · ${rel}</small></div>
+    <button class="round" data-act="ow" data-n="1" aria-label="Volgende week">›</button></div>`;
+
+  // advies
+  h += `<div class="card"><h2>Besteladvies week ${isoWeek(T)}</h2>
+    <div class="bignum">${adviceMain} <span style="font-size:22px;color:var(--muted);font-weight:600">eieren</span></div>
+    <div class="calc">
+      ${sold ? `<div><span>Al verkocht deze week</span><span>${sold}</span></div>` : ''}
+      <div><span>Afgesproken (${agreed.length} adressen)</span><span>${sA}</span></div>
+      <div><span>Vast ritme, nog niet bezocht (${proj.length})</span><span>${sP}</span></div>
+      <div><span>Realisatie afspraken ${enough ? `(${r.weeks} wkn)` : ''}</span><span>${enough ? Math.round(r.ratio * 100) + '%' : 'nog te weinig historie → 100%'}</span></div>
+      <div><span>Berekend${rnd > 1 ? `, afgerond op ${rnd}` : ''}</span><span>${Math.round(exact)}</span></div>
+    </div>
+    ${dblRows.length ? `<div class="alertcard" style="margin:12px 0 0"><div class="at" style="font-size:16px">⚠️ Geen ronde op ${dblDays.map(fmtShort).join(', ')}</div>
+      <div style="font-size:15px">${dblRows.length} klant${dblRows.length > 1 ? 'en' : ''} in deze week kunnen voor 2 weken nemen: <b>+${dblExtra} eieren</b>.<br>
+      ${adviceAcc != null ? `Eerder nam <b>${Math.round(acc * 100)}%</b> het aanbod aan (${offered.length}× aangeboden) → verwacht: <b>${adviceAcc} eieren</b>.<br>` : ''}
+      Als iedereen ingaat op het aanbod: <b>${adviceDbl} eieren</b>. ${acc != null ? `Het grote advies rekent met ${Math.round(acc * 100)}%.` : 'Het grote advies gaat ervan uit dat niemand dat doet; na 5× aanbieden rekent de app met het echte percentage.'}</div></div>` : ''}
+    <p class="muted" style="font-size:14px;margin:10px 0 0">Niet meegeteld (bewust, om niet te veel te bestellen):
+      ${nNew ? `${nNew} nieuwe adressen zonder afspraak · ` : ''}${nUnsure ? `${nUnsure} adressen al lang niet bezocht · ` : ''}gemiddeld ${Math.round(r.extraPerWeek)} eieren/week verkocht buiten afspraken om.</p>`;
+  const P = addDays(T, -7);
+  if (db.orders[P] != null) {
+    const sp = soldIn(P);
+    let left = db.orders[P] - sp, note = 'besteld − verkocht';
+    if (P >= cur) { const rem = sum(forecast(P).filter(x => x.kind !== 'verkocht'), x => x.eggs); left -= rem; note = 'besteld − verkocht − nog verwacht'; }
+    h += `<p style="font-size:15px;margin:10px 0 0">Restant week ${isoWeek(P)}: <b>${left}</b> <span class="muted">(${note})</span>${left > 0 ? ` → advies min restant: <b>${Math.max(0, Math.round((exact - left) / rnd) * rnd)}</b>` : ''}</p>`;
+  }
+  h += '</div>';
+
+  // besteld
+  h += `<div class="card"><h2>Besteld voor week ${isoWeek(T)}</h2>
+    <input type="number" inputmode="numeric" min="0" data-field="order" placeholder="Aantal eieren besteld" value="${db.orders[T] ?? ''}">
+    ${db.orders[T] != null ? `<small class="muted">Opgeslagen. ${db.orders[T] - adviceMain > 0 ? `${db.orders[T] - adviceMain} meer` : db.orders[T] - adviceMain < 0 ? `${adviceMain - db.orders[T]} minder` : 'Gelijk'} dan het advies.</small>` : ''}</div>`;
+
+  // per loopdag + afwezigheid
+  const days = walkDates(T);
+  h += `<div class="card"><h2>Per loopdag · afwezigheid</h2>`;
+  if (!days.length) h += `<div class="muted">Stel eerst de loopdagen in bij Instellingen.</div>`;
+  for (const d of days) {
+    const rs = rows.filter(x => x.date === d && x.kind !== 'nieuw' && x.kind !== 'onzeker');
+    const ab = isAbsent(d);
+    h += `<div class="dayrow ${ab ? 'isabs' : ''}"><div class="dd"><b>${esc(fmtLong(d))}</b><small>${rs.length} adressen${rs.some(x => x.kind === 'verkocht') ? ' (deels gedaan)' : ''}</small>
+      ${ab && rs.length ? `<div class="warn">Geen ronde: spreek met deze ${rs.length} adressen ${T > cur ? 'deze week' : ''} een andere dag af.</div>` : ''}</div>
+      <div class="amt">${sum(rs, x => x.eggs)}</div>
+      <button class="absbtn ${ab ? 'on' : ''}" data-act="absent" data-date="${d}">${ab ? '✗ Afwezig' : 'Afwezig?'}</button></div>`;
+  }
+  const other = rows.filter(x => x.date && !days.includes(x.date) && x.kind !== 'nieuw');
+  if (other.length) h += `<div class="dayrow"><div class="dd"><b>Andere dagen</b><small>${other.length} adressen</small></div><div class="amt">${sum(other, x => x.eggs)}</div><span style="width:84px"></span></div>`;
+  h += `<p class="muted" style="font-size:14px;margin:8px 0 0">Tik "Afwezig?" als de bezorger die dag niet loopt. Dat is meteen zichtbaar bij de ronde en bij elk bezoek, zodat je aan de deur een andere dag kunt afspreken.</p></div>`;
+
+  // per adres
+  const listed = rows.filter(x => x.kind !== 'nieuw' && x.kind !== 'onzeker').sort((x, y) => (x.date || '') < (y.date || '') ? -1 : 1);
+  h += `<button class="sectiontoggle" data-act="togglerows">${ui.showRows ? '▾' : '▸'} Per adres (${listed.length})</button>`;
+  if (ui.showRows) {
+    const kl = { verkocht: 'verkocht', afgesproken: 'afgesproken', verwacht: 'vast ritme' };
+    h += '<div class="card hist">' + (listed.map(x => `<div><span>${esc(fmtShort(x.date))} · ${esc(label(x.a))}</span><span>${x.eggs} <small class="muted">${kl[x.kind]}</small></span></div>`).join('') || '<span class="muted">Niets gepland.</span>') + '</div>';
+  }
+
+  // historie
+  h += `<div class="card"><h2>Afgelopen weken</h2><table class="h"><tr><th>Week</th><th>Besteld</th><th>Verkocht</th><th>Verschil</th></tr>`;
+  const histWeeks = r.perWeek.filter(pw => pw.sold || pw.agreed || db.orders[pw.w] != null).reverse();
+  if (!histWeeks.length) h += '<tr><td colspan="4" class="muted" style="text-align:left">Nog geen afgeronde weken.</td></tr>';
+  for (const pw of histWeeks) {
+    const o = db.orders[pw.w];
+    h += `<tr><td>${isoWeek(pw.w)}</td><td>${o ?? '–'}</td><td>${pw.sold}</td><td>${o != null ? (o - pw.sold > 0 ? '+' : '') + (o - pw.sold) : '–'}</td></tr>`;
+  }
+  h += '</table><p class="muted" style="font-size:14px;margin:8px 0 0">Verschil = besteld − verkocht (positief = over).</p></div>';
+  return h + '</main>' + tabs('order');
+}
+
+function vRoute(){
+  const n = db.addresses.length, ex = db.addresses.filter(a => a.excluded).length;
+  let h = `<header class="top"><h1>Route</h1><div class="side r"><small class="muted">${n} adressen${ex ? `, ${ex} uitgesloten` : ''}</small>${syncPill()}</div></header><main>
+    <div class="grid2 mb"><button class="btn primary" data-act="new">+ Adres</button><button class="btn" data-act="bulk">Lijst plakken</button></div>`;
+  if (!n) h += `<div class="notice">Nog geen adressen. Gebruik <b>Lijst plakken</b> om de hele looproute in één keer in te voeren, in de volgorde waarin jullie lopen.</div>`;
+  else {
+    h += '<p class="muted" style="font-size:14px;margin:0 0 10px">De volgorde hieronder is de loopvolgorde. Tik op een adres om te wijzigen; ▲▼ om te verplaatsen.</p><div class="list">';
+    db.addresses.forEach((a, i) => {
+      const meta = [];
+      if (a.prefDays && a.prefDays.length) meta.push(a.prefDays.slice().sort(byMon).map(d => DSH[d]).join('/'));
+      if (a.name) meta.push(esc(a.name));
+      h += `<div class="row ${a.excluded ? 'dim' : ''}"><span class="no">${i + 1}</span>
+        <button class="adr" style="background:none;border:0;text-align:left;padding:0" data-act="edit" data-id="${a.id}"><b>${esc(label(a))}</b>${meta.length || a.excluded ? `<small>${a.excluded ? '<span class="badge bad">uitgesloten</span>' : ''}${meta.join(' · ')}</small>` : ''}</button>
+        <span class="mv"><button data-act="up" data-id="${a.id}" ${i ? '' : 'disabled'} aria-label="Omhoog">▲</button><button data-act="down" data-id="${a.id}" ${i < n - 1 ? '' : 'disabled'} aria-label="Omlaag">▼</button></span></div>`;
+    });
+    h += '</div>';
+  }
+  return h + '</main>' + tabs('route');
+}
+
+function prefToggles(act, cur){
+  const wd = db.settings.walkDays;
+  const list = WEEK.filter(d => wd.includes(d) || (cur || []).includes(d));
+  if (!list.length) return '<div class="muted" style="font-size:14px">Stel eerst loopdagen in bij Instellingen.</div>';
+  return `<div class="chips">${list.map(d => `<button data-act="${act}" data-d="${d}" class="${(cur || []).includes(d) ? 'on' : ''}">${DAYS[d]}</button>`).join('')}</div>
+    <small class="muted" style="display:block;margin-top:6px">${(cur || []).length ? 'Komt op deze dag(en); lukt het niet, dan schuift het door naar de volgende loopdag.' : 'Geen voorkeur: staat op elke loopdag tot het die week gedaan is.'}</small>`;
+}
+
+function vEdit(){
+  const isNew = !ui.id, a = isNew ? (ui.draft ||= { street: '', number: '', name: '', note: '', prefDays: [], pos: db.addresses.length + 1 }) : byId(ui.id);
+  if (!a) { ui.view = 'route'; return vRoute(); }
+  const back = ui.from === 'house' ? 'Terug' : '‹ Route';
+  const idx = isNew ? (a.pos || db.addresses.length + 1) : db.addresses.indexOf(a) + 1;
+  const max = db.addresses.length + (isNew ? 1 : 0);
+  const streets = [...new Set(db.addresses.map(x => x.street))];
+  let h = `<header class="top"><div class="side"><button class="link" data-act="editback">${back}</button></div><h1 style="text-align:center">${isNew ? 'Nieuw adres' : 'Adres'}</h1><div class="side r"></div></header><main>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 110px;gap:10px">
+        <label class="f"><span>Straat</span><input type="text" data-field="street" list="streets" value="${esc(a.street)}" autocomplete="off"></label>
+        <label class="f"><span>Nummer</span><input type="text" data-field="number" value="${esc(a.number)}" autocomplete="off"></label>
+      </div>
+      <datalist id="streets">${streets.map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      <label class="f"><span>Naam / omschrijving (optioneel)</span><input type="text" data-field="name" value="${esc(a.name)}" placeholder="bijv. fam. Jansen"></label>
+      <label class="f"><span>Vaste notitie (optioneel)</span><textarea data-field="note" placeholder="bijv. achterdeur gebruiken, hond">${esc(a.note)}</textarea></label>
+      <div class="mb"><span class="flabel">Voorkeursdag(en)</span>${prefToggles('prefday', a.prefDays)}</div>
+      <label class="f"><span>Plek in de route (1 – ${max})</span><input type="number" data-field="pos" value="${idx}" min="1" max="${max}" inputmode="numeric"></label>
+      ${isNew ? '' : `<label class="switch"><span>Uitgesloten (niet meer langs)</span><input type="checkbox" data-field="excluded" ${a.excluded ? 'checked' : ''}></label>`}
+    </div>`;
+  if (isNew) h += `<button class="btn primary big mb" data-act="addone">Toevoegen</button><p class="muted" style="font-size:14px">Na toevoegen blijft de straat staan, zodat je snel het volgende nummer kunt invoeren.</p>`;
+  else {
+    const vs = visitsOf(a.id).slice().reverse();
+    h += '<div class="card"><h2>Geschiedenis</h2>';
+    if (!vs.length) h += '<div class="muted">Nog geen bezoeken.</div>';
+    else h += '<div class="hist">' + vs.map(x => `<div><span>${esc(fmtShort(x.date))} ${pd(x.date).getFullYear() !== new Date().getFullYear() ? pd(x.date).getFullYear() : ''}</span><span>${x.status === 'nothome' ? 'niet thuis' : (x.status === 'none' ? 'geen' : x.eggs + ' eieren') + (x.nextDate ? ` → ${x.nextEggs ?? 0} op ${fmtShort(x.nextDate)}` : '')}${x.note ? ' · ' + esc(x.note) : ''}</span></div>`).join('') + '</div>';
+    h += `</div><button class="btn danger" data-act="delete">Adres verwijderen</button><p class="muted" style="font-size:14px">Verwijderen haalt ook de geschiedenis weg. Wil je alleen tijdelijk niet langs? Gebruik dan "Uitgesloten".</p>`;
+  }
+  return h + '</main>';
+}
+
+function vBulk(){
+  return `<header class="top"><div class="side"><button class="link" data-act="tab" data-v="route">‹ Route</button></div><h1 style="text-align:center">Lijst plakken</h1><div class="side r"></div></header><main>
+    <div class="card"><p style="margin-top:0">Eén adres per regel, in loopvolgorde. Voorbeelden:</p>
+    <pre style="background:var(--grey-soft);border-radius:10px;padding:10px;font-size:14px;white-space:pre-wrap;margin:0 0 12px">Dorpsstraat 12
+14
+16a
+Kerkweg 1-15 oneven
+Kerkweg 20-2 even</pre>
+    <p class="muted" style="font-size:14px">Alleen een nummer = zelfde straat als de regel erboven. Een reeks (bijv. 20-2) wordt in die richting toegevoegd; "even"/"oneven" slaat om de andere over.</p>
+    <label class="f"><textarea id="bulktext" style="min-height:200px" placeholder="Plak of typ hier…">${esc(ui.bulkText || '')}</textarea></label>
+    <div class="mb"><span class="flabel">Voorkeursdag(en) voor deze hele lijst</span>${prefToggles('bulkpref', ui.bulkPrefs || [])}</div>
+    <div id="bulkcount" class="muted mb">${bulkParse(ui.bulkText || '').length} adressen gevonden</div>
+    <button class="btn primary big" data-act="bulkadd">Toevoegen aan einde van route</button></div></main>`;
+}
+
+function bulkParse(text){
+  const out = []; let street = '';
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim().replace(/\s+/g, ' ');
+    if (!line) continue;
+    let m = line.match(/^(.*?)\s*(\d+)\s*-\s*(\d+)(?:\s+(even|oneven))?$/i);
+    if (m && (m[1] || street)) {
+      const s = m[1] || street, from = +m[2], to = +m[3];
+      if (Math.abs(to - from) > 500) continue;
+      street = s;
+      const step = m[4] ? 2 : 1, dir = to >= from ? 1 : -1;
+      let start = from;
+      if (m[4]) { const wantEven = m[4].toLowerCase() === 'even'; if ((start % 2 === 0) !== wantEven) start += dir; }
+      for (let n = start; dir > 0 ? n <= to : n >= to; n += step * dir) out.push({ street: s, number: String(n) });
+      continue;
+    }
+    m = line.match(/^(.*?)\s*(\d+[\w\-\/]*(?:\s[a-zA-Z])?)$/);
+    if (m && (m[1] || street)) { street = m[1] || street; out.push({ street, number: m[2] }); continue; }
+    out.push({ street: line, number: '' }); street = line;
+  }
+  return out;
+}
+
+function vSettings(){
+  const wd = db.settings.walkDays, lb = db.settings.lastBackup, rnd = db.settings.orderRound || 1;
+  const ro = isAdmin() ? '' : 'disabled';
+  return `<header class="top"><h1>Instellingen</h1><div class="side r">${syncPill()}</div></header><main>
+    ${accountCard()}
+    <div class="card"><h2>Loopdagen</h2><div class="daytoggles">${WEEK.map(d => `<button data-act="walkday" data-d="${d}" ${ro} class="${wd.includes(d) ? 'on' : ''}">${DSH[d]}</button>`).join('')}</div>
+      <p class="muted" style="font-size:14px;margin-bottom:0">Een adres verschijnt op de afgesproken dag. Zonder afspraak voor die week tellen de voorkeursdagen; zonder voorkeur staat het op elke loopdag. Niet thuis of niet aan toe gekomen? Dan staat het op de volgende loopdag van die week gemarkeerd om in te halen. Wie die week al gekocht, geweigerd of uitgesteld heeft, staat er niet meer tussen. Afwezigheid stel je in bij <b>Planning</b>.</p></div>
+    <div class="card"><h2>Bestellen</h2><span class="flabel">Besteladvies afronden op</span>
+      <div class="chips">${[1, 6, 10, 12, 30].map(n => `<button data-act="round" data-n="${n}" ${ro} class="${rnd === n ? 'on' : ''}">${n === 1 ? 'niet afronden' : n === 30 ? '30 (tray)' : n}</button>`).join('')}</div></div>
+    <div class="card"><h2>Tekst bij afwezigheid</h2>
+      <p class="muted" style="font-size:14px;margin-top:0">Verschijnt bij een klant van wie de vaste dag de volgende keer uitvalt. {dag} wordt vervangen door de dag.</p>
+      <textarea data-field="absenceScript" ${ro} style="min-height:100px">${esc(db.settings.absenceScript || DEFAULT_SCRIPT)}</textarea></div>
+    <div class="card"><h2>Backup</h2>
+      <p style="margin-top:0">${syncOn() ? 'Je gegevens staan ook online bij je team. Een eigen backup (in Bestanden/iCloud) blijft handig als extra zekerheid.' : 'Alle gegevens staan alleen op deze telefoon. Maak regelmatig een backup en bewaar die in Bestanden/iCloud, of stuur hem naar jezelf.'}</p>
+      <p class="muted" style="font-size:14px">Laatste backup: ${lb ? esc(fmtLong(lb.slice(0, 10))) : 'nog nooit'} · ${db.addresses.length} adressen · ${db.visits.length} bezoeken</p>
+      <button class="btn primary mb" data-act="export">💾 Backup maken</button>
+      ${isAdmin() ? '<button class="btn mb" data-act="import">Backup terugzetten…</button>' : ''}
+      <button class="btn" data-act="csv">Bezoeken exporteren (CSV voor Excel)</button>
+    </div>
+    <div class="card"><h2>Over</h2><div class="muted" style="font-size:14px">Versie ${APP_VERSION}<br>Opslag: ${persisted === true ? 'blijvend (wordt niet automatisch gewist)' : persisted === false ? 'standaard — zet de app op je beginscherm' : 'onbekend'}<br>${matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'Draait als app vanaf het beginscherm ✓' : '⚠️ Draait in de browser. Zet de app op het beginscherm (deel-knop → "Zet op beginscherm") en gebruik alleen die.'}</div>
+      <button class="btn mb" style="margin-top:12px" data-act="checkupdate">Zoek naar update</button></div>
+  </main>` + tabs('settings');
+}
+
+/* ---------- account-schermen ---------- */
+const fmtTime = iso => { const d = new Date(tsMs(iso)); return `${ymd(d) === todayStr() ? '' : fmtShort(ymd(d)) + ' '}${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+function vLogin(){
+  const sent = ui.loginSent && ui.loginEmail;
+  const expired = S.session && S.session.expired;
+  return `<main style="padding-top:calc(env(safe-area-inset-top) + 10px)">
+    <div class="brand"><img src="icon-192.png" alt=""><h1>Eggselent</h1><div class="muted">Je eierronde, samen bijgehouden</div></div>
+    ${expired ? `<div class="notice">Je sessie is verlopen. Log opnieuw in; je gegevens op deze telefoon blijven bewaard${pendingCount() ? ` (${pendingCount()} wijzigingen wachten om verstuurd te worden)` : ''}.</div>` : ''}
+    <div class="card">${!sent ? `<h2>Inloggen of account aanmaken</h2>
+      <label class="f"><span>E-mailadres</span><input type="email" id="loginEmail" autocomplete="email" inputmode="email" autocapitalize="off" value="${esc(ui.loginEmail || (S.session && S.session.email) || '')}" placeholder="naam@voorbeeld.nl"></label>
+      <button class="btn primary big" data-act="sendcode">Stuur inlogcode</button>
+      <p class="muted" style="font-size:14px;margin-bottom:0">Je krijgt een code per mail; geen wachtwoord nodig. Nog geen account? Dan wordt die vanzelf aangemaakt.</p>`
+    : `<h2>Code invullen</h2><p style="margin-top:0">We hebben een code gestuurd naar <b>${esc(ui.loginEmail)}</b>. Kijk ook even in je spam.</p>
+      <label class="f"><span>Code uit de mail</span><input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" style="font-size:28px;letter-spacing:6px;text-align:center"></label>
+      <button class="btn primary big mb" data-act="verifycode">Inloggen</button>
+      <div class="minilinks"><button class="link" data-act="resendcode">Code opnieuw sturen</button><button class="link" data-act="otheremail">Ander e-mailadres</button></div>`}
+    </div></main>`;
+}
+
+function vOnboard(){
+  const local = hasLocalData();
+  let h = `<header class="top"><h1>Welkom</h1><div class="side r"><button class="link" data-act="logout">Uitloggen</button></div></header><main>
+    <p class="muted" style="margin-top:0">Ingelogd als ${esc(S.session ? S.session.email : '')}</p>`;
+  if (S.teams.length) h += `<div class="card"><h2>Jouw teams</h2>${S.teams.map((t, i) => `<button class="btn primary mb" data-act="chooseteam" data-i="${i}">${esc(t.team_name)} · ${t.role === 'admin' ? 'beheerder' : 'bezorger'}</button>`).join('')}
+    ${local ? '<small class="muted">Let op: wat nu op deze telefoon staat, wordt vervangen door de gegevens van het team.</small>' : ''}</div>`;
+  h += `<div class="card"><h2>Nieuw eierbedrijf</h2>
+      <label class="f"><span>Naam van je eierbedrijf</span><input type="text" id="teamName" placeholder="bijv. Eggselent"></label>
+      <label class="f"><span>Jouw naam</span><input type="text" id="memberName1" value="${esc(ui.memberName || '')}" autocomplete="given-name"></label>
+      ${local ? `<div class="notice info" style="font-size:15px">${db.addresses.length} ${db.addresses.length === 1 ? 'adres' : 'adressen'} en ${db.visits.length} ${db.visits.length === 1 ? 'bezoek' : 'bezoeken'} op deze telefoon gaan mee naar het nieuwe team.</div>` : ''}
+      <button class="btn ${S.teams.length ? '' : 'primary'} big" data-act="createteam">Team aanmaken</button></div>
+    <div class="card"><h2>Ik heb een uitnodigingscode</h2>
+      <label class="f"><span>Code</span><input type="text" id="joinCode" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;font-size:22px"></label>
+      <label class="f"><span>Jouw naam</span><input type="text" id="memberName2" value="${esc(ui.memberName || '')}" autocomplete="given-name"></label>
+      ${local ? `<div class="notice" style="font-size:15px">Op deze telefoon staan nog ${db.addresses.length} ${db.addresses.length === 1 ? 'adres' : 'adressen'}. Die worden vervangen door de gegevens van het team. <button class="link" data-act="export">Eerst een backup maken</button></div>` : ''}
+      <button class="btn big" data-act="jointeam">Lid worden</button></div></main>`;
+  return h;
+}
+
+function vTeam(){
+  if (!S.team) return vOnboard();
+  const admin = isAdmin();
+  let h = `<header class="top"><div class="side"><button class="link" data-act="tab" data-v="settings">‹ Terug</button></div><h1 style="text-align:center">Team</h1><div class="side r"></div></header><main>
+    <div class="card"><h2>${esc(S.team.name)}</h2><div class="muted">Jij bent ${admin ? 'beheerder' : 'bezorger'}.</div></div>
+    <div class="card"><h2>Leden</h2><div class="hist">${(ui.members || []).map(m => `<div><span>${esc(m.name || '(geen naam)')}${m.user_id === S.userId ? ' <small class="muted">(jij)</small>' : ''}</span><span><small class="muted">${m.role === 'admin' ? 'beheerder' : 'bezorger'}</small>${admin && m.user_id !== S.userId ? ` <button class="link" style="color:var(--bad);padding:0 0 0 10px" data-act="removemember" data-id="${esc(m.user_id)}">verwijder</button>` : ''}</span></div>`).join('') || '<span class="muted">Laden…</span>'}</div></div>`;
+  if (admin) h += `<div class="card"><h2>Iemand uitnodigen</h2><p style="margin-top:0">Maak een code en stuur die door (bijv. via WhatsApp). De ander zet de app op het beginscherm, logt in en kiest "Ik heb een uitnodigingscode". De code is 14 dagen geldig.</p>
+      ${ui.invite ? `<div class="codebox">${esc(ui.invite)}</div><button class="btn primary mb" data-act="shareinvite">Code delen</button>` : ''}
+      <button class="btn ${ui.invite ? '' : 'primary'}" data-act="makeinvite">${ui.invite ? 'Nieuwe code maken' : 'Uitnodigingscode maken'}</button></div>`;
+  else h += `<button class="btn danger" data-act="leaveteam">Team verlaten</button>`;
+  return h + '</main>';
+}
+
+function accountCard(){
+  if (!CLOUD) return `<div class="card"><h2>Account</h2><div class="muted" style="font-size:14px">Deze app is nog niet gekoppeld aan een server: alles staat alleen op deze telefoon.</div></div>`;
+  return `<div class="card"><h2>Account</h2>
+    <div>${esc(S.session ? S.session.email : '')}</div>
+    <div class="muted" style="font-size:14px">${esc(S.team ? S.team.name : '')} · ${isAdmin() ? 'beheerder' : 'bezorger'}<br>
+      ${pendingCount() ? `${pendingCount()} wijziging(en) wachten op internet` : 'Alles is gesynchroniseerd'}${S.lastSync ? ` · laatst ${fmtTime(S.lastSync)}` : ''}
+      ${syncErr ? `<br><span style="color:var(--bad)">Laatste poging mislukt: ${esc(syncErr.message)}</span>` : ''}</div>
+    <div class="grid2" style="margin-top:12px"><button class="btn" data-act="syncnow">Nu synchroniseren</button><button class="btn" data-act="openteam">Team</button></div>
+    <button class="btn" style="margin-top:10px" data-act="logout">Uitloggen</button>
+    ${isAdmin() ? '' : '<small class="muted" style="display:block;margin-top:8px">Loopdagen en bestelinstellingen kan alleen de beheerder wijzigen.</small>'}</div>`;
+}
+
+async function loadMembers(){
+  try { ui.members = await api(`/rest/v1/team_members?team_id=eq.${S.team.id}&select=user_id,role,name,joined_at&order=joined_at`); }
+  catch (e) { toast(e.message); }
+  if (ui.view === 'team') render();
+}
+
+function authAction(act, el){
+  const run = async (fn) => { if (el) el.disabled = true; try { await fn(); } catch (e) { alert(e.message || String(e)); } finally { if (el && el.isConnected) el.disabled = false; } };
+  const val = id => (document.getElementById(id) || {}).value || '';
+  switch (act) {
+    case 'sendcode': case 'resendcode': {
+      const email = (val('loginEmail') || ui.loginEmail || '').trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(email)) { alert('Vul een geldig e-mailadres in.'); return true; }
+      run(async () => { await sendCode(email); ui.loginEmail = email; ui.loginSent = true; saveUi(); render(); toast('Code verstuurd, kijk in je mail'); const c = document.getElementById('loginCode'); if (c) c.focus(); });
+      return true;
+    }
+    case 'verifycode': {
+      const code = val('loginCode').replace(/\D/g, '');
+      if (code.length < 6) { alert('Vul de code uit de mail in.'); return true; }
+      run(async () => { await verifyCode(ui.loginEmail, code); ui.loginSent = false; saveUi(); render(); syncNow(); });
+      return true;
+    }
+    case 'otheremail': ui.loginSent = false; saveUi(); render(); return true;
+    case 'createteam': {
+      const name = val('teamName').trim(), m = val('memberName1').trim();
+      if (!name) { alert('Geef je eierbedrijf een naam.'); return true; }
+      ui.memberName = m;
+      run(async () => { await createTeam(name, m); go('home'); toast('Team aangemaakt'); });
+      return true;
+    }
+    case 'jointeam': {
+      const code = val('joinCode').trim(), m = val('memberName2').trim();
+      if (!code) { alert('Vul de uitnodigingscode in.'); return true; }
+      if (hasLocalData() && !confirm('De gegevens op deze telefoon worden vervangen door die van het team. Doorgaan?')) return true;
+      ui.memberName = m;
+      run(async () => { await joinTeam(code, m); go('home'); toast(`Welkom bij ${S.team.name}`); });
+      return true;
+    }
+    case 'chooseteam': {
+      const t = S.teams[+el.dataset.i];
+      if (hasLocalData() && !confirm('De gegevens op deze telefoon worden vervangen door die van het team. Doorgaan?')) return true;
+      run(async () => { await chooseTeam(t); go('home'); });
+      return true;
+    }
+    case 'logout': logout(); return true;
+    case 'syncnow':
+      if (!navigator.onLine) { toast('Geen internet: wijzigingen worden later verstuurd.'); return true; }
+      run(async () => { await syncNow(); toast(syncErr ? 'Synchroniseren mislukt: ' + syncErr.message : 'Gesynchroniseerd ✓'); safeRender(); });
+      return true;
+    case 'openteam': ui.invite = null; go('team'); loadMembers(); return true;
+    case 'makeinvite': run(async () => { ui.invite = await rpc('create_invite', { p_team: S.team.id }); saveUi(); render(); }); return true;
+    case 'shareinvite': {
+      const text = `Doe mee met ${S.team.name} in Eggselent! Open ${location.origin + location.pathname} op je iPhone in Safari, zet de app op je beginscherm, log in en vul deze code in: ${ui.invite}`;
+      if (navigator.share) navigator.share({ text }).catch(() => {});
+      else if (navigator.clipboard) { navigator.clipboard.writeText(text); toast('Tekst gekopieerd'); }
+      return true;
+    }
+    case 'removemember': {
+      const m = (ui.members || []).find(x => x.user_id === el.dataset.id);
+      if (!confirm(`${(m && m.name) || 'Dit lid'} uit het team verwijderen?`)) return true;
+      run(async () => { await api(`/rest/v1/team_members?team_id=eq.${S.team.id}&user_id=eq.${el.dataset.id}`, { method: 'DELETE' }); await loadMembers(); });
+      return true;
+    }
+    case 'leaveteam':
+      if (!confirm('Team verlaten? De gegevens van het team verdwijnen van deze telefoon.')) return true;
+      run(async () => { await api(`/rest/v1/team_members?team_id=eq.${S.team.id}&user_id=eq.${S.userId}`, { method: 'DELETE' }); S.teams = await rpc('my_teams'); wipeLocal(); go('onboard'); });
+      return true;
+  }
+  return false;
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'loginEmail') { e.preventDefault(); authAction('sendcode'); }
+  if (e.target.id === 'loginCode') { e.preventDefault(); authAction('verifycode'); }
+});
+
+/* ---------- render ---------- */
+const app = document.getElementById('app');
+function render(){
+  if (CLOUD) {
+    if (!S.session || S.session.expired) ui.view = 'login';
+    else if (!S.team) ui.view = 'onboard';
+    else if (ui.view === 'login' || ui.view === 'onboard') ui.view = 'home';
+  } else if (['login', 'onboard', 'team'].includes(ui.view)) ui.view = 'home';
+  renderDeferred = false;
+  const views = { home: vHome, house: vHouse, order: vOrder, route: vRoute, edit: vEdit, bulk: vBulk, settings: vSettings, login: vLogin, onboard: vOnboard, team: vTeam };
+  app.innerHTML = (views[ui.view] || vHome)();
+}
+
+/* ---------- acties ---------- */
+const curVisit = () => db.visits.find(x => x.addressId === ui.id && x.date === ui.date);
+function setVisit(patch){
+  const D = ui.date, a = byId(ui.id);
+  const ag = lastDecisive(visitsOf(a.id), D);
+  let v = curVisit();
+  if (!v) { v = { id: `${a.id}_${D}`, addressId: a.id, date: D, status: 'sold', eggs: 0, nextDate: null, nextEggs: null, nextManual: false, note: '' }; db.visits.push(v); }
+  Object.assign(v, patch, { ts: Date.now() });
+  if (v.status !== 'sold') v.double = false;
+  // onthouden dat "voor 2 weken" is aangeboden: zo leert de app hoe vaak klanten daarop ingaan
+  v.offered = DEC(v) && !!nextVisitImpact(a, D);
+  if (v.status === 'nothome') { v.eggs = 0; v.nextDate = null; v.nextEggs = null; v.nextManual = false; }
+  else {
+    if (!v.nextDate) v.nextDate = defaultNext(a, D, weeksOf(ag) || 1);
+    if (!v.nextManual) v.nextEggs = v.eggs > 0 ? v.eggs : agEggs(ag);
+    if (v.nextEggs == null) v.nextEggs = 0;
+  }
+  save(); render();
+}
+
+function step(dir){
+  const p = plan(ui.date), a = byId(ui.id), i = db.addresses.indexOf(a);
+  const list = p.shown;
+  const target = dir > 0 ? list.find(x => x.i > i) : [...list].reverse().find(x => x.i < i);
+  if (target) { ui.dateOpen = false; go('house', { id: target.a.id }); }
+  else if (dir > 0) { go('home'); toast(list.every(x => x.today) ? '🎉 Einde van de route — alles gedaan!' : 'Einde van de route. Er staan nog open adressen.'); }
+  else toast('Dit is het eerste adres.');
+}
+
+function moveTo(a, pos){
+  const from = db.addresses.indexOf(a);
+  pos = Math.max(1, Math.min(db.addresses.length, pos | 0)) - 1;
+  if (from < 0 || from === pos) return;
+  db.addresses.splice(from, 1); db.addresses.splice(pos, 0, a);
+}
+const toggleIn = (arr, x) => arr.includes(x) ? arr.filter(y => y !== x) : [...arr, x];
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const act = el.dataset.act, D = ui.date;
+  switch (act) {
+    case 'tab': go(el.dataset.v); break;
+    case 'today': ui.date = todayStr(); ui.dateSetOn = todayStr(); saveUi(); render(); break;
+    case 'day': ui.date = addDays(ui.date, +el.dataset.n); ui.dateSetOn = todayStr(); saveUi(); render(); break;
+    case 'ow': ui.ow = addDays(ui.ow, 7 * +el.dataset.n); saveUi(); render(); break;
+    case 'togglehidden': ui.showHidden = !ui.showHidden; saveUi(); render(); break;
+    case 'togglerows': ui.showRows = !ui.showRows; saveUi(); render(); break;
+    case 'open': ui.dateOpen = false; go('house', { id: el.dataset.id }); break;
+    case 'prev': step(-1); break;
+    case 'next': step(1); break;
+    case 'nothome': {
+      const v = curVisit();
+      if (v && v.status === 'nothome') { db.visits.splice(db.visits.indexOf(v), 1); save(); render(); }
+      else setVisit({ status: 'nothome' });
+      break;
+    }
+    case 'none': setVisit({ status: 'none', eggs: 0 }); break;
+    case 'same': { const ag = lastDecisive(visitsOf(ui.id), D); if (ag) setVisit({ status: 'sold', eggs: agEggs(ag) }); break; }
+    case 'eggs': setVisit({ status: 'sold', eggs: +el.dataset.n }); break;
+    case 'plus': { const v = curVisit(); const n = (v && v.status !== 'nothome' ? v.eggs : 0) + 1; setVisit({ status: 'sold', eggs: n }); break; }
+    case 'minus': { const v = curVisit(); if (!v || v.status === 'nothome') break; const n = Math.max(0, v.eggs - 1); setVisit({ status: n ? 'sold' : 'none', eggs: n }); break; }
+    case 'negg': setVisit({ nextEggs: +el.dataset.n, nextManual: true }); break;
+    case 'nplus': { const v = curVisit(); if (v) setVisit({ nextEggs: (v.nextEggs || 0) + 1, nextManual: true }); break; }
+    case 'nminus': { const v = curVisit(); if (v) setVisit({ nextEggs: Math.max(0, (v.nextEggs || 0) - 1), nextManual: true }); break; }
+    case 'nweek': { ui.dateOpen = false; const a = byId(ui.id); setVisit({ nextDate: defaultNext(a, D, +el.dataset.n) }); break; }
+    case 'nday': ui.dateOpen = false; setVisit({ nextDate: el.dataset.date }); break;
+    case 'double': {
+      const a = byId(ui.id), imp = nextVisitImpact(a, D); if (!imp) break;
+      ui.dateOpen = false;
+      setVisit({ status: 'sold', eggs: 2 * imp.agreed, double: true, nextDate: defaultNext(a, D, imp.k * 2), nextEggs: imp.agreed, nextManual: true });
+      toast(`Genoteerd: ${2 * imp.agreed} eieren, volgende keer ${fmtShort(curVisit().nextDate)}`);
+      break;
+    }
+    case 'altday': {
+      const a = byId(ui.id), imp = nextVisitImpact(a, D); if (!imp) break;
+      const v = curVisit(), keep = v && DEC(v) && !v.double;
+      ui.dateOpen = false;
+      setVisit({ status: keep ? v.status : 'sold', eggs: keep ? v.eggs : imp.agreed, double: false, nextDate: el.dataset.date });
+      break;
+    }
+    case 'pickdate': ui.dateOpen = true; render(); { const i = app.querySelector('input[type=date]'); if (i) { i.focus(); try { i.showPicker(); } catch (_) {} } } break;
+    case 'clear': {
+      const v = curVisit(); if (!v) break;
+      const copy = { ...v };
+      db.visits.splice(db.visits.indexOf(v), 1); save(); render();
+      toast('Invoer gewist', 'Ongedaan maken', () => { db.visits.push(copy); save(); render(); });
+      break;
+    }
+    case 'exclude': {
+      const a = byId(ui.id);
+      if (!confirm(`${label(a)} uitsluiten? Het adres verdwijnt uit de ronde (later terug te zetten via Route).`)) break;
+      a.excluded = true; save();
+      toast(`${label(a)} uitgesloten`, 'Ongedaan maken', () => { a.excluded = false; save(); render(); });
+      render();
+      break;
+    }
+    case 'include': { const a = byId(ui.id); a.excluded = false; save(); render(); break; }
+    case 'absent': {
+      const d = el.dataset.date;
+      db.absences = toggleIn(db.absences, d).sort(); save(); render();
+      if (isAbsent(d)) toast(`${fmtShort(d)}: afwezig gemeld`);
+      break;
+    }
+    case 'round': db.settings.orderRound = +el.dataset.n; save(); render(); break;
+    case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
+    case 'editback': {
+      ui.draft = null;
+      if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route');
+      break;
+    }
+    case 'prefday': {
+      const d = +el.dataset.d;
+      if (!ui.id) { ui.draft.prefDays = toggleIn(ui.draft.prefDays || [], d); saveUi(); render(); break; }
+      const a = byId(ui.id); a.prefDays = toggleIn(a.prefDays || [], d); save(); render();
+      break;
+    }
+    case 'bulkpref': ui.bulkPrefs = toggleIn(ui.bulkPrefs || [], +el.dataset.d); saveUi(); render(); break;
+    case 'new': go('edit', { id: null, draft: null, from: 'route' }); break;
+    case 'addone': {
+      const d = ui.draft;
+      if (!d || !d.street.trim()) { alert('Vul in elk geval de straat in.'); break; }
+      const a = { id: uid(), street: d.street.trim(), number: d.number.trim(), name: d.name.trim(), note: d.note.trim(), prefDays: d.prefDays || [], excluded: false };
+      const pos = Math.max(1, Math.min(db.addresses.length + 1, d.pos || db.addresses.length + 1));
+      db.addresses.splice(pos - 1, 0, a); save();
+      ui.draft = { street: a.street, number: '', name: '', note: '', prefDays: a.prefDays.slice(), pos: pos + 1 };
+      saveUi(); render(); toast(`${label(a)} toegevoegd op plek ${pos}`);
+      const n = app.querySelector('[data-field=number]'); if (n) n.focus();
+      break;
+    }
+    case 'delete': {
+      const a = byId(ui.id);
+      if (!confirm(`${label(a)} definitief verwijderen, inclusief alle geschiedenis?`)) break;
+      db.addresses.splice(db.addresses.indexOf(a), 1);
+      db.visits = db.visits.filter(v => v.addressId !== a.id);
+      save(); go('route');
+      break;
+    }
+    case 'up': case 'down': {
+      const a = byId(el.dataset.id), i = db.addresses.indexOf(a);
+      moveTo(a, i + 1 + (act === 'up' ? -1 : 1)); save(true); render();
+      break;
+    }
+    case 'bulk': go('bulk'); break;
+    case 'bulkadd': {
+      const list = bulkParse(document.getElementById('bulktext').value);
+      if (!list.length) { alert('Geen adressen gevonden.'); break; }
+      if (!confirm(`${list.length} adressen toevoegen aan het einde van de route?`)) break;
+      const prefs = (ui.bulkPrefs || []).slice();
+      for (const x of list) db.addresses.push({ id: uid(), street: x.street, number: x.number, name: '', note: '', prefDays: prefs.slice(), excluded: false });
+      save(); ui.bulkText = ''; go('route'); toast(`${list.length} adressen toegevoegd`);
+      break;
+    }
+    case 'walkday': {
+      const d = +el.dataset.d;
+      db.settings.walkDays = toggleIn(db.settings.walkDays, d).sort(byMon);
+      save(); render();
+      break;
+    }
+    case 'export': exportBackup(); break;
+    case 'import': document.getElementById('importfile').click(); break;
+    case 'csv': exportCsv(); break;
+    case 'checkupdate': checkUpdate(true); break;
+    default: if (authAction(act, el)) break;
+  }
+});
+
+let noteTimer = null;
+function onField(e){
+  const el = e.target, f = el.dataset && el.dataset.field;
+  if (!f) return;
+  if (f === 'vnote') {
+    clearTimeout(noteTimer);
+    const val = el.value;
+    noteTimer = setTimeout(() => { const v = curVisit(); if (v) { v.note = val; save(); } }, e.type === 'change' ? 0 : 500);
+    return;
+  }
+  if (f === 'nextDate') { if (e.type === 'change' && el.value) setVisit({ nextDate: el.value }); return; }
+  if (f === 'absenceScript') {
+    if (e.type !== 'change') return;
+    db.settings.absenceScript = el.value.trim() === DEFAULT_SCRIPT ? '' : el.value.trim(); save(); return;
+  }
+  if (f === 'order') {
+    if (e.type !== 'change') return;
+    if (el.value === '') delete db.orders[ui.ow]; else db.orders[ui.ow] = Math.max(0, Math.round(+el.value));
+    save(); render(); return;
+  }
+  if (ui.view === 'edit') {
+    const isNew = !ui.id, a = isNew ? ui.draft : byId(ui.id);
+    if (!a) return;
+    const val = el.type === 'checkbox' ? el.checked : el.value;
+    if (f === 'pos') {
+      if (e.type !== 'change') return;
+      if (isNew) { a.pos = +val; saveUi(); return; }
+      moveTo(a, +val); save(); render(); return;
+    }
+    a[f] = val;
+    if (isNew) { saveUi(); return; }
+    if (e.type === 'change' || f === 'excluded') { if (typeof a[f] === 'string') a[f] = a[f].trim(); save(); if (f === 'excluded') render(); }
+  }
+}
+document.addEventListener('input', e => {
+  if (e.target.id === 'bulktext') {
+    ui.bulkText = e.target.value; saveUi();
+    const c = document.getElementById('bulkcount'); if (c) c.textContent = bulkParse(e.target.value).length + ' adressen gevonden';
+    return;
+  }
+  onField(e);
+});
+document.addEventListener('change', onField);
+
+/* ---------- backup ---------- */
+async function shareOrDownload(name, text, type){
+  const file = new File([text], name, { type });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
+  } catch (e) { if (e.name === 'AbortError') return false; }
+  const url = URL.createObjectURL(file), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return true;
+}
+async function exportBackup(){
+  const now = new Date();
+  const data = JSON.stringify({ app: 'eggselent', exportedAt: `${ymd(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`, ...db, settings: { ...db.settings, lastBackup: ymd(now) } });
+  if (await shareOrDownload(`eggselent-backup-${ymd(now)}.json`, data, 'application/json')) {
+    db.settings.lastBackup = ymd(now); save(); render(); toast('Backup gemaakt');
+  }
+}
+async function exportCsv(){
+  const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  const lines = ['datum;straat;nummer;naam;resultaat;eieren;volgende_keer;volgende_aantal;opmerking'];
+  const vs = db.visits.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  for (const v of vs) {
+    const a = byId(v.addressId) || {};
+    lines.push([v.date, q(a.street), q(a.number), q(a.name), v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen' : 'verkocht', v.eggs || 0, v.nextDate || '', v.nextEggs ?? '', q(v.note)].join(';'));
+  }
+  await shareOrDownload(`eggselent-bezoeken-${todayStr()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
+}
+document.getElementById('importfile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || !Array.isArray(d.addresses) || !Array.isArray(d.visits)) throw new Error('Dit is geen Eggselent-backup.');
+    if (!confirm(`Backup van ${d.exportedAt || 'onbekende datum'} terugzetten?\n${d.addresses.length} adressen, ${d.visits.length} bezoeken.\n\nDit VERVANGT alle huidige gegevens ${syncOn() ? 'van het hele team' : 'op deze telefoon'}.`)) return;
+    delete d.app; delete d.exportedAt;
+    db = migrate(d); if (CLOUD) rekeyVisits(); save(); go('home'); toast('Backup teruggezet');
+  } catch (err) { alert('Terugzetten mislukt: ' + err.message); }
+});
+
+/* ---------- meldingen ---------- */
+let toastTimer = null;
+function toast(msg, actLabel, fn){
+  const t = document.getElementById('toast');
+  t.innerHTML = `<div class="t"><span>${esc(msg)}</span>${actLabel ? `<button>${esc(actLabel)}</button>` : ''}</div>`;
+  if (actLabel) t.querySelector('button').onclick = () => { t.innerHTML = ''; fn(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.innerHTML = ''; }, actLabel ? 6000 : 3000);
+}
+let savedTimer = null;
+function flashSaved(){
+  const s = document.getElementById('saved'); s.classList.add('on');
+  clearTimeout(savedTimer); savedTimer = setTimeout(() => s.classList.remove('on'), 900);
+}
+
+/* ---------- updates via service worker ---------- */
+let swReg = null, wantReload = false;
+function showUpdate(){ document.getElementById('update').hidden = false; }
+document.getElementById('updatebtn').onclick = () => {
+  wantReload = true;
+  if (swReg && swReg.waiting) swReg.waiting.postMessage('skipWaiting'); else location.reload();
+};
+async function checkUpdate(manual){
+  if (!swReg) { if (manual) toast('Updates werken alleen via de online versie (https).'); return; }
+  try { await swReg.update(); } catch (e) {}
+  if (manual) setTimeout(() => { if (!swReg.waiting && !swReg.installing) toast(`Je hebt de nieuwste versie (${APP_VERSION})`); }, 1500);
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    swReg = reg;
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdate();
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(); });
+    });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (wantReload) { wantReload = false; location.reload(); } });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const before = ui.date; fixDate(); if (ui.date !== before) { saveUi(); render(); }
+  checkUpdate(false);
+  syncNow();
+});
+
+render();
+syncNow();
+</script>
+</body>
+</html>
