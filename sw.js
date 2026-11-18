@@ -1,6 +1,6 @@
 // Service worker: zorgt dat de app offline werkt en updates binnenkomen.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in index.html).
-const VERSION = '2.0.1';
+const VERSION = '2.0.2';
 const CACHE = 'eggselent-' + VERSION;
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png'];
 
@@ -26,7 +26,10 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
 
-  if (req.mode === 'navigate') {
+  // De pagina en config.js horen bij elkaar: allebei eerst netwerk, zodat een nieuwe koppeling meteen doorkomt.
+  const isConfig = new URL(req.url).pathname.endsWith('/config.js');
+  if (req.mode === 'navigate' || isConfig) {
+    const key = isConfig ? './config.js' : './index.html';
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
       try {
@@ -34,10 +37,10 @@ self.addEventListener('fetch', (e) => {
           fetch(req, { cache: 'no-cache' }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000)),
         ]);
-        if (res && res.ok) cache.put('./index.html', res.clone());
+        if (res && res.ok) cache.put(key, res.clone());
         return res;
       } catch (err) {
-        return (await cache.match('./index.html')) || (await cache.match('./')) || Response.error();
+        return (await cache.match(key)) || (!isConfig && (await cache.match('./'))) || Response.error();
       }
     })());
     return;
