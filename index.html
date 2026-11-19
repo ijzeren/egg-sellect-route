@@ -38,7 +38,8 @@
 html{font-size:17px;font:-apple-system-body;background:var(--bg)}
 body{margin:0;background:var(--bg);color:var(--label);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;line-height:1.3;-webkit-text-size-adjust:100%;overscroll-behavior-y:none;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;background:none;border:0;padding:0;margin:0}
+button{cursor:pointer;background:none;border:0;padding:0;margin:0;touch-action:manipulation}
+html,a,label,input,select,textarea{touch-action:manipulation}
 h1,h2,h3,p{margin:0}
 :focus{outline:none}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
@@ -244,9 +245,9 @@ button.cell:active,a.cell:active{background:var(--press)}
 
 /* HUD-melding */
 #toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 92px);z-index:60;display:flex;justify-content:center;pointer-events:none}
-#toast .t{display:flex;align-items:center;gap:14px;max-width:520px;padding:12px 16px;border-radius:14px;background:rgba(30,30,30,.92);color:#fff;font-size:.882rem;pointer-events:auto;box-shadow:0 8px 30px rgba(0,0,0,.25);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);animation:hud .25s ease-out}
+#toast .t{display:flex;align-items:center;gap:14px;max-width:520px;padding:12px 16px;border-radius:14px;background:rgba(30,30,30,.92);color:#fff;font-size:.882rem;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.25);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);animation:hud .25s ease-out}
 #toast .t.err{background:rgba(215,0,21,.95)}
-#toast .t button{color:#FF9F0A;font-weight:600;min-height:32px;white-space:nowrap}
+#toast .t button{color:#FF9F0A;font-weight:600;min-height:44px;padding:0 4px;white-space:nowrap;pointer-events:auto}
 @keyframes hud{from{opacity:0;transform:translateY(10px)}}
 
 /* overig */
@@ -268,7 +269,7 @@ table.h th:first-child,table.h td:first-child{text-align:left}
 .mt12{margin-top:12px}
 
 /* overgangen tussen schermen (zoals een navigatie-stack) */
-::view-transition-old(root),::view-transition-new(root){animation-duration:.34s;animation-timing-function:cubic-bezier(.2,.85,.25,1)}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.24s;animation-timing-function:cubic-bezier(.2,.85,.25,1)}
 html.push::view-transition-old(root){animation-name:vt-out-l} html.push::view-transition-new(root){animation-name:vt-in-r}
 html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop::view-transition-new(root){animation-name:vt-in-l}
 @keyframes vt-in-r{from{transform:translateX(100%)}} @keyframes vt-out-l{to{transform:translateX(-28%);opacity:.7}}
@@ -288,7 +289,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -1445,6 +1446,7 @@ function render(){
     else if (ui.view === 'login' || ui.view === 'onboard') ui.view = 'home';
   } else if (['login', 'onboard', 'team'].includes(ui.view)) ui.view = 'home';
   renderDeferred = false;
+  openSwipe = null; drag = null; // oude DOM is weg: geen 'open' veegrij meer die de volgende tik inslikt
   const views = { home: vHome, house: vHouse, order: vOrder, route: vRoute, edit: vEdit, bulk: vBulk, settings: vSettings, login: vLogin, onboard: vOnboard, team: vTeam };
   app.innerHTML = (views[ui.view] || vHome)();
   if (ui.view !== 'house') ui.sheet = null;
@@ -1722,7 +1724,7 @@ document.addEventListener('pointermove', e => {
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (!drag.active) {
     if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
-    if (Math.abs(dx) < 10) return;
+    if (Math.abs(dx) < (drag.house ? 24 : 18)) return;
     drag.active = true;
     if (drag.sw) { if (openSwipe && openSwipe !== drag.sw) closeSwipe(); drag.fg.classList.add('drag'); }
   }
@@ -1761,6 +1763,13 @@ document.addEventListener('pointercancel', () => {
 });
 
 /* ---------- invoervelden ---------- */
+// Een veld verliest zijn focus doordat je ergens op tikt. Eerst die tik laten aankomen, dan pas hertekenen.
+function renderAfterTap(){
+  setTimeout(() => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName)) { renderDeferred = true; return; }
+    render();
+  }, 250);
+}
 let noteTimer = null;
 function onField(e){
   const el = e.target, f = el.dataset && el.dataset.field;
@@ -1771,7 +1780,7 @@ function onField(e){
     noteTimer = setTimeout(() => { const v = curVisit(); if (v) { v.note = val; save(true); } }, e.type === 'change' ? 0 : 500);
     return;
   }
-  if (f === 'nextDate') { if (e.type === 'change' && el.value) setVisit({ nextDate: el.value }); return; }
+  if (f === 'nextDate') { if (e.type === 'change' && el.value) { setVisit({ nextDate: el.value }, null, true); renderAfterTap(); } return; }
   if (f === 'absenceScript') {
     if (e.type !== 'change') return;
     db.settings.absenceScript = el.value.trim() === DEFAULT_SCRIPT ? '' : el.value.trim(); save(); return;
@@ -1779,7 +1788,7 @@ function onField(e){
   if (f === 'order') {
     if (e.type !== 'change') return;
     if (el.value === '') delete db.orders[ui.ow]; else db.orders[ui.ow] = Math.max(0, Math.round(+el.value));
-    save(); render(); return;
+    save(); renderAfterTap(); return;
   }
   if (ui.view === 'edit') {
     const isNew = !ui.id, a = isNew ? ui.draft : byId(ui.id);
@@ -1788,7 +1797,7 @@ function onField(e){
     if (f === 'pos') {
       if (e.type !== 'change') return;
       if (isNew) { a.pos = +val; saveUi(); return; }
-      moveTo(a, +val); save(); render(); return;
+      moveTo(a, +val); save(); renderAfterTap(); return;
     }
     a[f] = val;
     if (isNew) { saveUi(); return; }
