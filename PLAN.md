@@ -122,28 +122,43 @@ nauwkeuriger het advies.
 
 ---
 
-## 2. Design
+## 2. Design (v2.1, iOS-stijl)
 
-Het ontwerp is het werkende prototype zelf (iPhone 11 Pro-formaat, 375×812).
-Uitgangspunten: grote tikvlakken (je staat met een doos eieren aan de deur), één primaire
-knop per scherm, warme "eierdoos"-kleuren, rood voor alles wat met afwezigheid / niet thuis
-te maken heeft, automatisch donker thema.
+Na een UX-review (Apple Human Interface Guidelines) is de app herontworpen zodat hij aanvoelt
+als een echte iPhone-app: rijk aan mogelijkheden, maar met één duidelijke handeling per moment.
 
-| Ronde | Huis | Huis: volgende keer |
-|---|---|---|
-| ![Ronde](docs/design/01-ronde.jpg) | ![Huis](docs/design/02-huis.jpg) | ![Volgende keer](docs/design/03-huis-volgende-keer.jpg) |
+**Aan de deur (huisscherm)**
+- Onderaan, onder de duim: **"Zoals afgesproken"** noteert in één tik en gaat door naar het
+  volgende huis, met "Ongedaan" in de melding. Ernaast **Niet thuis** (ook noteren en door).
+- Valt de dag van de klant volgende week uit: rode kaart met weekstrook en tekst, en de
+  hoofdknop wordt **"Voor 2 weken"**.
+- Het **afgesproken aantal staat groot** bovenaan, met de laatste 4 keer als strook.
+- "Ander aantal": stepper + snelknoppen (Geen, 6, 10, 12, 15, 20, 30).
+- **Volgende keer en notitie** zijn één regel die een paneel van onderen opent (zoals in
+  Herinneringen): aantal, weken (segmentknop), dag, andere datum.
+- Opzij vegen = vorig/volgend huis. Menu (…) voor adres wijzigen, invoer wissen, uitsluiten.
 
-| Planning: advies | Planning: per loopdag + afwezig | Huis: dag valt volgende week uit |
-|---|---|---|
-| ![Advies](docs/design/04-planning-advies.jpg) | ![Afwezig](docs/design/05-planning-afwezig.jpg) | ![Dag valt uit](docs/design/06-huis-dag-valt-uit.jpg) |
+**Ronde**: grote titel, één melding tegelijk, voortgangsbalk ("3 van 5 · 44 verkocht · nog 16
+mee"), lijst zoals in Instellingen. **Vegen zoals in Mail**: naar rechts = zoals afgesproken,
+naar links = Geen / Niet thuis. Rode stip = aandacht nodig.
 
-Schermen voor accounts (§3):
+**Overal**: iOS-systeemkleuren (toegankelijke varianten, leesbaar in de zon), automatisch donker
+thema, SF-lettertype dat meeschaalt met de tekstgrootte van de iPhone, eigen iconen in de stijl
+van SF Symbols, wazige navigatie- en tabbalk, schuifovergangen tussen schermen, iOS-actiebladen
+in plaats van pop-ups, schakelaars voor loopdagen, tikvlakken van minimaal 44 punten.
+Updates worden stil geïnstalleerd zodra de app naar de achtergrond gaat.
 
-| Inloggen | Welkom: team aanmaken / lid worden | Team: uitnodigen | Instellingen: account |
+| Ronde | Vegen | Huis: dag valt uit | Huis: afspraak |
 |---|---|---|---|
-| ![Inloggen](docs/design/07-inloggen.jpg) | ![Welkom](docs/design/08-welkom-team-kiezen.jpg) | ![Team](docs/design/09-team-uitnodigen.jpg) | ![Account](docs/design/10-instellingen-account.jpg) |
+| ![](docs/design/01-ronde.jpg) | ![](docs/design/02-ronde-vegen.jpg) | ![](docs/design/03-huis-dag-valt-uit.jpg) | ![](docs/design/04-huis-afspraak.jpg) |
 
----
+| Volgende keer | Planning | Instellingen | Inloggen |
+|---|---|---|---|
+| ![](docs/design/05-paneel-volgende-keer.jpg) | ![](docs/design/06-planning.jpg) | ![](docs/design/07-instellingen.jpg) | ![](docs/design/10-inloggen.jpg) |
+
+| Donker: huis | Donker: route |
+|---|---|
+| ![](docs/design/08-huis-donker.jpg) | ![](docs/design/09-route-donker.jpg) |
 
 ## 3. Fase 2: accounts, teams en synchronisatie (gebouwd, v2.0.0)
 
