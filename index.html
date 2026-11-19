@@ -309,7 +309,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -1070,11 +1070,17 @@ function expectedBetween(from, to){
   return { rows, total: Math.round(sum(rows, x => x.exp)), agreed: sum(rows, x => x.eggs), teamRatio };
 }
 const nextOnDow = (from, d, incl) => { for (let i = incl ? 0 : 1; i < 15; i++) { const x = addDays(from, i); if (dow(x) === d) return x; } return from; };
-// Besteladvies: bestellen op de besteldag voor de levering daarna; de levering moet de verkoop dekken tot de
-// levering erop, plus de marge. Marge = wat er bij de volgende levering over is, als % van de verkoop in die periode.
+const prevOnDow = (before, d) => { for (let i = 1; i < 8; i++) { const x = addDays(before, -i); if (dow(x) === d) return x; } return before; };
+// Besteladvies voor de eerstvolgende levering waarvoor nog niets is vastgelegd (besteld of geleverd).
+// Die levering moet de verkoop dekken tot de levering erop, plus de marge. Marge = wat er bij de volgende
+// levering over is, als % van de verkoop in die periode. Is de besteldag van die levering al voorbij, dan is
+// er waarschijnlijk buiten de app besteld: dan vraagt de app wat er besteld is (overdue).
 function supplyPlan(){
   const s = db.settings, T = todayStr(), m = Math.max(0, +(s.marginPct ?? 10)) / 100;
-  const orderDate = nextOnDow(T, s.orderDow ?? 5, true), delivery = nextOnDow(orderDate, s.deliveryDow ?? 3, false), nextDel = addDays(delivery, 7);
+  const hasDel = D => stockEvents().some(e => e.kind === 'delivery' && e.date === D);
+  let delivery = nextOnDow(T, s.deliveryDow ?? 3, true);
+  if (hasDel(delivery)) delivery = addDays(delivery, 7);
+  const orderDate = prevOnDow(delivery, s.orderDow ?? 5), nextDel = addDays(delivery, 7), overdue = orderDate < T;
   const st = stockAt(T), stock = st ? st.stock : 0;
   const pendingList = stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && (e.ordered || 0) > 0 && e.date >= T && e.date < delivery);
   const pending = sum(pendingList, e => e.ordered);
@@ -1083,7 +1089,7 @@ function supplyPlan(){
   const advice = Math.max(0, Math.round(Math.max(0, target - atDelivery) / rnd) * rnd);
   const leftover = Math.round(atDelivery + advice - period.total);
   const existing = stockEvents().find(e => e.kind === 'delivery' && e.date === delivery);
-  return { T, m, orderDate, delivery, nextDel, st, stock, pending, pendingList, before, period, atDelivery: Math.round(atDelivery), target: Math.round(target), advice, leftover, pct: period.total > 0 ? leftover / period.total : null, existing };
+  return { T, m, orderDate, overdue, delivery, nextDel, st, stock, pending, pendingList, before, period, atDelivery: Math.round(atDelivery), target: Math.round(target), advice, leftover, pct: period.total > 0 ? leftover / period.total : null, existing };
 }
 // Per leverperiode: wat er geleverd en verkocht is en wat er over was bij de volgende levering
 function periodHistory(){
@@ -1529,9 +1535,13 @@ function supplySection(){
   if (sp.advice === 0 && sp.pct != null && sp.pct > sp.m) band = `Genoeg voorraad: niets bestellen. Bij de levering daarna is er naar verwachting ${sp.leftover} over (${sp.pct > 1 ? `genoeg voor ±${Math.round(sp.pct)} ${Math.round(sp.pct) === 1 ? 'week' : 'weken'}` : pctTxt}).`;
   else if (sp.period.total === 0) band = 'Nog geen verwachte verkoop in die periode (geen afspraken of loopdagen).';
   else band = `Daarmee is er bij de levering daarna ±${sp.leftover} over (${pctTxt}; marge ${mPct}%).`;
-  h += `<section class="sec"><h2 class="sec-h">Bestellen</h2><div class="grp"><div class="hero order"><div class="lbl">${sp.orderDate === sp.T ? 'Vandaag bestellen' : `Bestellen op ${esc(fmtLong(sp.orderDate))}`}</div>
-      <div class="big"><b class="num">${sp.advice}</b><span>eieren</span></div>
-      <div class="meta">Voor de levering van ${esc(fmtLong(sp.delivery))}. ${band}</div></div>
+  const lbl = sp.overdue && !sp.existing ? `Levering ${esc(fmtLong(sp.delivery))}: nog niet vastgelegd` : sp.orderDate === sp.T ? 'Vandaag bestellen' : `Bestellen op ${esc(fmtLong(sp.orderDate))}`;
+  const meta = sp.overdue && !sp.existing
+    ? `De besteldag was ${esc(fmtLong(sp.orderDate))}. Leg vast hoeveel je besteld hebt; dan rekent de app daarmee verder en gaat het advies naar de levering erna.`
+    : `Voor de levering van ${esc(fmtLong(sp.delivery))}. ${band}`;
+  h += `<section class="sec"><h2 class="sec-h">Bestellen</h2><div class="grp"><div class="hero order"><div class="lbl">${lbl}</div>
+      <div class="big"><b class="num">${sp.advice}</b><span>eieren${sp.overdue && !sp.existing ? ' (advies)' : ''}</span></div>
+      <div class="meta">${meta}</div></div>
     <button class="cell" data-act="togglesupply" aria-expanded="${!!ui.showSupply}"><span class="tx"><span class="tt" style="color:var(--tint)">Hoe berekend</span></span><span style="display:inline-flex;transform:rotate(${ui.showSupply ? 90 : 0}deg);transition:transform .2s">${I('chevR', 'chev')}</span></button>`;
   if (ui.showSupply) {
     const line = (t, n, st2) => `<div class="cell"><span class="tx"><span class="tt">${t}</span>${st2 ? `<span class="st">${st2}</span>` : ''}</span><span class="tr num">${n}</span></div>`;
@@ -1547,6 +1557,7 @@ function supplySection(){
     if (sp.period.rows.length) h += sp.period.rows.slice().sort((x, y) => x.date < y.date ? -1 : 1).map(x => `<div class="cell"><span class="tx"><span class="tt">${esc(label(x.a))}</span><span class="st">${esc(fmtShort(x.date))} · ${x.eggs} afgesproken${x.f !== 1 ? ` × ${Math.round(x.f * 100)}%${x.own ? '' : ' (team)'}` : ''}</span></span><span class="tr num">${Math.round(x.exp)}</span></div>`).join('');
   }
   if (sp.existing) h += `<button class="cell" data-act="stockedit" data-id="${esc(sp.existing.id)}"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">Besteld voor ${esc(fmtShort(sp.delivery))}: ${sp.existing.ordered ?? 0}</span>${sp.existing.ordered != null && sp.existing.ordered !== sp.advice ? `<span class="st">Advies is nu ${sp.advice}</span>` : ''}</span>${chev()}</button>`;
+  else if (sp.overdue) h += `<button class="cell tint" data-act="stockorder"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Leg vast wat je besteld hebt</span><span class="st">Voor ${esc(fmtShort(sp.delivery))} · vul het echte aantal in</span></span>${chev()}</button>`;
   else h += `<button class="cell tint" data-act="stockorder"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Leg bestelling vast: ${sp.advice}</span><span class="st">Je kunt het aantal nog aanpassen</span></span>${chev()}</button>`;
   h += '</div></section>';
   h += boxSection(sp);
@@ -2272,7 +2283,8 @@ document.addEventListener('click', e => {
       const sp = supplyPlan();
       const e = { id: uid(), date: sp.delivery, kind: 'delivery', ordered: sp.advice, delivered: null, broken: 0, counted: null, note: '' };
       db.stock.push(e); save(); ui.stockId = e.id; openSheet('stock'); render();
-      toast(`Bestelling vastgelegd: ${sp.advice} voor ${fmtShort(sp.delivery)}`);
+      if (sp.overdue) setTimeout(() => { const f = document.querySelector('[data-field=st_ordered]'); if (f) { f.focus(); f.select(); } }, 400);
+      else toast(`Bestelling vastgelegd: ${sp.advice} voor ${fmtShort(sp.delivery)}`);
       break;
     }
     case 'stockreceive': {

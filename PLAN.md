@@ -288,6 +288,9 @@ en installeren daar niet, maar alle schermen wel.
   afgesproken aantal, voorkeursdagen, loopdagen/afwezigheid en hoe vaak de klant echt thuis was.
   Marge = rest bij de volgende levering als % van de verkoop in die periode; per periode gecontroleerd.
 - **Weergave** per telefoon: automatisch, licht of donker.
+- **Advies per levering** (v2.7.1): het advies gaat altijd over de eerstvolgende levering waarvoor
+  nog niets is vastgelegd. Is de besteldag daarvan al voorbij (buiten de app besteld), dan vraagt de
+  app wat er besteld is in plaats van een levering over te slaan en een tekort te melden.
 - **Reeks wijzigen** (v2.7): Route → Reeks wijzigen; tik op het eerste en laatste adres en zet
   voorkeursdag en/of frequentie voor de hele reeks, desgewenst alleen voor adressen zonder
   voorkeursdag. Met Ongedaan.
