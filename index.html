@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>Egg-sellent</title>
+<script>try { var t = localStorage.getItem('eggselent-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <style>
 /* iOS-ontwerpsysteem: systeemkleuren (toegankelijke varianten), SF-typografie, inset-grouped lijsten */
 :root{
@@ -25,7 +26,7 @@
   color-scheme:light dark;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme=light]){
     --bg:#000; --cell:#1C1C1E; --cell2:#2C2C2E; --label:#FFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
     --sep:rgba(84,84,88,.65); --fill:rgba(120,120,128,.32); --fill2:rgba(120,120,128,.44); --press:rgba(255,255,255,.08);
     --tint:#FF9F0A; --on-tint:#1C1C1E; --red:#FF453A; --green:#30D158; --blue:#0A84FF; --orange:#FF9F0A; --yellow:#FFD60A;
@@ -33,6 +34,15 @@
     --bar:rgba(22,22,24,.8); --shadow:none;
   }
 }
+:root[data-theme=dark]{
+    --bg:#000; --cell:#1C1C1E; --cell2:#2C2C2E; --label:#FFF; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.3);
+    --sep:rgba(84,84,88,.65); --fill:rgba(120,120,128,.32); --fill2:rgba(120,120,128,.44); --press:rgba(255,255,255,.08);
+    --tint:#FF9F0A; --on-tint:#1C1C1E; --red:#FF453A; --green:#30D158; --blue:#0A84FF; --orange:#FF9F0A; --yellow:#FFD60A;
+    --red-s:rgba(255,69,58,.18); --green-s:rgba(48,209,88,.18); --blue-s:rgba(10,132,255,.2); --orange-s:rgba(255,159,10,.18); --note-s:rgba(255,214,10,.14);
+    --bar:rgba(22,22,24,.8); --shadow:none;
+}
+:root[data-theme=light]{color-scheme:light}
+:root[data-theme=dark]{color-scheme:dark}
 @media (prefers-contrast: more){ :root{ --sep:rgba(60,60,67,.6); --label2:rgba(60,60,67,.85) } }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{font-size:17px;font:-apple-system-body;background:var(--bg)}
@@ -122,7 +132,8 @@ button.cell:active,a.cell:active{background:var(--press)}
 .segc{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
 .segc button{flex:1;min-height:36px;border-radius:7px;font-size:.882rem;font-weight:500;white-space:nowrap;padding:0 4px}
 .segc button[aria-pressed=true]{background:var(--cell);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
-@media (prefers-color-scheme: dark){ .segc button[aria-pressed=true]{background:#636366} }
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]) .segc button[aria-pressed=true]{background:#636366} }
+:root[data-theme=dark] .segc button[aria-pressed=true]{background:#636366}
 .toggle{position:relative;width:51px;height:31px;border-radius:16px;background:var(--fill2);flex:none;transition:background .2s}
 .toggle::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 3px 1px rgba(0,0,0,.06);transition:transform .2s}
 .toggle[aria-checked=true]{background:#34C759}
@@ -290,7 +301,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.6.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -328,11 +339,12 @@ const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
 function emptyDb(){ return migrate({}); }
 function migrate(d){
   d.version = 2;
-  d.settings = Object.assign({ walkDays: [], lastBackup: null, orderRound: 1, absenceScript: '' }, d.settings || {});
+  d.settings = Object.assign({ walkDays: [], lastBackup: null, orderRound: 1, absenceScript: '', marginPct: 10, orderDow: 5, deliveryDow: 3 }, d.settings || {});
   d.addresses = Array.isArray(d.addresses) ? d.addresses : [];
   d.visits = Array.isArray(d.visits) ? d.visits : [];
   d.absences = Array.isArray(d.absences) ? d.absences : [];
   d.orders = (d.orders && typeof d.orders === 'object') ? d.orders : {};
+  d.stock = Array.isArray(d.stock) ? d.stock : []; // leveringen en tellingen
   for (const a of d.addresses) {
     if (!Array.isArray(a.prefDays)) a.prefDays = (a.prefDay != null && a.prefDay !== '') ? [+a.prefDay] : [];
     delete a.prefDay;
@@ -387,8 +399,8 @@ const CLOUD = !!(CFG.supabaseUrl && CFG.supabaseKey);
 // Vaste code alleen als de app echt met een lokale Supabase praat; nooit tegen de online database.
 const DEV_CODE = CFG.devCode && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(CFG.supabaseUrl) ? String(CFG.devCode) : null;
 const SKEY = 'eggselent-sync-v1', HKEY = 'eggselent-hash-v1';
-const TABLES = ['addresses', 'visits', 'absences', 'orders'];
-const CONFLICT = { addresses: 'team_id,id', visits: 'team_id,id', absences: 'team_id,date', orders: 'team_id,week_start' };
+const TABLES = ['addresses', 'visits', 'absences', 'orders', 'stock_events'];
+const CONFLICT = { addresses: 'team_id,id', visits: 'team_id,id', absences: 'team_id,date', orders: 'team_id,week_start', stock_events: 'team_id,id' };
 const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
 let S = Object.assign({ session: null, userId: null, team: null, teams: [], lastPull: null, settingsU: null, outbox: {}, lastSync: null }, readJson(SKEY, {}));
 let H = readJson(HKEY, {});
@@ -409,7 +421,8 @@ function syncRecords(){
   for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered }]);
   for (const d of db.absences) out.push(['absences', d, { date: d }]);
   for (const [w, n] of Object.entries(db.orders)) out.push(['orders', w, { week_start: w, amount: n }]);
-  out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '' }]);
+  for (const e of db.stock || []) out.push(['stock_events', e.id, { id: e.id, date: e.date, kind: e.kind, ordered: e.ordered ?? null, delivered: e.delivered ?? null, broken: e.broken || 0, counted: e.counted ?? null, note: e.note || '' }]);
+  out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '', margin_pct: db.settings.marginPct ?? 10, order_dow: db.settings.orderDow ?? 5, delivery_dow: db.settings.deliveryDow ?? 3 }]);
   return out;
 }
 function tombstone(t, k){
@@ -575,6 +588,19 @@ async function passkeyAdd(){
 const passkeyList = () => api('/auth/v1/passkeys');
 const passkeyDelete = id => api('/auth/v1/passkeys/' + id, { method: 'DELETE' });
 
+/* ---------- weergave: automatisch / licht / donker (per telefoon) ---------- */
+const THEME_KEY = 'eggselent-theme';
+function getTheme(){ try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) { return 'auto'; } }
+function applyTheme(t){
+  const root = document.documentElement;
+  if (t === 'light' || t === 'dark') root.dataset.theme = t; else delete root.dataset.theme;
+  const dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => m.setAttribute('content', dark ? '#000000' : '#F2F2F7'));
+}
+function setTheme(t){ try { localStorage.setItem(THEME_KEY, t); } catch (e) {} applyTheme(t); }
+applyTheme(getTheme());
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(getTheme()));
+
 /* ---------- meldingen (web push) ---------- */
 const VAPID = CFG.vapidPublicKey || '';
 const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -621,6 +647,11 @@ async function pushDigest(){
     rows.push({ key: 'day:' + d, payload: { open: open.length, eggs: sum(open, x => x.exp || 0), absent: isAbsent(d) } });
   }
   for (const k of [0, 1]) { const W = addDays(weekStart(T), 7 * k); rows.push({ key: 'week:' + W, payload: { week: isoWeek(W), advice: orderAdvice(W).adviceMain } }); }
+  if (stockEvents().some(e => e.kind === 'delivery' && e.delivered != null)) { // met voorraad: advies per levering (vervangt het weekgetal)
+    const sp = supplyPlan(), key = 'week:' + weekStart(sp.delivery), row = rows.find(r => r.key === key);
+    const payload = { week: isoWeek(sp.delivery), advice: sp.advice, delivery: sp.delivery, stock: sp.stock };
+    if (row) row.payload = payload; else rows.push({ key, payload });
+  }
   const h = hash(JSON.stringify(rows));
   if (S.digestHash === h + S.team.id) return;
   const now = new Date().toISOString();
@@ -724,7 +755,7 @@ async function pull(){
   S.team.name = team.name;
   const pend = S.outbox['settings:team'];
   if ((!S.settingsU || tsMs(team.settings_updated_at) > tsMs(S.settingsU)) && !(pend && tsMs(pend.u) > tsMs(team.settings_updated_at))) {
-    Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '' });
+    Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '', marginPct: team.margin_pct ?? 10, orderDow: team.order_dow ?? 5, deliveryDow: team.delivery_dow ?? 3 });
     S.settingsU = team.settings_updated_at; if (pend) delete S.outbox['settings:team']; changed = true;
   }
   for (const t of TABLES) {
@@ -770,6 +801,15 @@ function mergeRow(t, r){
   if (t === 'orders') {
     if (r.deleted) { if (!(r.week_start in db.orders)) return false; delete db.orders[r.week_start]; return true; }
     db.orders[r.week_start] = r.amount; return true;
+  }
+  if (t === 'stock_events') {
+    db.stock = db.stock || [];
+    const i = db.stock.findIndex(e => e.id === r.id);
+    if (r.deleted) { if (i < 0) return false; db.stock.splice(i, 1); return true; }
+    const e = { id: r.id, date: r.date, kind: r.kind, ordered: r.ordered, delivered: r.delivered, broken: r.broken || 0, counted: r.counted, note: r.note || '' };
+    if (i >= 0 && Object.keys(e).every(k => (db.stock[i][k] ?? null) === (e[k] ?? null))) return false;
+    if (i < 0) db.stock.push(e); else db.stock[i] = e;
+    return true;
   }
 }
 function sortAddresses(){
@@ -952,6 +992,102 @@ function realisation(beforeWeek){
   }
   return { ratio: agreed ? got / agreed : null, extraPerWeek: weeks ? extra / weeks : 0, weeks, perWeek };
 }
+/* ---------- voorraad (FIFO) en besteladvies per leverperiode ---------- */
+const stockEvents = () => db.stock || [];
+function salesByDate(from, to){
+  const m = new Map();
+  for (const v of db.visits) if (DEC(v) && v.eggs && v.date >= from && v.date <= to) m.set(v.date, (m.get(v.date) || 0) + v.eggs);
+  return m;
+}
+// Voorraad aan het eind van dag asOf. FIFO: verkoop en verlies gaan van de oudste levering af.
+// Een levering telt vanaf het begin van haar dag (ook als het een loopdag is); een telling geldt aan het eind van de dag.
+// Verkoop vóór de eerste levering telt niet mee. Negatieve voorraad = tekort (meer verkocht dan er was).
+function stockAt(asOf){
+  const ev = stockEvents().filter(e => e.date <= asOf);
+  const dels = ev.filter(e => e.kind === 'delivery' && e.delivered != null).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  if (!dels.length) return null;
+  const start = dels[0].date, sales = salesByDate(start, asOf);
+  const counts = ev.filter(e => e.kind === 'count' && e.counted != null && e.date >= start);
+  const dates = [...new Set([...dels.map(e => e.date), ...sales.keys(), ...counts.map(e => e.date)])].sort();
+  const batches = [], diffs = {};
+  let debt = 0, sold = 0, loss = 0, found = 0, broken = 0;
+  const take = n => { for (const b of batches) { if (n <= 0) break; const t = Math.min(b.left, n); b.left -= t; n -= t; } debt += n; };
+  const add = b => { const pay = Math.min(debt, b.left); b.left -= pay; debt -= pay; batches.push(b); };
+  for (const d of dates) {
+    for (const e of dels) if (e.date === d) { const net = Math.max(0, (e.delivered || 0) - (e.broken || 0)); broken += e.broken || 0; add({ id: e.id, date: d, net, left: net }); }
+    const s1 = sales.get(d) || 0; if (s1) { sold += s1; take(s1); }
+    for (const c of counts) if (c.date === d) {
+      const have = sum(batches, b => b.left) - debt, diff = c.counted - have;
+      diffs[c.id] = { have, diff };
+      if (diff < 0) { loss -= diff; take(-diff); } else if (diff > 0) { found += diff; add({ id: c.id, date: d, net: diff, left: diff, extra: true }); }
+    }
+  }
+  return { start, batches, stock: sum(batches, b => b.left) - debt, sold, loss, found, broken, diffs };
+}
+// Hoe betrouwbaar is een klant (thuis, en het afgesproken aantal genomen): verkocht ÷ afgesproken, laatste 8 afgeronde weken.
+function addressReliability(){
+  const cur = weekStart(todayStr()), out = new Map();
+  for (const a of db.addresses) {
+    const vs = visitsOf(a.id); let ag = 0, got = 0, n = 0;
+    for (let k = 8; k >= 1; k--) {
+      const w = addDays(cur, -7 * k), wE = addDays(w, 6), prev = lastDecisive(vs, w);
+      if (!(prev && prev.nextDate && prev.nextDate >= w && prev.nextDate <= wE)) continue;
+      const inW = vs.filter(v => v.date >= w && v.date <= wE), soldW = sum(inW.filter(DEC), v => v.eggs || 0);
+      ag += agEggs(prev) + (inW.some(v => v.double) ? Math.max(0, soldW - agEggs(prev)) : 0); got += soldW; n++;
+    }
+    if (n >= 3 && ag > 0) out.set(a.id, { f: Math.min(1.2, got / ag), n });
+  }
+  return out;
+}
+// Verwachte verkoop per klant tussen twee data (incl.). Gebruikt de afspraken, frequentie, voorkeursdagen,
+// loopdagen en afwezigheid (via forecast), en per klant de betrouwbaarheid (anders het teamgemiddelde).
+function expectedBetween(from, to){
+  const T = todayStr(), r = realisation(weekStart(T));
+  const teamRatio = r.weeks >= 3 && r.ratio != null ? Math.min(1.1, Math.max(0.5, r.ratio)) : 1;
+  const rel = addressReliability(), rows = [];
+  for (let W = weekStart(from); W <= to; W = addDays(W, 7)) {
+    for (const x of forecast(W)) {
+      if (x.kind !== 'afgesproken' && x.kind !== 'verwacht') continue;
+      const d = x.date < T ? T : x.date; // gemist = wordt nog ingehaald
+      if (d < from || d > to) continue;
+      const f = rel.has(x.a.id) ? rel.get(x.a.id).f : teamRatio;
+      rows.push({ a: x.a, date: d, eggs: x.eggs, f, own: rel.has(x.a.id), exp: x.eggs * f, kind: x.kind });
+    }
+  }
+  return { rows, total: Math.round(sum(rows, x => x.exp)), agreed: sum(rows, x => x.eggs), teamRatio };
+}
+const nextOnDow = (from, d, incl) => { for (let i = incl ? 0 : 1; i < 15; i++) { const x = addDays(from, i); if (dow(x) === d) return x; } return from; };
+// Besteladvies: bestellen op de besteldag voor de levering daarna; de levering moet de verkoop dekken tot de
+// levering erop, plus de marge. Marge = wat er bij de volgende levering over is, als % van de verkoop in die periode.
+function supplyPlan(){
+  const s = db.settings, T = todayStr(), m = Math.max(0, +(s.marginPct ?? 10)) / 100;
+  const orderDate = nextOnDow(T, s.orderDow ?? 5, true), delivery = nextOnDow(orderDate, s.deliveryDow ?? 3, false), nextDel = addDays(delivery, 7);
+  const st = stockAt(T), stock = st ? st.stock : 0;
+  const pendingList = stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && (e.ordered || 0) > 0 && e.date >= T && e.date < delivery);
+  const pending = sum(pendingList, e => e.ordered);
+  const before = expectedBetween(T, addDays(delivery, -1)), period = expectedBetween(delivery, addDays(nextDel, -1));
+  const atDelivery = stock + pending - before.total, target = period.total * (1 + m), rnd = s.orderRound || 1;
+  const advice = Math.max(0, Math.round(Math.max(0, target - atDelivery) / rnd) * rnd);
+  const leftover = Math.round(atDelivery + advice - period.total);
+  const existing = stockEvents().find(e => e.kind === 'delivery' && e.date === delivery);
+  return { T, m, orderDate, delivery, nextDel, st, stock, pending, pendingList, before, period, atDelivery: Math.round(atDelivery), target: Math.round(target), advice, leftover, pct: period.total > 0 ? leftover / period.total : null, existing };
+}
+// Per leverperiode: wat er geleverd en verkocht is en wat er over was bij de volgende levering
+function periodHistory(){
+  const dels = stockEvents().filter(e => e.kind === 'delivery' && e.delivered != null).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const out = [];
+  for (let i = 0; i < dels.length; i++) {
+    const from = dels[i].date, nextE = dels.slice(i + 1).find(e => e.date > from), next = nextE ? nextE.date : null;
+    if (i > 0 && dels[i - 1].date === from) continue;
+    if (!next && from > todayStr()) continue; // levering in de toekomst: nog geen periode
+    const to = next ? addDays(next, -1) : todayStr();
+    const net = sum(dels.filter(e => e.date === from), e => Math.max(0, (e.delivered || 0) - (e.broken || 0)));
+    const soldP = sum([...salesByDate(from, to).values()]);
+    const left = next ? (stockAt(to) || { stock: 0 }).stock : null;
+    out.push({ from, to, next, net, sold: soldP, left, pct: next && soldP ? left / soldP : null, first: i === 0 });
+  }
+  return out.reverse();
+}
 const soldIn = (T) => { const TE = addDays(T, 6); return sum(db.visits.filter(v => v.date >= T && v.date <= TE && DEC(v)), v => v.eggs || 0); };
 
 function statusPill(v, exp){
@@ -1068,6 +1204,8 @@ function vHome(){
   const total = p.shown.length;
   h += `<div class="progress"><div class="t"><b class="num">${done} van ${total}</b> gedaan · <span class="num">${eggs}</span> verkocht · nog <span class="num">${expOpen}</span> mee</div>
     <div class="bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><div class="bar-fg" style="width:${total ? Math.round(done / total * 100) : 0}%"></div></div></div>`;
+  { const st = stockAt(D); if (st) { const old = st.batches.find(b => b.left > 0);
+    h += `<div class="grp mb"><button class="cell" data-act="tab" data-v="order"><span class="ico" style="background:${st.stock < (expOpen || 0) ? 'var(--red)' : 'var(--tint)'}">${I('box')}</span><span class="tx"><span class="tt">Voorraad <b class="num">${st.stock}</b>${expOpen ? ` · nodig vandaag ${expOpen}` : ''}</span>${old ? `<span class="st">Eerst die van ${esc(fmtShort(old.date))} (${old.left} over)</span>` : ''}</span>${chev()}</button></div>`; } }
   if (next) h += `<button class="btn big mb" data-act="open" data-id="${next.a.id}">${done ? 'Verder' : 'Start'} bij ${esc(label(next.a))}${I('chevR')}</button>`;
   else if (total) h += `<div class="banner mb">${I('check')}<div><b>Alles gedaan voor vandaag.</b></div></div>`;
   else h += `<div class="empty">${I('check')}<h2>Niets gepland</h2><p>Er staan vandaag geen adressen in de ronde.</p></div>`;
@@ -1262,10 +1400,11 @@ function vOrder(){
   const rel = T === cur ? 'deze week' : T === addDays(cur, 7) ? 'volgende week' : T < cur ? 'voorbij' : `over ${weeksBetween(cur, T)} weken`;
 
   let h = navBar({ right: syncButton() }) + '<main>' + largeTitle('Planning');
-  h += `<div class="pager"><button class="nb" data-act="ow" data-n="-1" aria-label="Vorige week">${I('chevL')}</button>
+  h += supplySection();
+  h += `<h2 class="sec-h" style="margin-top:30px">Per week</h2><div class="pager"><button class="nb" data-act="ow" data-n="-1" aria-label="Vorige week">${I('chevL')}</button>
     <div class="mid"><b>Week ${isoWeek(T)}</b><span>${esc(weekLabel(T))} · ${rel}</span></div>
     <button class="nb" data-act="ow" data-n="1" aria-label="Volgende week">${I('chevR')}</button></div>`;
-  h += `<div class="grp"><div class="hero order"><div class="lbl">Besteladvies</div><div class="big"><b>${adviceMain}</b><span>eieren</span></div>
+  h += `<div class="grp"><div class="hero"><div class="lbl">Verwachte verkoop deze week</div><div class="big"><b>${adviceMain}</b><span>eieren</span></div>
     <div class="meta">${enough ? `${Math.round(r.ratio * 100)}% van de afspraken werd de afgelopen ${r.weeks} weken echt verkocht` : 'Nog weinig historie: gerekend met 100% van de afspraken'}</div></div>
     <button class="cell" data-act="togglecalc" aria-expanded="${!!ui.showCalc}"><span class="tx"><span class="tt" style="color:var(--tint)">Hoe berekend</span></span><span style="display:inline-flex;transform:rotate(${ui.showCalc ? 90 : 0}deg);transition:transform .2s">${I('chevR', 'chev')}</span></button>`;
   if (ui.showCalc) {
@@ -1279,15 +1418,6 @@ function vOrder(){
     h += `<div class="banner red mt12">${I('warn')}<div><b>Geen ronde op ${dblDays.map(fmtShort).join(', ')}.</b> ${plural(dblRows.length, 'klant kan', 'klanten kunnen')} deze week voor 2 weken nemen: <b class="num">+${dblExtra}</b>.
       ${acc != null ? `Eerder zei ${Math.round(acc * 100)}% ja (${offered.length}× aangeboden); daar rekent het advies mee.` : `Als iedereen ja zegt: <b class="num">${adviceDbl}</b>. Het advies rekent met niemand, tot er 5× is aangeboden.`}</div></div>`;
   }
-  const P = addDays(T, -7);
-  let foot = db.orders[T] != null ? (db.orders[T] - adviceMain > 0 ? `${db.orders[T] - adviceMain} meer dan het advies.` : db.orders[T] - adviceMain < 0 ? `${adviceMain - db.orders[T]} minder dan het advies.` : 'Gelijk aan het advies.') : 'Vul in wat je echt hebt besteld; zo zie je later wat er over bleef.';
-  if (db.orders[P] != null) {
-    let left = db.orders[P] - soldIn(P);
-    if (P >= cur) left -= sum(forecast(P).filter(x => x.kind !== 'verkocht'), x => x.eggs);
-    foot += ` Restant week ${isoWeek(P)}: ${left}${left > 0 ? ` (advies min restant: ${Math.max(0, Math.round((exact - left) / rnd) * rnd)})` : ''}.`;
-  }
-  h += sec('', grp(`<label class="cell field"><span class="fl">Besteld</span><input type="number" inputmode="numeric" min="0" data-field="order" placeholder="aantal" value="${db.orders[T] ?? ''}"></label>`), foot);
-
   const days = walkDates(T);
   if (days.length) {
     h += sec('Loopdagen', grp(days.map(d => {
@@ -1303,10 +1433,107 @@ function vOrder(){
   const kl = { verkocht: 'verkocht', afgesproken: 'afgesproken', verwacht: 'vast ritme' };
   h += `<section class="sec"><button class="sec-h tog ${ui.showRows ? 'open' : ''}" data-act="togglerows" aria-expanded="${!!ui.showRows}">Per adres <span class="stat">${listed.length}</span>${I('chevR', 'sm')}</button>
     ${ui.showRows ? grp(listed.map(x => `<div class="cell"><span class="tx"><span class="tt">${esc(label(x.a))}</span><span class="st">${esc(fmtShort(x.date))} · ${kl[x.kind]}</span></span><span class="tr">${x.eggs}</span></div>`).join('') || '<div class="cell"><span class="st">Niets gepland.</span></div>') : ''}</section>`;
-  const histWeeks = r.perWeek.filter(pw => pw.sold || pw.agreed || db.orders[pw.w] != null).reverse();
+  const histWeeks = r.perWeek.filter(pw => pw.sold || pw.agreed).reverse();
   h += `<section class="sec"><button class="sec-h tog ${ui.showHist ? 'open' : ''}" data-act="togglehist" aria-expanded="${!!ui.showHist}">Afgelopen weken${I('chevR', 'sm')}</button>
-    ${ui.showHist ? grp(`<table class="h"><tr><th>Week</th><th>Besteld</th><th>Verkocht</th><th>Over</th></tr>${histWeeks.length ? histWeeks.map(pw => { const o = db.orders[pw.w]; return `<tr><td>${isoWeek(pw.w)}</td><td>${o ?? '–'}</td><td>${pw.sold}</td><td>${o != null ? (o - pw.sold > 0 ? '+' : '') + (o - pw.sold) : '–'}</td></tr>`; }).join('') : '<tr><td colspan="4" style="text-align:left;color:var(--label2)">Nog geen afgeronde weken.</td></tr>'}</table>`) : ''}</section>`;
+    ${ui.showHist ? grp(`<table class="h"><tr><th>Week</th><th>Afgesproken</th><th>Verkocht</th></tr>${histWeeks.length ? histWeeks.map(pw => `<tr><td>${isoWeek(pw.w)}</td><td>${pw.agreed}</td><td>${pw.sold}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:left;color:var(--label2)">Nog geen afgeronde weken.</td></tr>'}</table>`) : ''}</section>`;
   return h + '</main>' + tabs('order');
+}
+
+function supplySection(){
+  const sp = supplyPlan(), st = sp.st, mPct = Math.round(sp.m * 100), rnd = db.settings.orderRound || 1;
+  let h = '';
+  // voorraad
+  if (!st) {
+    h += sec('Voorraad', grp(`<div class="cell"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Nog geen voorraad</span><span class="st">Voeg je eerste levering toe; daarna houdt de app bij wat er over is.</span></span></div>
+      <button class="cell tint" data-act="stocknew" data-kind="delivery"><span class="tx"><span class="tt">Levering toevoegen</span></span>${chev()}</button>`));
+  } else {
+    const left = st.batches.filter(b => b.left > 0), oldest = left[0];
+    const due = stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && e.date <= sp.T).sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    h += sec('Voorraad', grp(`<div class="hero"><div class="lbl">Op voorraad</div><div class="big ${st.stock < 0 ? 'red' : ''}"><b class="num">${st.stock}</b><span>eieren</span></div>
+      <div class="meta">${oldest ? `Eerst verkopen: <b style="color:var(--label)">${oldest.left}</b> van ${esc(fmtShort(oldest.date))} (${daysBetween(oldest.date, sp.T)} ${daysBetween(oldest.date, sp.T) === 1 ? 'dag' : 'dagen'} oud)` : st.stock < 0 ? 'Meer verkocht dan er was: voeg een levering of telling toe.' : 'Alles verkocht.'}</div></div>`
+      + (left.length > 1 ? left.map((b, i) => `<div class="cell"><span class="tx"><span class="tt">${esc(fmtShort(b.date))}${b.extra ? ' · telling' : ''}</span><span class="st">${daysBetween(b.date, sp.T)} dagen oud${i === 0 ? ' · eerst verkopen' : ''}</span></span><span class="tr num">${b.left} van ${b.net}</span></div>`).join('') : '')
+      + (due ? `<button class="cell tint" data-act="stockreceive" data-id="${esc(due.id)}"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Levering van ${esc(fmtShort(due.date))} ontvangen</span><span class="st">${due.ordered || 0} besteld · vul in wat er kwam en wat kapot is</span></span>${chev()}</button>`
+             : `<button class="cell" data-act="stocknew" data-kind="delivery"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Levering toevoegen</span></span>${chev()}</button>`)
+      + `<button class="cell" data-act="stocknew" data-kind="count"><span class="ico" style="background:var(--gray)">${I('check')}</span><span class="tx"><span class="tt">Voorraad tellen</span><span class="st">Het verschil gaat van de oudste eieren af</span></span>${chev()}</button>`),
+      `Sinds ${esc(fmtShort(st.start))}: ${st.sold} verkocht${st.broken ? ` · ${st.broken} kapot geleverd` : ''}${st.loss ? ` · ${st.loss} minder geteld` : ''}${st.found ? ` · ${st.found} meer geteld` : ''}.`);
+  }
+  // besteladvies voor de eerstvolgende besteldag
+  const pctTxt = sp.pct == null ? '' : `${Math.round(sp.pct * 100)}%`;
+  if (sp.atDelivery < 0) h += `<div class="banner red mt12">${I('warn')}<div><b>Tekort vóór de levering:</b> naar verwachting ${-sp.atDelivery} eieren te weinig tot ${esc(fmtShort(sp.delivery))}.</div></div>`;
+  let band;
+  if (sp.advice === 0 && sp.pct != null && sp.pct > sp.m) band = `Genoeg voorraad: niets bestellen. Bij de levering daarna is er naar verwachting ${sp.leftover} over (${sp.pct > 1 ? `genoeg voor ±${Math.round(sp.pct)} ${Math.round(sp.pct) === 1 ? 'week' : 'weken'}` : pctTxt}).`;
+  else if (sp.period.total === 0) band = 'Nog geen verwachte verkoop in die periode (geen afspraken of loopdagen).';
+  else band = `Daarmee is er bij de levering daarna ±${sp.leftover} over (${pctTxt}; marge ${mPct}%).`;
+  h += `<section class="sec"><h2 class="sec-h">Bestellen</h2><div class="grp"><div class="hero order"><div class="lbl">${sp.orderDate === sp.T ? 'Vandaag bestellen' : `Bestellen op ${esc(fmtLong(sp.orderDate))}`}</div>
+      <div class="big"><b class="num">${sp.advice}</b><span>eieren</span></div>
+      <div class="meta">Voor de levering van ${esc(fmtLong(sp.delivery))}. ${band}</div></div>
+    <button class="cell" data-act="togglesupply" aria-expanded="${!!ui.showSupply}"><span class="tx"><span class="tt" style="color:var(--tint)">Hoe berekend</span></span><span style="display:inline-flex;transform:rotate(${ui.showSupply ? 90 : 0}deg);transition:transform .2s">${I('chevR', 'chev')}</span></button>`;
+  if (ui.showSupply) {
+    const line = (t, n, st2) => `<div class="cell"><span class="tx"><span class="tt">${t}</span>${st2 ? `<span class="st">${st2}</span>` : ''}</span><span class="tr num">${n}</span></div>`;
+    const own = sp.period.rows.filter(x => x.own).length;
+    h += line('Op voorraad nu', sp.stock)
+      + (sp.pending ? line('+ Besteld, nog onderweg', sp.pending) : '')
+      + line(`− Verwachte verkoop tot de levering`, sp.before.total, `${esc(fmtShort(sp.T))} t/m ${esc(fmtShort(addDays(sp.delivery, -1)))}`)
+      + line('= Voorraad bij de levering', sp.atDelivery)
+      + line('Verwachte verkoop in de periode', sp.period.total, `${esc(fmtShort(sp.delivery))} t/m ${esc(fmtShort(addDays(sp.nextDel, -1)))} · ${plural(sp.period.rows.length, 'bezoek', 'bezoeken')}, ${sp.period.agreed} afgesproken`)
+      + line(`+ Marge ${mPct}%`, sp.target - sp.period.total)
+      + line(`Advies${rnd > 1 ? `, afgerond op ${rnd}` : ''}`, sp.advice)
+      + `<div class="cell"><span class="tx"><span class="st">Per klant tellen mee: frequentie en afgesproken volgende keer, het afgesproken aantal, voorkeursdagen, loopdagen en afwezigheid van de bezorger. En hoe vaak de klant echt thuis was en het afgesproken aantal nam (${own} ${own === 1 ? 'klant' : 'klanten'} met eigen historie; de rest met het teamgemiddelde van ${Math.round(sp.period.teamRatio * 100)}%). Nieuwe adressen zonder afspraak tellen niet mee.</span></span></div>`;
+    if (sp.period.rows.length) h += sp.period.rows.slice().sort((x, y) => x.date < y.date ? -1 : 1).map(x => `<div class="cell"><span class="tx"><span class="tt">${esc(label(x.a))}</span><span class="st">${esc(fmtShort(x.date))} · ${x.eggs} afgesproken${x.f !== 1 ? ` × ${Math.round(x.f * 100)}%${x.own ? '' : ' (team)'}` : ''}</span></span><span class="tr num">${Math.round(x.exp)}</span></div>`).join('');
+  }
+  if (sp.existing) h += `<button class="cell" data-act="stockedit" data-id="${esc(sp.existing.id)}"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">Besteld voor ${esc(fmtShort(sp.delivery))}: ${sp.existing.ordered ?? 0}</span>${sp.existing.ordered != null && sp.existing.ordered !== sp.advice ? `<span class="st">Advies is nu ${sp.advice}</span>` : ''}</span>${chev()}</button>`;
+  else h += `<button class="cell tint" data-act="stockorder"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Leg bestelling vast: ${sp.advice}</span><span class="st">Je kunt het aantal nog aanpassen</span></span>${chev()}</button>`;
+  h += '</div></section>';
+  // leveringen, bestellingen en tellingen
+  const evs = stockEvents().slice().sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0).slice(0, ui.showAllStock ? 999 : 6);
+  if (evs.length) {
+    const diffs = (stockAt(sp.T) || { diffs: {} }).diffs;
+    h += sec('Leveringen en tellingen', grp(evs.map(e => {
+      let t, st2;
+      if (e.kind === 'count') { const d = diffs[e.id]; t = `Telling: ${e.counted ?? '–'}`; st2 = d ? (d.diff === 0 ? 'klopte' : `${d.diff > 0 ? '+' : ''}${d.diff} t.o.v. berekend`) : ''; }
+      else if (e.delivered == null) { t = `Besteld: ${e.ordered ?? 0}`; st2 = 'nog onderweg'; }
+      else { t = `Geleverd: ${e.delivered}`; st2 = `${e.broken ? `${e.broken} kapot · netto ${Math.max(0, e.delivered - e.broken)}` : 'niets kapot'}${e.ordered != null && e.ordered !== e.delivered ? ` · besteld ${e.ordered}` : ''}`; }
+      return `<button class="cell" data-act="stockedit" data-id="${esc(e.id)}"><span class="tx"><span class="tt">${esc(fmtShort(e.date))} · ${t}</span>${st2 ? `<span class="st">${st2}${e.note ? ' · ' + esc(e.note) : ''}</span>` : ''}</span>${chev()}</button>`;
+    }).join('') + (stockEvents().length > 6 && !ui.showAllStock ? '<button class="cell tint center" data-act="showallstock">Toon alles</button>' : '')));
+  }
+  // marge per leverperiode
+  const hist = periodHistory();
+  if (hist.length) {
+    h += sec(`Marge per levering (doel ${mPct}%)`, grp(hist.map(p => {
+      let badge;
+      if (!p.next) badge = '<span class="badge gray">loopt nog</span>';
+      else if (p.left < 0) badge = '<span class="badge red">tekort</span>';
+      else if (p.first && p.pct > sp.m) badge = '<span class="badge gray">eerste levering</span>';
+      else if (p.pct > sp.m) badge = '<span class="badge red">te veel over</span>';
+      else badge = '<span class="badge green">binnen marge</span>';
+      return `<div class="cell"><span class="tx"><span class="tt">${esc(fmtShort(p.from))} – ${esc(fmtShort(p.to))}</span><span class="st">${p.net} netto · ${p.sold} verkocht${p.next ? ` · ${p.left} over (${p.pct == null ? '–' : Math.round(p.pct * 100) + '%'})` : ''} ${badge}</span></span></div>`;
+    }).join('')), 'Over = wat er nog lag toen de volgende levering kwam, als % van wat er in die periode verkocht is.');
+  }
+  return h;
+}
+
+function sheetStock(){
+  const e = stockEvents().find(x => x.id === ui.stockId);
+  if (!e) { ui.sheet = null; return ''; }
+  const isCount = e.kind === 'count';
+  const title = isCount ? 'Telling' : e.delivered == null ? 'Bestelling' : 'Levering';
+  const num = (f, v, ph) => `<input type="number" inputmode="numeric" min="0" data-field="${f}" value="${v ?? ''}" placeholder="${ph}">`;
+  let h = `<div class="sheet-h"><span></span><div class="nav-t">${title}</div><div class="nav-r"><button class="nb bold" data-act="closesheet">Gereed</button></div></div><div class="sheet-c">`;
+  h += sec('', grp(`<label class="cell field"><span class="fl">Datum</span><input type="date" data-field="st_date" value="${esc(e.date)}"></label>`));
+  if (isCount) {
+    const d = (stockAt(e.date) || { diffs: {} }).diffs[e.id];
+    h += sec('Geteld', grp(`<label class="cell field"><span class="fl">Werkelijk</span>${num('st_counted', e.counted, 'aantal')}</label>`),
+      d ? `Berekend was ${d.have}; verschil ${d.diff > 0 ? '+' : ''}${d.diff}. ${d.diff < 0 ? 'Gaat van de oudste eieren af.' : d.diff > 0 ? 'Komt erbij als extra voorraad.' : ''}` : 'Tel aan het eind van de dag, na de ronde.');
+  } else {
+    h += sec('Aantallen', grp(`<label class="cell field"><span class="fl">Besteld</span>${num('st_ordered', e.ordered, 'aantal')}</label>
+      <label class="cell field"><span class="fl">Geleverd</span>${num('st_delivered', e.delivered, 'nog niet')}</label>
+      <label class="cell field"><span class="fl">Kapot</span>${num('st_broken', e.broken || '', '0')}</label>
+      ${e.delivered != null ? `<div class="cell"><span class="tx"><span class="tt">Netto erbij</span></span><span class="tr num"><b style="color:var(--label)">${Math.max(0, (e.delivered || 0) - (e.broken || 0))}</b></span></div>` : ''}`),
+      'Laat "Geleverd" leeg zolang de bestelling onderweg is. Kapotte eieren gaan van de levering af.');
+  }
+  h += sec('Notitie', grp(`<div class="cell"><textarea class="ta" data-field="st_note" placeholder="optioneel">${esc(e.note || '')}</textarea></div>`));
+  h += sec('', grp('<button class="cell red center" data-act="stockdel">Verwijder</button>'));
+  return h + '</div>';
 }
 
 /* ---------- Route ---------- */
@@ -1417,10 +1644,15 @@ function vSettings(){
       <button class="cell" data-act="syncnow"><span class="tx"><span class="tt">Synchroniseren</span>${syncErr ? `<span class="st" style="color:var(--red)">${esc(syncErr.message)}</span>` : ''}</span><span class="tr">${pendingCount() ? `${pendingCount()} wacht${!navigator.onLine ? ' · offline' : ''}` : S.lastSync ? fmtTime(S.lastSync) : ''} ${s && s.cls !== 'ok' ? '' : I('check', 'sm')}</span></button>
       <button class="cell red" data-act="logout">Uitloggen</button>`), isAdmin() ? '' : 'Loopdagen en bestelinstellingen wijzigt de beheerder.');
   }
+  h += sec('Weergave', grp(`<div class="cell stack"><div class="segc" role="group" aria-label="Weergave">${[['auto', 'Automatisch'], ['light', 'Licht'], ['dark', 'Donker']].map(([v, l]) => `<button data-act="theme" data-v="${v}" aria-pressed="${getTheme() === v}">${l}</button>`).join('')}</div></div>`), 'Automatisch volgt de instelling van je iPhone. Alleen voor deze telefoon.');
   h += notifSection();
   h += sec('Loopdagen', grp(`<div class="cell"><div class="daytog">${WEEK.map(d => chip(DSH[d], 'walkday', `data-d="${d}" ${ro} aria-label="${DAYS[d]}"`, wd.includes(d))).join('')}</div></div>`),
     'Adressen verschijnen op hun afgesproken of voorkeursdag. Niet gelukt? Dan staan ze op de volgende loopdag. Afwezigheid stel je in bij Planning.');
-  h += sec('Bestellen', grp(`<div class="cell stack"><span class="tt">Advies afronden op</span><div class="segc" role="group">${[1, 6, 10, 12, 30].map(n => `<button data-act="round" data-n="${n}" ${ro} aria-pressed="${rnd === n}">${n === 1 ? 'Niet' : n}</button>`).join('')}</div></div>`), '30 = een tray.');
+  h += sec('Bestellen', grp(`<label class="cell field"><span class="fl">Marge</span><input type="number" inputmode="numeric" min="0" max="100" data-field="set_margin" ${ro} value="${db.settings.marginPct ?? 10}" style="max-width:5rem"><span style="color:var(--label2)">%</span></label>
+    <label class="cell field"><span class="fl">Bestellen op</span><select data-field="set_orderdow" ${ro}>${WEEK.map(d => `<option value="${d}" ${(db.settings.orderDow ?? 5) === d ? 'selected' : ''}>${DAYS[d]}</option>`).join('')}</select></label>
+    <label class="cell field"><span class="fl">Levering op</span><select data-field="set_deldow" ${ro}>${WEEK.map(d => `<option value="${d}" ${(db.settings.deliveryDow ?? 3) === d ? 'selected' : ''}>${DAYS[d]}</option>`).join('')}</select></label>
+    <div class="cell stack"><span class="tt">Advies afronden op</span><div class="segc" role="group">${[1, 6, 10, 12, 30].map(n => `<button data-act="round" data-n="${n}" ${ro} aria-pressed="${rnd === n}">${n === 1 ? 'Niet' : n}</button>`).join('')}</div></div>`),
+    'Marge = wat er bij de volgende levering nog mag liggen, als % van de verkoop in die periode. Het advies houdt daar rekening mee. 30 = een tray.');
   h += sec('Tekst bij afwezigheid', grp(`<div class="cell"><textarea class="ta" data-field="absenceScript" ${ro} style="min-height:6rem">${esc(db.settings.absenceScript || DEFAULT_SCRIPT)}</textarea></div>`), 'Verschijnt bij een klant van wie de vaste dag de volgende keer uitvalt. {dag} wordt de dag.');
   h += sec('Gegevens', grp(`<button class="cell" data-act="export"><span class="ico" style="background:var(--green)">${I('share')}</span><span class="tx"><span class="tt">Backup maken</span>${needBackup() ? '<span class="st" style="color:var(--red)">Al even geen backup</span>' : ''}</span>${chev()}</button>
     ${isAdmin() ? `<button class="cell" data-act="import"><span class="ico" style="background:var(--orange)">${I('down')}</span><span class="tx"><span class="tt">Backup terugzetten</span></span>${chev()}</button>` : ''}
@@ -1731,7 +1963,7 @@ function go(view, extra){
 function onScroll(){ const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
 window.addEventListener('scroll', onScroll, { passive: true });
 
-const SHEETS = { next: sheetNext, passkeys: sheetPasskeys };
+const SHEETS = { next: sheetNext, passkeys: sheetPasskeys, stock: sheetStock };
 function renderSheet(){
   const host = document.getElementById('sheet');
   const html = ui.sheet && SHEETS[ui.sheet] ? SHEETS[ui.sheet]() : '';
@@ -1745,7 +1977,13 @@ function renderSheet(){
   requestAnimationFrame(() => requestAnimationFrame(() => host.classList.add('open')));
 }
 function openSheet(name){ ui.sheet = name; renderSheet(); }
-function closeSheet(){ ui.sheet = null; renderSheet(); render(); }
+function closeSheet(){
+  if (ui.sheet === 'stock') {
+    const e = stockEvents().find(x => x.id === ui.stockId);
+    if (e && (e.kind === 'count' ? e.counted == null : e.ordered == null && e.delivered == null)) { db.stock = db.stock.filter(x => x !== e); save(true); }
+  }
+  ui.sheet = null; renderSheet(); render();
+}
 
 let actResolve = null;
 function actionSheet({ title, message, actions, cancel = 'Annuleer' }){
@@ -1850,6 +2088,36 @@ document.addEventListener('click', e => {
     case 'togglerows': ui.showRows = !ui.showRows; saveUi(); render(); break;
     case 'togglehist': ui.showHist = !ui.showHist; saveUi(); render(); break;
     case 'togglecalc': ui.showCalc = !ui.showCalc; saveUi(); render(); break;
+    case 'togglesupply': ui.showSupply = !ui.showSupply; saveUi(); render(); break;
+    case 'showallstock': ui.showAllStock = true; render(); break;
+    case 'stocknew': {
+      const kind = el.dataset.kind, T = todayStr();
+      const e = { id: uid(), date: T, kind, ordered: null, delivered: null, broken: 0, counted: null, note: '' };
+      db.stock.push(e); save(true); ui.stockId = e.id; openSheet('stock');
+      setTimeout(() => { const f = document.querySelector(kind === 'count' ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
+      break;
+    }
+    case 'stockorder': {
+      const sp = supplyPlan();
+      const e = { id: uid(), date: sp.delivery, kind: 'delivery', ordered: sp.advice, delivered: null, broken: 0, counted: null, note: '' };
+      db.stock.push(e); save(); ui.stockId = e.id; openSheet('stock'); render();
+      toast(`Bestelling vastgelegd: ${sp.advice} voor ${fmtShort(sp.delivery)}`);
+      break;
+    }
+    case 'stockreceive': {
+      const e = stockEvents().find(x => x.id === el.dataset.id); if (!e) break;
+      if (e.delivered == null) { e.delivered = e.ordered ?? null; save(); }
+      ui.stockId = e.id; openSheet('stock'); render();
+      break;
+    }
+    case 'stockedit': ui.stockId = el.dataset.id; openSheet('stock'); break;
+    case 'stockdel': {
+      const e = stockEvents().find(x => x.id === ui.stockId); if (!e) break;
+      confirmSheet('Verwijderen?', 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {
+        if (!ok) return; db.stock = db.stock.filter(x => x !== e); save(); ui.sheet = null; renderSheet(); render();
+      });
+      break;
+    }
     case 'open': ui.sheet = null; go('house', { id: el.dataset.id }); break;
     case 'prev': step(-1); break;
     case 'next': step(1); break;
@@ -1889,6 +2157,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'round': db.settings.orderRound = +el.dataset.n; save(); render(); break;
+    case 'theme': setTheme(el.dataset.v); render(); break;
     case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
     case 'editback': ui.draft = null; if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route'); break;
     case 'routeedit': ui.routeEdit = !ui.routeEdit; saveUi(); render(); break;
@@ -2038,6 +2307,23 @@ function onField(e){
     return;
   }
   if (f === 'nextDate') { if (e.type === 'change' && el.value) { setVisit({ nextDate: el.value }, null, true); renderAfterTap(); } return; }
+  if (f.startsWith('st_')) {
+    const se = stockEvents().find(x => x.id === ui.stockId); if (!se) return;
+    const k = f.slice(3);
+    if (k === 'note') { se.note = el.value; clearTimeout(noteTimer); noteTimer = setTimeout(() => save(true), 400); return; }
+    if (e.type !== 'change') return; // getallen en datum pas opslaan bij het verlaten van het veld
+    if (k === 'date') { if (!el.value) return; se.date = el.value; }
+    else { const n = el.value === '' ? null : Math.max(0, Math.round(+el.value)); se[k] = k === 'broken' ? (n || 0) : n; }
+    save(); renderAfterTap();
+    return;
+  }
+  if (f === 'set_margin' || f === 'set_orderdow' || f === 'set_deldow') {
+    if (e.type !== 'change') return;
+    if (f === 'set_margin') db.settings.marginPct = Math.max(0, Math.min(100, Math.round(+el.value || 0)));
+    if (f === 'set_orderdow') db.settings.orderDow = +el.value;
+    if (f === 'set_deldow') db.settings.deliveryDow = +el.value;
+    save(); renderAfterTap(); return;
+  }
   if (f === 'pushtime' || f === 'pushorder') {
     if (e.type !== 'change') return;
     const patch = f === 'pushtime' ? { walkday: el.value } : { order: el.value === '' ? null : { dow: +el.value, time: '18:00' } };

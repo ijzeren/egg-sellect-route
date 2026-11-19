@@ -281,6 +281,14 @@ en installeren daar niet, maar alle schermen wel.
 - **Meldingen** (web push): ochtend van een loopdag, bestelherinnering, teambericht bij
   afwezigheid. Edge Function `push` + `pg_cron`; zie `supabase/README.md` §8–9.
 
+- **Eierboekhouding** (v2.6): leveringen (besteld, geleverd, kapot) en tellingen; voorraad FIFO
+  (oudste eieren eerst, ook op de Ronde zichtbaar). Bestellen op vrijdag voor levering woensdag
+  (instelbaar). Besteladvies = verwachte verkoop van leverdag tot de levering erna + marge (standaard
+  10%, instelbaar) − verwachte voorraad bij levering. Verwachte verkoop per klant uit frequentie,
+  afgesproken aantal, voorkeursdagen, loopdagen/afwezigheid en hoe vaak de klant echt thuis was.
+  Marge = rest bij de volgende levering als % van de verkoop in die periode; per periode gecontroleerd.
+- **Weergave** per telefoon: automatisch, licht of donker.
+
 ### Schaal
 - Eén bezoek is ±200 bytes. 200 adressen × 52 weken ≈ 10.000 bezoeken ≈ **2–5 MB per
   verkoper per jaar** (incl. indexen). De gratis 500 MB is dus genoeg voor tientallen
