@@ -290,7 +290,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -531,6 +531,12 @@ async function afterLogin(){
   S.teams = teams || [];
   if (S.team && !S.teams.some(t => t.team_id === S.team.id)) S.team = null;
   saveS();
+  // Direct door naar het team (het laatst gebruikte, anders het eerste) en de ronde.
+  // Alleen als er op deze telefoon nog nooit-gesynchroniseerde gegevens staan, eerst vragen (keuzescherm).
+  if (!S.team && S.teams.length) {
+    const unsyncedLocal = hasLocalData() && !Object.keys(H).length;
+    if (!unsyncedLocal) await chooseTeam(S.teams.find(t => t.team_id === S.lastTeamId) || S.teams[0]);
+  }
 }
 /* ---------- passkeys (Face ID / Touch ID) via Supabase Auth ---------- */
 const HAS_PASSKEY_API = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
@@ -653,9 +659,11 @@ function rekeyVisits(){
 }
 const hasLocalData = () => db.addresses.length > 0 || db.visits.length > 0;
 
-async function createTeam(name, memberName){
+// fresh: nieuw bedrijf naast een bestaand team (leeg beginnen); anders gaat wat op de telefoon staat mee
+async function createTeam(name, memberName, fresh){
   const id = await rpc('create_team', { p_name: name, p_member_name: memberName });
-  S.team = { id, name, role: 'admin', memberName };
+  if (fresh) db = emptyDb();
+  S.team = { id, name, role: 'admin', memberName }; S.lastTeamId = id;
   S.teams = await rpc('my_teams');
   rekeyVisits();
   H = {}; S.outbox = {}; S.lastPull = null; S.settingsU = null;
@@ -664,15 +672,14 @@ async function createTeam(name, memberName){
 }
 async function chooseTeam(t){
   db = emptyDb(); H = {}; S.outbox = {}; S.lastPull = null; S.settingsU = null;
-  S.team = { id: t.team_id, name: t.team_name, role: t.role, memberName: t.member_name };
+  S.team = { id: t.team_id, name: t.team_name, role: t.role, memberName: t.member_name }; S.lastTeamId = t.team_id;
   saveH(); saveS(); save(true, true);
   await syncNow();
 }
 async function joinTeam(code, memberName){
-  await rpc('join_team', { p_code: code, p_member_name: memberName });
+  const id = await rpc('join_team', { p_code: code, p_member_name: memberName });
   S.teams = await rpc('my_teams');
-  const t = S.teams[S.teams.length - 1];
-  await chooseTeam(S.teams.find(x => x.team_id === t.team_id));
+  await chooseTeam(S.teams.find(x => x.team_id === id) || S.teams[S.teams.length - 1]);
 }
 
 function scheduleSync(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms || 0); }
@@ -1405,7 +1412,7 @@ function vSettings(){
   if (CLOUD) {
     const s = syncState();
     h += sec('Account', grp(`<div class="cell"><span class="ico" style="background:var(--gray)">${I('people')}</span><span class="tx"><span class="tt">${esc(S.session ? S.session.email : '')}</span><span class="st">${esc(S.team ? S.team.name : '')} · ${isAdmin() ? 'beheerder' : 'bezorger'}</span></span></div>
-      <button class="cell" data-act="openteam"><span class="tx"><span class="tt">Team</span></span><span class="tr">Leden, uitnodigen</span>${chev()}</button>
+      <button class="cell" data-act="openteam"><span class="tx"><span class="tt">Team</span></span><span class="tr">Leden, uitnodigen, wisselen</span>${chev()}</button>
       ${HAS_PASSKEY_API ? `<button class="cell" data-act="openpasskeys"><span class="tx"><span class="tt">Passkeys</span></span><span class="tr">${S.hasPasskey ? 'Face ID aan' : 'Inloggen met Face ID'}</span>${chev()}</button>` : ''}
       <button class="cell" data-act="syncnow"><span class="tx"><span class="tt">Synchroniseren</span>${syncErr ? `<span class="st" style="color:var(--red)">${esc(syncErr.message)}</span>` : ''}</span><span class="tr">${pendingCount() ? `${pendingCount()} wacht${!navigator.onLine ? ' · offline' : ''}` : S.lastSync ? fmtTime(S.lastSync) : ''} ${s && s.cls !== 'ok' ? '' : I('check', 'sm')}</span></button>
       <button class="cell red" data-act="logout">Uitloggen</button>`), isAdmin() ? '' : 'Loopdagen en bestelinstellingen wijzigt de beheerder.');
@@ -1497,8 +1504,22 @@ function vTeam(){
       <button class="cell tint" data-act="shareinvite"><span class="tx"><span class="tt">Deel code</span></span>${I('share', 'sm')}</button>
       <button class="cell" data-act="makeinvite"><span class="tx"><span class="tt">Maak nieuwe code</span></span></button>`
       : '<button class="cell tint" data-act="makeinvite"><span class="tx"><span class="tt">Maak uitnodigingscode</span></span>' + chev() + '</button>'),
-      'De ander zet de app op het beginscherm, logt in en kiest "Ik heb een uitnodigingscode". Een code is 14 dagen geldig; een nieuwe code maakt de vorige ongeldig.');
-  } else h += sec('', grp('<button class="cell red center" data-act="leaveteam">Verlaat team</button>'));
+      'De ander zet de app op het beginscherm en logt in. Nieuw? Dan kiest diegene "Ik heb een uitnodigingscode". Heeft diegene al een team: Instellingen → Team → Lid worden met een code. Een code is 14 dagen geldig; een nieuwe code maakt de vorige ongeldig.');
+  }
+  // wisselen, nieuw bedrijf, lid worden
+  const others = (S.teams || []).filter(t => t.team_id !== S.team.id);
+  h += sec('Jouw teams', grp(`<div class="cell"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">${esc(S.team.name)}</span><span class="st">Huidig team · ${admin ? 'beheerder' : 'bezorger'}</span></span></div>`
+    + others.map(t => `<button class="cell" data-act="switchteam" data-id="${esc(t.team_id)}"><span class="ico" style="background:var(--gray)">${I('people')}</span><span class="tx"><span class="tt">${esc(t.team_name)}</span><span class="st">${t.role === 'admin' ? 'beheerder' : 'bezorger'}</span></span><span class="tr">Wissel</span>${chev()}</button>`).join('')
+    + `<button class="cell" data-act="teamform" data-f="new"><span class="ico" style="background:var(--tint)">${I('plus')}</span><span class="tx"><span class="tt">Nieuw eierbedrijf</span></span>${chev()}</button>`
+    + (ui.teamForm === 'new' ? `<label class="cell field"><span class="fl">Bedrijf</span><input type="text" id="teamName2" placeholder="naam"></label>
+       <label class="cell field"><span class="fl">Jouw naam</span><input type="text" id="memberName3" value="${esc(S.team.memberName || ui.memberName || '')}" autocomplete="given-name"></label>
+       <button class="cell tint center" data-act="createteam2"><span class="tt">Maak team en wissel</span></button>` : '')
+    + `<button class="cell" data-act="teamform" data-f="join"><span class="ico" style="background:var(--blue)">${I('people')}</span><span class="tx"><span class="tt">Lid worden met een code</span></span>${chev()}</button>`
+    + (ui.teamForm === 'join' ? `<label class="cell field"><span class="fl">Code</span><input type="text" id="joinCode2" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;font-weight:600" placeholder="ABC123"></label>
+       <label class="cell field"><span class="fl">Jouw naam</span><input type="text" id="memberName4" value="${esc(S.team.memberName || ui.memberName || '')}" autocomplete="given-name"></label>
+       <button class="cell tint center" data-act="jointeam2"><span class="tt">Word lid en wissel</span></button>` : '')),
+    'Wisselen kan altijd; de gegevens van elk team blijven online bewaard. Een nieuw eierbedrijf begint leeg.');
+  if (!admin) h += sec('', grp('<button class="cell red center" data-act="leaveteam">Verlaat team</button>'));
   return h + '</main>';
 }
 
@@ -1605,7 +1626,27 @@ function authAction(act, el){
       if (!navigator.onLine) { toast('Geen internet: wijzigingen worden later verstuurd.'); return true; }
       run(async () => { await syncNow(); toast(syncErr ? 'Synchroniseren mislukt: ' + syncErr.message : 'Bijgewerkt', null, null, syncErr ? 'err' : ''); safeRender(); });
       return true;
-    case 'openteam': ui.invite = null; go('team'); loadMembers(); return true;
+    case 'openteam': ui.invite = null; ui.teamForm = null; go('team'); loadMembers(); rpc('my_teams').then(t => { S.teams = t || []; saveS(); if (ui.view === 'team') render(); }).catch(() => {}); return true;
+    case 'teamform': ui.teamForm = ui.teamForm === el.dataset.f ? null : el.dataset.f; saveUi(); render(); { const f = app.querySelector(ui.teamForm === 'new' ? '#teamName2' : '#joinCode2'); if (f) f.focus(); } return true;
+    case 'switchteam': {
+      const t = (S.teams || []).find(x => x.team_id === el.dataset.id); if (!t) return true;
+      confirmSheet(`Wisselen naar ${t.team_name}?`, pendingCount() ? `${pendingCount()} wijziging(en) zijn nog niet verstuurd en gaan verloren.` : `De gegevens van ${S.team.name} blijven online bewaard.`, 'Wissel', !!pendingCount()).then(ok => {
+        if (ok) run(async () => { await chooseTeam(t); go('home'); toast(`Je werkt nu in ${t.team_name}`); });
+      });
+      return true;
+    }
+    case 'createteam2': {
+      const name = val('teamName2').trim(), m = val('memberName3').trim();
+      if (!name) { toast('Geef het eierbedrijf een naam.', null, null, 'err'); return true; }
+      run(async () => { await createTeam(name, m, true); ui.teamForm = null; go('home'); toast(`${name} aangemaakt`); });
+      return true;
+    }
+    case 'jointeam2': {
+      const code = val('joinCode2').trim(), m = val('memberName4').trim();
+      if (!code) { toast('Vul de uitnodigingscode in.', null, null, 'err'); return true; }
+      run(async () => { await joinTeam(code, m); ui.teamForm = null; go('home'); toast(`Welkom bij ${S.team.name}`); });
+      return true;
+    }
     case 'makeinvite': run(async () => { ui.invite = await rpc('create_invite', { p_team: S.team.id }); saveUi(); render(); }); return true;
     case 'shareinvite': {
       const text = `Doe mee met ${S.team.name} in Egg-sellent! Open ${location.origin + location.pathname} op je iPhone in Safari, zet de app op je beginscherm, log in en vul deze code in: ${ui.invite}`;
