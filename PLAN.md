@@ -288,6 +288,15 @@ en installeren daar niet, maar alle schermen wel.
   afgesproken aantal, voorkeursdagen, loopdagen/afwezigheid en hoe vaak de klant echt thuis was.
   Marge = rest bij de volgende levering als % van de verkoop in die periode; per periode gecontroleerd.
 - **Weergave** per telefoon: automatisch, licht of donker.
+- **Reeks wijzigen** (v2.7): Route → Reeks wijzigen; tik op het eerste en laatste adres en zet
+  voorkeursdag en/of frequentie voor de hele reeks, desgewenst alleen voor adressen zonder
+  voorkeursdag. Met Ongedaan.
+- **Doosjes** (v2.7): een verkoop gaat in zoveel mogelijk doosjes van 10, de rest in doosjes van 6.
+  Planning toont per week, per leverperiode en sinds de start hoeveel doosjes van 6 en 10 er zijn
+  uitgegeven, en wat er per week verwacht wordt. Lege doosjes: gekocht, terug van klanten en
+  geteld (in `stock_events`, soorten `boxes`, `boxreturn`, `boxcount`). Retouren worden na de ronde
+  in één keer ingevoerd, niet per adres, om aan de deur geen tijd te verliezen. Een telling op de
+  eerste dag is de beginstand.
 
 ### Schaal
 - Eén bezoek is ±200 bytes. 200 adressen × 52 weken ≈ 10.000 bezoeken ≈ **2–5 MB per

@@ -125,7 +125,7 @@ create table if not exists public.stock_events (
   team_id uuid not null references public.teams(id) on delete cascade,
   id text not null,
   date date not null default current_date,
-  kind text not null default 'delivery' check (kind in ('delivery', 'count')),
+  kind text not null default 'delivery' check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount')),
   ordered int,
   delivered int,
   broken int not null default 0,
@@ -138,6 +138,11 @@ create table if not exists public.stock_events (
   primary key (team_id, id)
 );
 create index if not exists stock_events_sync on public.stock_events(team_id, server_ts);
+-- Doosjes van 6 en 10 (v2.7): gekocht, terug van klanten en geteld, in dezelfde tabel
+alter table public.stock_events add column if not exists box6 int;
+alter table public.stock_events add column if not exists box10 int;
+alter table public.stock_events drop constraint if exists stock_events_kind_check;
+alter table public.stock_events add constraint stock_events_kind_check check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount'));
 
 -- Instellingen voor bestellen (v2.6)
 alter table public.teams add column if not exists margin_pct int not null default 10 check (margin_pct between 0 and 100);

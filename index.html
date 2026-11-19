@@ -196,6 +196,8 @@ button.cell:active,a.cell:active{background:var(--press)}
 .hero .big{display:flex;align-items:baseline;gap:8px;margin-top:2px}
 .hero .big b{font:700 3.3rem/1 ui-rounded,-apple-system,sans-serif;font-variant-numeric:tabular-nums}
 .hero .big span{font-size:1.176rem;font-weight:600;color:var(--label2)}
+.hero .big.two b{font-size:2.5rem}
+.hero .big b.red{color:var(--red)}
 .hero .big.green b{color:var(--green)} .hero .big.red b{color:var(--red);font-size:2.2rem}
 .hero .meta{font-size:.882rem;color:var(--label2);margin-top:6px}
 .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 16px 16px}
@@ -215,6 +217,12 @@ button.cell:active,a.cell:active{background:var(--press)}
 .script{font-size:.941rem;font-style:italic;color:var(--label);background:var(--cell2);border-radius:10px;padding:10px 12px;margin-bottom:10px}
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:52px minmax(0,.9fr) minmax(0,1.7fr);gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--sep);view-transition-name:dock}
 .dock.two{grid-template-columns:52px 1fr}
+.dock.one{grid-template-columns:1fr;gap:6px}
+.dock .dh{margin:0;font-size:.8rem;color:var(--label2);text-align:center;min-height:2.3em;display:flex;align-items:center;justify-content:center;line-height:1.15}
+.selm{width:1.45rem;height:1.45rem;border-radius:50%;border:1.5px solid var(--label3, #C7C7CC);flex:none;display:flex;align-items:center;justify-content:center;color:#fff}
+.cell.sel .selm{background:var(--tint);border-color:var(--tint)}
+.selm .i{width:1rem;height:1rem;stroke-width:3}
+.cell.sel{background:var(--selbg, rgba(0,122,255,.08))}
 .dock .iconbtn{min-height:56px;border-radius:14px;background:var(--fill);color:var(--tint);display:flex;align-items:center;justify-content:center}
 .dock .iconbtn:active{opacity:.5}
 .dock .btn{min-height:56px;padding:0 10px;font-size:1rem;white-space:nowrap}
@@ -301,7 +309,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -421,7 +429,7 @@ function syncRecords(){
   for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered }]);
   for (const d of db.absences) out.push(['absences', d, { date: d }]);
   for (const [w, n] of Object.entries(db.orders)) out.push(['orders', w, { week_start: w, amount: n }]);
-  for (const e of db.stock || []) out.push(['stock_events', e.id, { id: e.id, date: e.date, kind: e.kind, ordered: e.ordered ?? null, delivered: e.delivered ?? null, broken: e.broken || 0, counted: e.counted ?? null, note: e.note || '' }]);
+  for (const e of db.stock || []) out.push(['stock_events', e.id, { id: e.id, date: e.date, kind: e.kind, ordered: e.ordered ?? null, delivered: e.delivered ?? null, broken: e.broken || 0, counted: e.counted ?? null, box6: e.box6 ?? null, box10: e.box10 ?? null, note: e.note || '' }]);
   out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '', margin_pct: db.settings.marginPct ?? 10, order_dow: db.settings.orderDow ?? 5, delivery_dow: db.settings.deliveryDow ?? 3 }]);
   return out;
 }
@@ -806,7 +814,7 @@ function mergeRow(t, r){
     db.stock = db.stock || [];
     const i = db.stock.findIndex(e => e.id === r.id);
     if (r.deleted) { if (i < 0) return false; db.stock.splice(i, 1); return true; }
-    const e = { id: r.id, date: r.date, kind: r.kind, ordered: r.ordered, delivered: r.delivered, broken: r.broken || 0, counted: r.counted, note: r.note || '' };
+    const e = { id: r.id, date: r.date, kind: r.kind, ordered: r.ordered, delivered: r.delivered, broken: r.broken || 0, counted: r.counted, box6: r.box6 ?? null, box10: r.box10 ?? null, note: r.note || '' };
     if (i >= 0 && Object.keys(e).every(k => (db.stock[i][k] ?? null) === (e[k] ?? null))) return false;
     if (i < 0) db.stock.push(e); else db.stock[i] = e;
     return true;
@@ -852,10 +860,15 @@ if (CLOUD) {
 /* ---------- afspraken ---------- */
 const DEC = v => v.status !== 'nothome';                 // koop / geen eieren = beslissend bezoek
 // Eieren gaan in doosjes van 6 en 10: alleen aantallen die daarmee kunnen (0, 6, 10, 12, 16, 18, 20, 22, …)
+// Zoveel mogelijk doosjes van 10, de rest in doosjes van 6. null = past niet in hele doosjes.
+function boxSplit(n){
+  if (!n || n < 0) return null;
+  for (let t = Math.floor(n / 10); t >= 0; t--) { const r = n - 10 * t; if (r % 6 === 0) return { t, s: r / 6 }; }
+  return null;
+}
 function boxes(n){
-  if (!n || n < 0) return '';
-  for (let t = Math.floor(n / 10); t >= 0; t--) { const r = n - 10 * t; if (r % 6 === 0) return [t ? `${t}×10` : '', r ? `${r / 6}×6` : ''].filter(Boolean).join(' + '); }
-  return '';
+  const b = boxSplit(n);
+  return b ? [b.t ? `${b.t}×10` : '', b.s ? `${b.s}×6` : ''].filter(Boolean).join(' + ') : '';
 }
 const validEggs = n => n === 0 || boxes(n) !== '';
 function stepEggs(n, dir){ let x = (n || 0) + dir; while (x > 0 && x < 999 && !validEggs(x)) x += dir; return Math.max(0, Math.min(998, x)); }
@@ -1089,6 +1102,58 @@ function periodHistory(){
   return out.reverse();
 }
 const soldIn = (T) => { const TE = addDays(T, 6); return sum(db.visits.filter(v => v.date >= T && v.date <= TE && DEC(v)), v => v.eggs || 0); };
+
+/* ---------- doosjes van 6 en 10 ---------- */
+const BOX_KINDS = ['boxes', 'boxreturn', 'boxcount'];
+const isBoxEv = e => BOX_KINDS.includes(e.kind);
+// Uitgegeven doosjes per dag (verkochte eieren, verdeeld in doosjes van 10 en 6). los = aantallen die niet in hele doosjes passen.
+function boxesIssuedByDate(from, to){
+  const m = new Map();
+  for (const v of db.visits) {
+    if (!DEC(v) || !v.eggs || v.date < from || v.date > to) continue;
+    const x = m.get(v.date) || { s: 0, t: 0, los: 0 }, b = boxSplit(v.eggs);
+    if (b) { x.s += b.s; x.t += b.t; } else x.los += v.eggs;
+    m.set(v.date, x);
+  }
+  return m;
+}
+function boxesIssued(from, to){
+  const out = { s: 0, t: 0, los: 0 };
+  for (const x of boxesIssuedByDate(from, to).values()) { out.s += x.s; out.t += x.t; out.los += x.los; }
+  return out;
+}
+const boxTxt = b => `${b.s}× 6 · ${b.t}× 10${b.los ? ` · ${b.los} los` : ''}`;
+// Lege doosjes op voorraad: gekocht + terug van klanten − uitgegeven; een telling zet het op het getelde aantal.
+function boxLedger(asOf){
+  const ev = stockEvents().filter(e => isBoxEv(e) && e.date <= asOf);
+  if (!ev.length) return null;
+  const start = ev.map(e => e.date).sort()[0], issued = boxesIssuedByDate(start, asOf);
+  const dates = [...new Set([...ev.map(e => e.date), ...issued.keys()])].sort();
+  const st = { s: 0, t: 0 }, tot = { boughtS: 0, boughtT: 0, retS: 0, retT: 0, outS: 0, outT: 0, diffS: 0, diffT: 0 }, diffs = {};
+  // een telling op de eerste dag is de beginstand (geen verschil)
+  const base = ev.find(e => e.kind === 'boxcount' && e.date === start);
+  for (const d of dates) {
+    for (const e of ev) if (e.date === d && e.kind !== 'boxcount') {
+      st.s += e.box6 || 0; st.t += e.box10 || 0;
+      if (e.kind === 'boxes') { tot.boughtS += e.box6 || 0; tot.boughtT += e.box10 || 0; } else { tot.retS += e.box6 || 0; tot.retT += e.box10 || 0; }
+    }
+    const o = issued.get(d); if (o) { st.s -= o.s; st.t -= o.t; tot.outS += o.s; tot.outT += o.t; }
+    for (const e of ev) if (e.date === d && e.kind === 'boxcount') {
+      if (e === base) { st.s = e.box6 || 0; st.t = e.box10 || 0; diffs[e.id] = { first: true }; continue; }
+      const ds = e.box6 == null ? 0 : e.box6 - st.s, dt = e.box10 == null ? 0 : e.box10 - st.t;
+      diffs[e.id] = { s: st.s, t: st.t, ds, dt };
+      st.s += ds; st.t += dt; tot.diffS += ds; tot.diffT += dt;
+    }
+  }
+  const out = tot.outS + tot.outT, back = tot.retS + tot.retT;
+  return { start, s: st.s, t: st.t, ...tot, diffs, rate: out >= 20 ? Math.min(1, back / out) : null };
+}
+// Verwacht aantal doosjes per week, volgens dezelfde verwachting als het besteladvies
+function boxesExpected(sp){
+  let s = 0, t = 0;
+  for (const x of sp.period.rows) { const b = boxSplit(x.eggs); if (b) { s += b.s * x.f; t += b.t * x.f; } }
+  return { s: Math.round(s), t: Math.round(t) };
+}
 
 function statusPill(v, exp){
   if (!v) return `<span class="st open">${exp != null ? exp : 'open'}</span>`;
@@ -1484,8 +1549,10 @@ function supplySection(){
   if (sp.existing) h += `<button class="cell" data-act="stockedit" data-id="${esc(sp.existing.id)}"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">Besteld voor ${esc(fmtShort(sp.delivery))}: ${sp.existing.ordered ?? 0}</span>${sp.existing.ordered != null && sp.existing.ordered !== sp.advice ? `<span class="st">Advies is nu ${sp.advice}</span>` : ''}</span>${chev()}</button>`;
   else h += `<button class="cell tint" data-act="stockorder"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Leg bestelling vast: ${sp.advice}</span><span class="st">Je kunt het aantal nog aanpassen</span></span>${chev()}</button>`;
   h += '</div></section>';
+  h += boxSection(sp);
   // leveringen, bestellingen en tellingen
-  const evs = stockEvents().slice().sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0).slice(0, ui.showAllStock ? 999 : 6);
+  const eggEvs = stockEvents().filter(e => !isBoxEv(e));
+  const evs = eggEvs.slice().sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0).slice(0, ui.showAllStock ? 999 : 6);
   if (evs.length) {
     const diffs = (stockAt(sp.T) || { diffs: {} }).diffs;
     h += sec('Leveringen en tellingen', grp(evs.map(e => {
@@ -1494,7 +1561,7 @@ function supplySection(){
       else if (e.delivered == null) { t = `Besteld: ${e.ordered ?? 0}`; st2 = 'nog onderweg'; }
       else { t = `Geleverd: ${e.delivered}`; st2 = `${e.broken ? `${e.broken} kapot · netto ${Math.max(0, e.delivered - e.broken)}` : 'niets kapot'}${e.ordered != null && e.ordered !== e.delivered ? ` · besteld ${e.ordered}` : ''}`; }
       return `<button class="cell" data-act="stockedit" data-id="${esc(e.id)}"><span class="tx"><span class="tt">${esc(fmtShort(e.date))} · ${t}</span>${st2 ? `<span class="st">${st2}${e.note ? ' · ' + esc(e.note) : ''}</span>` : ''}</span>${chev()}</button>`;
-    }).join('') + (stockEvents().length > 6 && !ui.showAllStock ? '<button class="cell tint center" data-act="showallstock">Toon alles</button>' : '')));
+    }).join('') + (eggEvs.length > 6 && !ui.showAllStock ? '<button class="cell tint center" data-act="showallstock">Toon alles</button>' : '')));
   }
   // marge per leverperiode
   const hist = periodHistory();
@@ -1506,21 +1573,72 @@ function supplySection(){
       else if (p.first && p.pct > sp.m) badge = '<span class="badge gray">eerste levering</span>';
       else if (p.pct > sp.m) badge = '<span class="badge red">te veel over</span>';
       else badge = '<span class="badge green">binnen marge</span>';
-      return `<div class="cell"><span class="tx"><span class="tt">${esc(fmtShort(p.from))} – ${esc(fmtShort(p.to))}</span><span class="st">${p.net} netto · ${p.sold} verkocht${p.next ? ` · ${p.left} over (${p.pct == null ? '–' : Math.round(p.pct * 100) + '%'})` : ''} ${badge}</span></span></div>`;
+      const bx = boxesIssued(p.from, p.to);
+      return `<div class="cell"><span class="tx"><span class="tt">${esc(fmtShort(p.from))} – ${esc(fmtShort(p.to))}</span><span class="st">${p.net} netto · ${p.sold} verkocht${p.next ? ` · ${p.left} over (${p.pct == null ? '–' : Math.round(p.pct * 100) + '%'})` : ''} ${badge}</span>${bx.s || bx.t ? `<span class="st">Doosjes: ${boxTxt(bx)}</span>` : ''}</span></div>`;
     }).join('')), 'Over = wat er nog lag toen de volgende levering kwam, als % van wat er in die periode verkocht is.');
   }
   return h;
 }
 
+function boxSection(sp){
+  const T = sp.T, L = boxLedger(T), wk = boxesIssued(weekStart(T), T), exp = boxesExpected(sp);
+  const line = (t, n, st2, cls) => `<div class="cell"><span class="tx"><span class="tt">${t}</span>${st2 ? `<span class="st">${st2}</span>` : ''}</span><span class="tr num ${cls || ''}">${n}</span></div>`;
+  const net = f => Math.round(f * (1 - (L && L.rate != null ? L.rate : 0)));
+  const weeksFor = (have, need) => need > 0 ? Math.floor(Math.max(0, have) / need) : null;
+  let g = '';
+  if (L) {
+    const ws = weeksFor(L.s, net(exp.s)), wt = weeksFor(L.t, net(exp.t));
+    const w = (size, n) => n < 1 ? `<span style="color:var(--red)">van ${size} te weinig voor een week</span>` : `van ${size} genoeg voor ±${n} ${n === 1 ? 'week' : 'weken'}`;
+    const parts = [ws != null ? w(6, ws) : '', wt != null ? w(10, wt) : ''].filter(Boolean);
+    g += `<div class="hero"><div class="lbl">Lege doosjes op voorraad</div><div class="big two"><b class="num ${L.s < 0 ? 'red' : ''}">${L.s}</b><span>van 6</span><b class="num ${L.t < 0 ? 'red' : ''}" style="margin-left:18px">${L.t}</b><span>van 10</span></div>
+      <div class="meta">${parts.length ? parts.join(', ').replace(/^v/, 'V') + '.' : 'Nog geen verwachte verkoop om mee te rekenen.'}</div></div>`;
+  } else {
+    g += `<div class="cell"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Lege doosjes bijhouden</span><span class="st">Tel hoeveel lege doosjes je hebt. Daarna rekent de app bij wat er uitgaat, terugkomt en wat je koopt.</span></span></div>`;
+  }
+  g += line('Uitgegeven deze week', `${wk.s}× 6<br>${wk.t}× 10`, wk.los ? `plus ${wk.los} eieren die niet in hele doosjes passen` : '');
+  g += line('Verwacht per week', `±${exp.s}× 6<br>±${exp.t}× 10`, L && L.rate != null ? `${Math.round(L.rate * 100)}% komt terug, dus netto ±${net(exp.s)}× 6 en ±${net(exp.t)}× 10 nodig` : 'volgens de afspraken; nog niet bekend hoeveel er terugkomt');
+  g += `<button class="cell" data-act="stocknew" data-kind="boxreturn"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Doosjes terug van klanten</span><span class="st">Na de ronde: hoeveel lege doosjes je hebt teruggekregen</span></span>${chev()}</button>`;
+  g += `<button class="cell" data-act="stocknew" data-kind="boxes"><span class="ico" style="background:var(--tint)">${I('plus')}</span><span class="tx"><span class="tt">Doosjes gekocht</span></span>${chev()}</button>`;
+  g += `<button class="cell" data-act="stocknew" data-kind="boxcount"><span class="ico" style="background:var(--gray)">${I('check')}</span><span class="tx"><span class="tt">Lege doosjes tellen</span></span>${chev()}</button>`;
+  let foot = 'Een verkoop gaat in zoveel mogelijk doosjes van 10, de rest in doosjes van 6 (30 eieren = 3× 10).';
+  if (L) {
+    const out = L.outS + L.outT, back = L.retS + L.retT;
+    foot = `Sinds ${esc(fmtShort(L.start))}: ${L.outS}× 6 en ${L.outT}× 10 uitgegeven, ${back} terug${out ? ` (${Math.round(back / out * 100)}%)` : ''}${L.boughtS || L.boughtT ? `, ${L.boughtS}× 6 en ${L.boughtT}× 10 gekocht` : ''}. ` + foot;
+  }
+  let h = sec('Doosjes', grp(g), foot);
+  // per week: hoeveel doosjes van 6 en van 10
+  const cur = weekStart(T), weeks = [];
+  for (let k = 0; k < 8; k++) { const w = addDays(cur, -7 * k), b = boxesIssued(w, addDays(w, 6)); if (b.s || b.t || b.los) weeks.push({ w, b }); }
+  const bevs = stockEvents().filter(isBoxEv).sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0);
+  h += `<section class="sec"><button class="sec-h tog ${ui.showBoxes ? 'open' : ''}" data-act="toggleboxes" aria-expanded="${!!ui.showBoxes}">Doosjes per week en invoer${I('chevR', 'sm')}</button>`;
+  if (ui.showBoxes) {
+    h += grp(`<table class="h"><tr><th>Week</th><th>Van 6</th><th>Van 10</th></tr>${weeks.length ? weeks.map(x => `<tr><td>${isoWeek(x.w)}</td><td>${x.b.s}</td><td>${x.b.t}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:left;color:var(--label2)">Nog niets verkocht.</td></tr>'}</table>`);
+    if (bevs.length) {
+      const KT = { boxes: 'Gekocht', boxreturn: 'Terug van klanten', boxcount: 'Geteld' };
+      h += `<div class="grp mt12">${bevs.slice(0, 12).map(e => {
+        const d = e.kind === 'boxcount' && L ? L.diffs[e.id] : null;
+        const st2 = d && d.first ? 'beginstand' : d ? (d.ds === 0 && d.dt === 0 ? 'klopte' : `${d.ds > 0 ? '+' : ''}${d.ds}× 6 · ${d.dt > 0 ? '+' : ''}${d.dt}× 10 t.o.v. berekend`) : '';
+        return `<button class="cell" data-act="stockedit" data-id="${esc(e.id)}"><span class="tx"><span class="tt">${esc(fmtShort(e.date))} · ${KT[e.kind]}: ${e.box6 ?? 0}× 6 · ${e.box10 ?? 0}× 10</span>${st2 || e.note ? `<span class="st">${[st2, esc(e.note || '')].filter(Boolean).join(' · ')}</span>` : ''}</span>${chev()}</button>`;
+      }).join('')}</div>`;
+    }
+  }
+  return h + '</section>';
+}
+
 function sheetStock(){
   const e = stockEvents().find(x => x.id === ui.stockId);
   if (!e) { ui.sheet = null; return ''; }
-  const isCount = e.kind === 'count';
-  const title = isCount ? 'Telling' : e.delivered == null ? 'Bestelling' : 'Levering';
+  const isCount = e.kind === 'count', isBox = isBoxEv(e);
+  const title = isBox ? { boxes: 'Doosjes gekocht', boxreturn: 'Doosjes terug', boxcount: 'Doosjes tellen' }[e.kind] : isCount ? 'Telling' : e.delivered == null ? 'Bestelling' : 'Levering';
   const num = (f, v, ph) => `<input type="number" inputmode="numeric" min="0" data-field="${f}" value="${v ?? ''}" placeholder="${ph}">`;
   let h = `<div class="sheet-h"><span></span><div class="nav-t">${title}</div><div class="nav-r"><button class="nb bold" data-act="closesheet">Gereed</button></div></div><div class="sheet-c">`;
   h += sec('', grp(`<label class="cell field"><span class="fl">Datum</span><input type="date" data-field="st_date" value="${esc(e.date)}"></label>`));
-  if (isCount) {
+  if (isBox) {
+    const d = e.kind === 'boxcount' ? ((boxLedger(e.date) || { diffs: {} }).diffs[e.id]) : null;
+    h += sec(e.kind === 'boxcount' ? 'Lege doosjes geteld' : 'Aantal doosjes', grp(`<label class="cell field"><span class="fl">Van 6</span>${num('st_box6', e.box6, '0')}</label>
+      <label class="cell field"><span class="fl">Van 10</span>${num('st_box10', e.box10, '0')}</label>`),
+      e.kind === 'boxcount' ? (d && !d.first ? `Berekend was ${d.s}× 6 en ${d.t}× 10.` : d && d.first ? 'Beginstand: vanaf hier rekent de app mee. Tel na de ronde.' : 'Tel de lege doosjes die je hebt, na de ronde.') : e.kind === 'boxreturn' ? 'Alles wat je vandaag terugkreeg, in één keer.' : 'Komen erbij als lege doosjes.');
+  } else if (isCount) {
     const d = (stockAt(e.date) || { diffs: {} }).diffs[e.id];
     h += sec('Geteld', grp(`<label class="cell field"><span class="fl">Werkelijk</span>${num('st_counted', e.counted, 'aantal')}</label>`),
       d ? `Berekend was ${d.have}; verschil ${d.diff > 0 ? '+' : ''}${d.diff}. ${d.diff < 0 ? 'Gaat van de oudste eieren af.' : d.diff > 0 ? 'Komt erbij als extra voorraad.' : ''}` : 'Tel aan het eind van de dag, na de ronde.');
@@ -1540,9 +1658,11 @@ function sheetStock(){
 function vRoute(){
   const n = db.addresses.length, ex = db.addresses.filter(a => a.excluded).length;
   const editing = !!ui.routeEdit && n > 0;
+  if (ui.sel && n) return vRouteSelect();
   let h = navBar({ left: n ? `<button class="nb ${editing ? 'bold' : ''}" data-act="routeedit">${editing ? 'Gereed' : 'Wijzig'}</button>` : '', right: `${syncButton()}<button class="nb" data-act="new" aria-label="Adres toevoegen">${I('plus')}</button>` });
   h += '<main>' + largeTitle('Route', n ? `${plural(n, 'adres', 'adressen')}${ex ? ` · ${ex} uitgesloten` : ''}` : '');
-  h += sec('', grp(`<button class="cell" data-act="bulk"><span class="ico" style="background:var(--tint)">${I('paste')}</span><span class="tx"><span class="tt">Lijst plakken</span><span class="st">Hele route in één keer invoeren</span></span>${chev()}</button>`));
+  h += sec('', grp(`<button class="cell" data-act="bulk"><span class="ico" style="background:var(--tint)">${I('paste')}</span><span class="tx"><span class="tt">Lijst plakken</span><span class="st">Hele route in één keer invoeren</span></span>${chev()}</button>`
+    + (n > 1 ? `<button class="cell" data-act="selstart"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">Reeks wijzigen</span><span class="st">Voorkeursdag of frequentie voor een stuk van de route</span></span>${chev()}</button>` : '')));
   if (!n) h += `<div class="empty">${I('map')}<h2>Nog geen adressen</h2><p>Plak de looproute in de volgorde waarin jullie lopen, of voeg adressen één voor één toe met +.</p></div>`;
   else {
     h += sec('Loopvolgorde', grp(db.addresses.map((a, i) => {
@@ -1559,6 +1679,56 @@ function vRoute(){
     }).join('')), editing ? 'Verplaats met de pijlen. Grote verschuivingen: open het adres en kies "Plek in de route".' : 'Tik op een adres om het te wijzigen.');
   }
   return h + '</main>' + tabs('route');
+}
+
+// Een reeks adressen kiezen: tik op het eerste en het laatste adres, alles ertussen hoort erbij
+function selRange(){
+  const s = ui.sel || {}, i = db.addresses.findIndex(a => a.id === s.from);
+  if (i < 0) return [];
+  const j = s.to ? db.addresses.findIndex(a => a.id === s.to) : i;
+  const lo = Math.min(i, j < 0 ? i : j), hi = Math.max(i, j < 0 ? i : j);
+  return db.addresses.slice(lo, hi + 1);
+}
+function vRouteSelect(){
+  const list = selRange(), ids = new Set(list.map(a => a.id)), s = ui.sel;
+  let h = navBar({ left: '<button class="nb" data-act="selcancel">Annuleer</button>', title: list.length ? plural(list.length, 'adres', 'adressen') : 'Kies een reeks' }) + '<main>';
+  const hint = !s.from ? 'Tik op het <b>eerste</b> adres van de reeks.' : !s.to ? `Tik nu op het <b>laatste</b> adres. Begint bij ${esc(label(list[0]))}.` : `Van ${esc(label(list[0]))} t/m ${esc(label(list[list.length - 1]))}. Tik opnieuw om een nieuwe reeks te kiezen.`;
+  h += sec('', grp(db.addresses.map((a, i) => {
+    const meta = [];
+    if (a.prefDays && a.prefDays.length) meta.push(a.prefDays.slice().sort(byMon).map(d => DSH[d]).join('/'));
+    if (freqOf(a) > 1) meta.push(`om de ${freqOf(a)} wkn`);
+    if (a.excluded) meta.unshift('<span class="badge red">uitgesloten</span>');
+    const on = ids.has(a.id);
+    return `<button class="cell ind ${on ? 'sel' : ''}" data-act="selrow" data-id="${a.id}" aria-pressed="${on}"><span class="no">${i + 1}</span><span class="tx"><span class="tt">${esc(label(a))}</span>${meta.length ? `<span class="st one">${meta.join(' · ')}</span>` : ''}</span><span class="selm">${on ? I('check') : ''}</span></button>`;
+  }).join('')));
+  h += '</main>';
+  h += `<div class="dock one"><p class="dh"><span>${hint}</span></p><button class="btn" data-act="opensheet" data-s="range" ${list.length ? '' : 'disabled style="opacity:.4"'}>Wijzig ${list.length ? plural(list.length, 'adres', 'adressen') : 'reeks'}</button></div>`;
+  return h;
+}
+function sheetRange(){
+  const list = selRange();
+  if (!list.length) { ui.sheet = null; return ''; }
+  const r = ui.rangeDo || (ui.rangeDo = { pref: null, freq: null, onlyEmpty: false });
+  const empty = list.filter(a => !(a.prefDays || []).length).length;
+  const wd = db.settings.walkDays, days = WEEK.filter(d => wd.includes(d));
+  let h = `<div class="sheet-h"><button class="nb" data-act="closesheet">Annuleer</button><div class="nav-t">${plural(list.length, 'adres', 'adressen')}</div><div class="nav-r"></div></div><div class="sheet-c">`;
+  h += `<p class="sec-f" style="padding:4px 16px 0">${esc(label(list[0]))}${list.length > 1 ? ` t/m ${esc(label(list[list.length - 1]))}` : ''}</p>`;
+  h += sec('Voorkeursdag', grp(`<div class="cell stack">${days.length ? `<div class="chips">${days.map(d => chip(DAYS[d], 'rangepref', `data-d="${d}"`, (r.pref || []).includes(d))).join('')}${chip('Geen voorkeur', 'rangepref', 'data-d="-1"', r.pref && !r.pref.length)}</div>` : '<span class="st">Stel eerst loopdagen in bij Instellingen.</span>'}</div>`
+    + `<div class="cell"><span class="tx"><span class="tt">Alleen zonder voorkeursdag</span><span class="st">${empty} van de ${list.length} hebben nog geen voorkeursdag</span></span>${toggleBtn(r.onlyEmpty, 'rangeonlyempty', '', 'Alleen adressen zonder voorkeursdag')}</div>`),
+    r.pref == null ? 'Kies een dag om de voorkeursdag te wijzigen; laat leeg om hem te laten zoals hij is.' : r.onlyEmpty ? 'Adressen die al een voorkeursdag hebben, blijven zoals ze zijn.' : 'Alle adressen in de reeks krijgen deze voorkeur.');
+  h += sec('Frequentie', grp(`<div class="cell stack">${freqSeg(r.freq).replace(/data-act="freq"/g, 'data-act="rangefreq"')}</div>`), r.freq == null ? 'Niet gekozen: de frequentie blijft per adres zoals hij is.' : '');
+  const n = rangeTargets(list, r).length;
+  h += `<div class="sec"><button class="btn big" data-act="rangeapply" ${n ? '' : 'disabled style="opacity:.4"'}>${n ? `Pas toe op ${plural(n, 'adres', 'adressen')}` : 'Niets te wijzigen'}</button></div>`;
+  return h + '</div>';
+}
+// Welke adressen in de reeks echt veranderen
+function rangeTargets(list, r){
+  const same = (a, b) => JSON.stringify((a || []).slice().sort()) === JSON.stringify((b || []).slice().sort());
+  return list.filter(a => {
+    const pref = r.pref != null && !(r.onlyEmpty && (a.prefDays || []).length) && !same(a.prefDays, r.pref);
+    const freq = r.freq != null && freqOf(a) !== r.freq;
+    return pref || freq;
+  });
 }
 
 function freqSeg(cur){
@@ -1963,7 +2133,7 @@ function go(view, extra){
 function onScroll(){ const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
 window.addEventListener('scroll', onScroll, { passive: true });
 
-const SHEETS = { next: sheetNext, passkeys: sheetPasskeys, stock: sheetStock };
+const SHEETS = { next: sheetNext, passkeys: sheetPasskeys, stock: sheetStock, range: sheetRange };
 function renderSheet(){
   const host = document.getElementById('sheet');
   const html = ui.sheet && SHEETS[ui.sheet] ? SHEETS[ui.sheet]() : '';
@@ -1980,7 +2150,7 @@ function openSheet(name){ ui.sheet = name; renderSheet(); }
 function closeSheet(){
   if (ui.sheet === 'stock') {
     const e = stockEvents().find(x => x.id === ui.stockId);
-    if (e && (e.kind === 'count' ? e.counted == null : e.ordered == null && e.delivered == null)) { db.stock = db.stock.filter(x => x !== e); save(true); }
+    if (e && (isBoxEv(e) ? e.box6 == null && e.box10 == null : e.kind === 'count' ? e.counted == null : e.ordered == null && e.delivered == null)) { db.stock = db.stock.filter(x => x !== e); save(true); }
   }
   ui.sheet = null; renderSheet(); render();
 }
@@ -2080,7 +2250,7 @@ document.addEventListener('click', e => {
   if (openSwipe && !el.closest('.sw-a')) { closeSwipe(); if (el.closest('.sw')) return; }
   const act = el.dataset.act, D = ui.date;
   switch (act) {
-    case 'tab': go(el.dataset.v); break;
+    case 'tab': ui.sel = null; go(el.dataset.v); break;
     case 'today': ui.date = todayStr(); ui.dateSetOn = todayStr(); saveUi(); render(); break;
     case 'day': ui.date = addDays(ui.date, +el.dataset.n); ui.dateSetOn = todayStr(); saveUi(); render(); break;
     case 'ow': ui.ow = addDays(ui.ow, 7 * +el.dataset.n); saveUi(); render(); break;
@@ -2090,11 +2260,12 @@ document.addEventListener('click', e => {
     case 'togglecalc': ui.showCalc = !ui.showCalc; saveUi(); render(); break;
     case 'togglesupply': ui.showSupply = !ui.showSupply; saveUi(); render(); break;
     case 'showallstock': ui.showAllStock = true; render(); break;
+    case 'toggleboxes': ui.showBoxes = !ui.showBoxes; saveUi(); render(); break;
     case 'stocknew': {
       const kind = el.dataset.kind, T = todayStr();
-      const e = { id: uid(), date: T, kind, ordered: null, delivered: null, broken: 0, counted: null, note: '' };
+      const e = { id: uid(), date: T, kind, ordered: null, delivered: null, broken: 0, counted: null, box6: null, box10: null, note: '' };
       db.stock.push(e); save(true); ui.stockId = e.id; openSheet('stock');
-      setTimeout(() => { const f = document.querySelector(kind === 'count' ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
+      setTimeout(() => { const f = document.querySelector(isBoxEv(e) ? '[data-field=st_box6]' : kind === 'count' ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
       break;
     }
     case 'stockorder': {
@@ -2113,7 +2284,7 @@ document.addEventListener('click', e => {
     case 'stockedit': ui.stockId = el.dataset.id; openSheet('stock'); break;
     case 'stockdel': {
       const e = stockEvents().find(x => x.id === ui.stockId); if (!e) break;
-      confirmSheet('Verwijderen?', 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {
+      confirmSheet('Verwijderen?', isBoxEv(e) ? 'De doosjesvoorraad wordt opnieuw berekend.' : 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {
         if (!ok) return; db.stock = db.stock.filter(x => x !== e); save(); ui.sheet = null; renderSheet(); render();
       });
       break;
@@ -2161,6 +2332,34 @@ document.addEventListener('click', e => {
     case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
     case 'editback': ui.draft = null; if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route'); break;
     case 'routeedit': ui.routeEdit = !ui.routeEdit; saveUi(); render(); break;
+    case 'selstart': ui.sel = { from: null, to: null }; ui.rangeDo = null; ui.routeEdit = false; render(); break;
+    case 'selcancel': ui.sel = null; ui.rangeDo = null; render(); break;
+    case 'selrow': {
+      const s = ui.sel || (ui.sel = {}), id = el.dataset.id;
+      if (!s.from || s.to) { s.from = id; s.to = null; } else s.to = id;
+      render(); break;
+    }
+    case 'rangepref': {
+      const r = ui.rangeDo || (ui.rangeDo = { pref: null, freq: null, onlyEmpty: false }), d = +el.dataset.d;
+      r.pref = d < 0 ? (r.pref && !r.pref.length ? null : []) : toggleIn(r.pref || [], d).sort(byMon);
+      if (r.pref && d >= 0 && !r.pref.length) r.pref = null;
+      renderSheet(); break;
+    }
+    case 'rangeonlyempty': { const r = ui.rangeDo || (ui.rangeDo = { pref: null, freq: null, onlyEmpty: false }); r.onlyEmpty = !r.onlyEmpty; renderSheet(); break; }
+    case 'rangefreq': { const r = ui.rangeDo || (ui.rangeDo = { pref: null, freq: null, onlyEmpty: false }), f = +el.dataset.n; r.freq = r.freq === f ? null : f; renderSheet(); break; }
+    case 'rangeapply': {
+      const r = ui.rangeDo || {}, targets = rangeTargets(selRange(), r);
+      if (!targets.length) break;
+      const snap = targets.map(a => ({ a, prefDays: (a.prefDays || []).slice(), freq: a.freq }));
+      for (const a of targets) {
+        if (r.pref != null && !(r.onlyEmpty && (a.prefDays || []).length)) a.prefDays = r.pref.slice();
+        if (r.freq != null) a.freq = r.freq;
+      }
+      save(); ui.sel = null; ui.rangeDo = null; ui.sheet = null; renderSheet(); render();
+      const what = [r.pref != null ? (r.pref.length ? r.pref.map(d => DAYS[d]).join(' / ') : 'geen voorkeursdag') : '', r.freq != null ? freqText(r.freq).toLowerCase() : ''].filter(Boolean).join(', ');
+      toast(`${plural(targets.length, 'adres', 'adressen')}: ${what}`, 'Ongedaan', () => { for (const x of snap) { x.a.prefDays = x.prefDays; x.a.freq = x.freq; } save(); render(); });
+      break;
+    }
     case 'toggleexcl': { const a = byId(ui.id); a.excluded = !a.excluded; save(); render(); if (a.excluded) toast(`${label(a)} uitgesloten`, 'Ongedaan', () => { a.excluded = false; save(); render(); }); break; }
     case 'prefday': {
       const d = +el.dataset.d;
@@ -2383,11 +2582,11 @@ async function exportBackup(){
 }
 async function exportCsv(){
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const lines = ['datum;straat;nummer;naam;email;resultaat;eieren;volgende_keer;volgende_aantal;opmerking'];
+  const lines = ['datum;straat;nummer;naam;email;resultaat;eieren;doosjes_6;doosjes_10;volgende_keer;volgende_aantal;opmerking'];
   const vs = db.visits.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   for (const v of vs) {
     const a = byId(v.addressId) || {};
-    lines.push([v.date, q(a.street), q(a.number), q(a.name), q(a.email), v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen' : 'verkocht', v.eggs || 0, v.nextDate || '', v.nextEggs ?? '', q(v.note)].join(';'));
+    lines.push([v.date, q(a.street), q(a.number), q(a.name), q(a.email), v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen' : 'verkocht', v.eggs || 0, (boxSplit(v.eggs) || { s: '' }).s, (boxSplit(v.eggs) || { t: '' }).t, v.nextDate || '', v.nextEggs ?? '', q(v.note)].join(';'));
   }
   await shareOrDownload(`egg-sellent-bezoeken-${todayStr()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
 }
