@@ -290,7 +290,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -337,6 +337,7 @@ function migrate(d){
     if (!Array.isArray(a.prefDays)) a.prefDays = (a.prefDay != null && a.prefDay !== '') ? [+a.prefDay] : [];
     delete a.prefDay;
     if (typeof a.email !== 'string') a.email = '';
+    if (![1, 2, 3, 4].includes(a.freq)) a.freq = 1;
   }
   for (const v of d.visits) if (v.status !== 'nothome' && v.nextEggs == null) v.nextEggs = v.eggs || 0;
   return d;
@@ -404,7 +405,7 @@ const tsMs = s => s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1').replace
 
 function syncRecords(){
   const out = [];
-  db.addresses.forEach((a, i) => out.push(['addresses', a.id, { id: a.id, street: a.street || '', number: a.number || '', name: a.name || '', email: a.email || '', note: a.note || '', pref_days: a.prefDays || [], sort: i, excluded: !!a.excluded }]));
+  db.addresses.forEach((a, i) => out.push(['addresses', a.id, { id: a.id, street: a.street || '', number: a.number || '', name: a.name || '', email: a.email || '', freq: freqOf(a), note: a.note || '', pref_days: a.prefDays || [], sort: i, excluded: !!a.excluded }]));
   for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered }]);
   for (const d of db.absences) out.push(['absences', d, { date: d }]);
   for (const [w, n] of Object.entries(db.orders)) out.push(['orders', w, { week_start: w, amount: n }]);
@@ -740,8 +741,8 @@ function mergeRow(t, r){
   if (t === 'addresses') {
     const i = db.addresses.findIndex(a => a.id === r.id);
     if (r.deleted) { if (i < 0) return false; db.addresses.splice(i, 1); return true; }
-    const a = { id: r.id, street: r.street, number: r.number, name: r.name, email: r.email || '', note: r.note, prefDays: r.pref_days || [], excluded: r.excluded };
-    const same = i >= 0 && ['street', 'number', 'name', 'email', 'note', 'excluded'].every(k => (db.addresses[i][k] ?? '') === (a[k] ?? '')) && JSON.stringify(db.addresses[i].prefDays || []) === JSON.stringify(a.prefDays) && r.sort === i;
+    const a = { id: r.id, street: r.street, number: r.number, name: r.name, email: r.email || '', freq: r.freq || 1, note: r.note, prefDays: r.pref_days || [], excluded: r.excluded };
+    const same = i >= 0 && ['street', 'number', 'name', 'email', 'freq', 'note', 'excluded'].every(k => (db.addresses[i][k] ?? '') === (a[k] ?? '')) && JSON.stringify(db.addresses[i].prefDays || []) === JSON.stringify(a.prefDays) && r.sort === i;
     if (same) return false; // eigen wijziging die terugkomt: niets veranderd, niet opnieuw tekenen
     if (i < 0) db.addresses.push(a); else Object.assign(db.addresses[i], a);
     pulledSort[r.id] = r.sort; return true;
@@ -812,6 +813,9 @@ function boxes(n){
 const validEggs = n => n === 0 || boxes(n) !== '';
 function stepEggs(n, dir){ let x = (n || 0) + dir; while (x > 0 && x < 999 && !validEggs(x)) x += dir; return Math.max(0, Math.min(998, x)); }
 const EGG_CHIPS = [0, 6, 10, 12, 16, 20, 30];
+// Vaste frequentie van het adres (weken); standaard elke week
+const freqOf = a => (a && [1, 2, 3, 4].includes(a.freq)) ? a.freq : 1;
+const freqText = f => f === 1 ? 'Elke week' : `Om de ${f} weken`;
 const agEggs = v => v ? (v.nextEggs ?? v.eggs ?? 0) : 0;   // afgesproken aantal voor volgende keer
 const weeksOf = v => (v && v.nextDate) ? Math.max(1, weeksBetween(v.date, v.nextDate)) : null;
 const isAbsent = d => db.absences.includes(d);
@@ -840,8 +844,7 @@ function defaultNext(a, D, k){
 // Valt de vaste dag van deze klant bij het volgende bezoek op een dag dat de bezorger afwezig is?
 function nextVisitImpact(a, D){
   if (!db.settings.walkDays.length || !db.absences.length) return null;
-  const ag = lastDecisive(visitsOf(a.id), D);
-  const k = weeksOf(ag) || 1;
+  const k = freqOf(a);
   const c = nextCandidates(a, D, k);
   if (!c.length || !isAbsent(c[0])) return null;
   const T = addDays(weekStart(D), 7 * k);
@@ -905,7 +908,7 @@ function forecast(T){
     if (!n || n > TE) continue;
     if (n >= T) { rows.push({ a, kind: 'afgesproken', eggs: e, date: n }); continue; }
     if (daysBetween(n, T) > 56) { rows.push({ a, kind: 'onzeker', eggs: 0 }); continue; }
-    const k = weeksOf(ag) || 1;
+    const k = freqOf(a);
     while (n < T) n = addDays(n, 7 * k);
     if (n <= TE) {
       // ritme doorgetrokken; valt dat op een afwezige dag, dan schuift het (net als in de app) naar een loopdag
@@ -1106,7 +1109,7 @@ function vHouse(){
   const item = p.shown[pos] || p.hidden.find(x => x.a.id === a.id);
   const vs = visitsOf(a.id), v = vs.find(x => x.date === D);
   const before = vs.filter(x => x.date < D), last4 = before.slice(-4).reverse();
-  const ag = lastDecisive(vs, D), agreed = ag ? agEggs(ag) : 0, pw = weeksOf(ag);
+  const ag = lastDecisive(vs, D), agreed = ag ? agEggs(ag) : 0, pw = freqOf(a);
   const imp = pos >= 0 ? nextVisitImpact(a, D) : null; // buiten de ronde (bijv. al gedaan): geen aanbod
   let h = navBar({ left: backBtn('tab', 'Ronde', 'data-v="home"'), title: pos >= 0 ? `${pos + 1} van ${p.shown.length}` : 'Buiten de ronde', right: `<button class="nb" data-act="edit" data-id="${a.id}">Wijzig</button>` });
   h += '<main class="house-main">';
@@ -1136,7 +1139,7 @@ function vHouse(){
   let hero;
   if (v && v.status === 'nothome') hero = `<div class="lbl">Vandaag</div><div class="big red"><b>Niet thuis</b></div><div class="meta">De afspraak blijft staan${ag ? ` (${agreed} eieren)` : ''}.</div>`;
   else if (v) hero = `<div class="lbl">Vandaag genoteerd</div><div class="big green"><b>${v.eggs}</b><span>${v.eggs === 1 ? 'ei' : 'eieren'}</span></div><div class="meta">${boxes(v.eggs) ? `${boxes(v.eggs)} · ` : ''}${ag ? `Afspraak was ${agreed}` : 'Eerste keer'}${v.double ? ' · voor 2 weken' : ''}</div>`;
-  else if (ag) hero = `<div class="lbl">Afgesproken</div><div class="big"><b>${agreed}</b><span>eieren</span></div><div class="meta">${boxes(agreed) ? `<b style="color:var(--label)">${boxes(agreed)}</b> · ` : ''}${pw === 1 ? 'Elke week' : `Om de ${pw} weken`}${ag.nextDate && ag.nextDate !== D ? ` · was gepland ${esc(fmtShort(ag.nextDate))}` : ''}${ag.note ? ` · <i>${esc(ag.note)}</i>` : ''}</div>`;
+  else if (ag) hero = `<div class="lbl">Afgesproken</div><div class="big"><b>${agreed}</b><span>eieren</span></div><div class="meta">${boxes(agreed) ? `<b style="color:var(--label)">${boxes(agreed)}</b> · ` : ''}${freqText(pw)}${ag.nextDate && ag.nextDate !== D ? ` · was gepland ${esc(fmtShort(ag.nextDate))}` : ''}${ag.note ? ` · <i>${esc(ag.note)}</i>` : ''}</div>`;
   else hero = `<div class="lbl">Nieuw adres</div><div class="big"><b>–</b></div><div class="meta">Nog geen afspraak. Kies hieronder hoeveel.</div>`;
   h += `<div class="grp"><div class="hero">${hero}</div>`;
   if (before.length) {
@@ -1171,7 +1174,7 @@ function vHouse(){
       <button class="cell" data-act="opensheet" data-s="next"><span class="ico" style="background:var(--gray)">${I('note')}</span><span class="tx"><span class="tt">Notitie</span>${v.note ? `<span class="st one">${esc(v.note)}</span>` : ''}</span>${v.note ? '' : '<span class="tr">Toevoegen</span>'}${chev()}</button>`));
   }
   // snel wijzigen zonder extra scherm: voorkeursdag(en)
-  if (db.settings.walkDays.length) h += sec('Voorkeursdag', grp(`<div class="cell stack">${prefToggles('prefday', a.prefDays)}</div>`));
+  h += sec('Frequentie en voorkeursdag', grp(`<div class="cell stack">${freqSeg(freqOf(a))}${db.settings.walkDays.length ? prefToggles('prefday', a.prefDays) : ''}</div>`));
   // alvast voorbereiden op het volgende huis
   const nxt = pos >= 0 ? p.shown.slice(pos + 1).find(x => !x.today) : null;
   if (nxt) {
@@ -1311,6 +1314,7 @@ function vRoute(){
     h += sec('Loopvolgorde', grp(db.addresses.map((a, i) => {
       const meta = [];
       if (a.prefDays && a.prefDays.length) meta.push(a.prefDays.slice().sort(byMon).map(d => DSH[d]).join('/'));
+      if (freqOf(a) > 1) meta.push(`om de ${freqOf(a)} wkn`);
       if (a.name) meta.push(esc(a.name));
       if (a.excluded) meta.unshift('<span class="badge red">uitgesloten</span>');
       const txt = `<span class="no">${i + 1}</span><span class="tx"><span class="tt">${esc(label(a))}</span>${meta.length ? `<span class="st one">${meta.join(' · ')}</span>` : ''}</span>`;
@@ -1323,6 +1327,9 @@ function vRoute(){
   return h + '</main>' + tabs('route');
 }
 
+function freqSeg(cur){
+  return `<div class="segc" role="group" aria-label="Frequentie">${[1, 2, 3, 4].map(n => `<button data-act="freq" data-n="${n}" aria-pressed="${cur === n}">${n === 1 ? 'Elke week' : n + ' wkn'}</button>`).join('')}</div>`;
+}
 function prefToggles(act, cur){
   const wd = db.settings.walkDays;
   const list = WEEK.filter(d => wd.includes(d) || (cur || []).includes(d));
@@ -1331,7 +1338,7 @@ function prefToggles(act, cur){
 }
 
 function vEdit(){
-  const isNew = !ui.id, a = isNew ? (ui.draft ||= { street: '', number: '', name: '', email: '', note: '', prefDays: [], pos: db.addresses.length + 1 }) : byId(ui.id);
+  const isNew = !ui.id, a = isNew ? (ui.draft ||= { street: '', number: '', name: '', email: '', freq: 1, note: '', prefDays: [], pos: db.addresses.length + 1 }) : byId(ui.id);
   if (!a) { ui.view = 'route'; return vRoute(); }
   const idx = isNew ? (a.pos || db.addresses.length + 1) : db.addresses.indexOf(a) + 1;
   const max = db.addresses.length + (isNew ? 1 : 0);
@@ -1343,6 +1350,7 @@ function vEdit(){
     <label class="cell field"><span class="fl">E-mail</span><input type="email" inputmode="email" autocapitalize="off" autocomplete="off" data-field="email" value="${esc(a.email || '')}" placeholder="optioneel"></label>`)
     + `<datalist id="streets">${streets.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`);
   h += sec('Vaste notitie', grp(`<div class="cell"><textarea class="ta" data-field="note" placeholder="bijv. achterdeur gebruiken, hond">${esc(a.note)}</textarea></div>`));
+  h += sec('Frequentie', grp(`<div class="cell stack">${freqSeg(freqOf(a))}</div>`), 'Hoe vaak dit adres eieren krijgt. Een uitzondering spreek je per bezoek af bij "Volgende keer".');
   h += sec('Voorkeursdag', grp(`<div class="cell stack">${prefToggles('prefday', a.prefDays)}</div>`), (a.prefDays || []).length ? 'Lukt het die dag niet, dan schuift het adres door naar de volgende loopdag.' : 'Geen voorkeur: staat op elke loopdag tot het die week gedaan is.');
   h += sec('', grp(`<label class="cell field"><span class="fl">Plek in route</span><input type="number" data-field="pos" value="${idx}" min="1" max="${max}" inputmode="numeric"></label>`));
   if (!isNew) h += sec('', grp(`<div class="cell"><span class="ico" style="background:var(--red)">${I('x')}</span><span class="tx"><span class="tt">Uitsluiten</span><span class="st">${a.excluded ? 'Komt niet meer in de ronde' : 'Komt niet meer langs'}</span></span>${toggleBtn(a.excluded, 'toggleexcl', '', 'Uitsluiten')}</div>`), 'Later weer aan te zetten; de geschiedenis blijft bewaard.');
@@ -1360,6 +1368,7 @@ function vBulk(){
   const n = bulkParse(ui.bulkText || '').length;
   return navBar({ left: backBtn('tab', 'Route', 'data-v="route"'), title: 'Lijst plakken', right: '<button class="nb bold" data-act="bulkadd">Voeg toe</button>' }) + `<main>
     ${sec('Adressen, één per regel', grp(`<div class="cell"><textarea class="ta" id="bulktext" style="min-height:12rem" placeholder="Dorpsstraat 12&#10;14&#10;Kerkweg 1-15 oneven">${esc(ui.bulkText || '')}</textarea></div>`), `<span id="bulkcount">${plural(n, 'adres', 'adressen')} gevonden</span>. Alleen een nummer = zelfde straat als erboven. Een reeks (20-2) gaat in die richting; "even"/"oneven" slaat om de andere over.`)}
+    ${sec('Frequentie voor de hele lijst', grp(`<div class="cell stack">${freqSeg(freqOf({ freq: ui.bulkFreq })).replace(/data-act="freq"/g, 'data-act="bulkfreq"')}</div>`))}
     ${sec('Voorkeursdag voor de hele lijst', grp(`<div class="cell stack">${prefToggles('bulkpref', ui.bulkPrefs || [])}</div>`))}
     <div class="sec"><button class="btn big" data-act="bulkadd">Voeg toe aan einde van route</button></div></main>`;
 }
@@ -1731,7 +1740,7 @@ function setVisit(patch, id, quiet){
   v.offered = DEC(v) && !!nextVisitImpact(a, D);
   if (v.status === 'nothome') { v.eggs = 0; v.nextDate = null; v.nextEggs = null; v.nextManual = false; }
   else {
-    if (!v.nextDate) v.nextDate = defaultNext(a, D, weeksOf(ag) || 1);
+    if (!v.nextDate) v.nextDate = defaultNext(a, D, freqOf(a));
     if (!v.nextManual) v.nextEggs = v.eggs > 0 ? v.eggs : agEggs(ag);
     if (v.nextEggs == null) v.nextEggs = 0;
   }
@@ -1849,15 +1858,27 @@ document.addEventListener('click', e => {
       const a = byId(ui.id); a.prefDays = toggleIn(a.prefDays || [], d); save(); render();
       break;
     }
+    case 'freq': {
+      const f = +el.dataset.n;
+      if (!ui.id) { ui.draft.freq = f; saveUi(); render(); break; }
+      const a = byId(ui.id); a.freq = f;
+      // vandaag al genoteerd? Dan schuift de volgende keer mee met de nieuwe frequentie
+      const v = ui.view === 'house' ? curVisit() : null;
+      if (v && DEC(v) && !v.double) { v.nextDate = defaultNext(a, ui.date, f); v.ts = Date.now(); }
+      save(); render();
+      toast(`${label(a)}: ${freqText(f).toLowerCase()}`);
+      break;
+    }
+    case 'bulkfreq': ui.bulkFreq = +el.dataset.n; saveUi(); render(); break;
     case 'bulkpref': ui.bulkPrefs = toggleIn(ui.bulkPrefs || [], +el.dataset.d); saveUi(); render(); break;
     case 'new': go('edit', { id: null, draft: null, from: 'route' }); break;
     case 'addone': {
       const d = ui.draft;
       if (!d || !d.street.trim()) { toast('Vul in elk geval de straat in.', null, null, 'err'); break; }
-      const a = { id: uid(), street: d.street.trim(), number: d.number.trim(), name: d.name.trim(), email: (d.email || '').trim(), note: d.note.trim(), prefDays: d.prefDays || [], excluded: false };
+      const a = { id: uid(), street: d.street.trim(), number: d.number.trim(), name: d.name.trim(), email: (d.email || '').trim(), freq: freqOf(d), note: d.note.trim(), prefDays: d.prefDays || [], excluded: false };
       const pos = Math.max(1, Math.min(db.addresses.length + 1, d.pos || db.addresses.length + 1));
       db.addresses.splice(pos - 1, 0, a); save();
-      ui.draft = { street: a.street, number: '', name: '', email: '', note: '', prefDays: a.prefDays.slice(), pos: pos + 1 };
+      ui.draft = { street: a.street, number: '', name: '', email: '', freq: a.freq, note: '', prefDays: a.prefDays.slice(), pos: pos + 1 };
       saveUi(); render(); toast(`${label(a)} toegevoegd op plek ${pos}`);
       const n = app.querySelector('[data-field=number]'); if (n) n.focus();
       break;
@@ -1882,7 +1903,7 @@ document.addEventListener('click', e => {
       const list = bulkParse((document.getElementById('bulktext') || {}).value || ui.bulkText || '');
       if (!list.length) { toast('Geen adressen gevonden.', null, null, 'err'); break; }
       const prefs = (ui.bulkPrefs || []).slice();
-      for (const x of list) db.addresses.push({ id: uid(), street: x.street, number: x.number, name: '', email: '', note: '', prefDays: prefs.slice(), excluded: false });
+      for (const x of list) db.addresses.push({ id: uid(), street: x.street, number: x.number, name: '', email: '', freq: freqOf({ freq: ui.bulkFreq }), note: '', prefDays: prefs.slice(), excluded: false });
       const added = list.length;
       save(); ui.bulkText = ''; go('route');
       toast(`${plural(added, 'adres', 'adressen')} toegevoegd`, 'Ongedaan', () => { db.addresses.splice(db.addresses.length - added, added); save(); render(); });

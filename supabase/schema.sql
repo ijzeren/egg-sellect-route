@@ -53,6 +53,7 @@ create table if not exists public.addresses (
   number text not null default '',
   name text not null default '',
   email text not null default '',
+  freq int not null default 1 check (freq between 1 and 4),
   note text not null default '',
   pref_days int[] not null default '{}',
   sort double precision not null default 0,
@@ -109,6 +110,8 @@ create table if not exists public.orders (
 
 -- toegevoegd in v2.2: optioneel e-mailadres per adres (voor bestaande databases)
 alter table public.addresses add column if not exists email text not null default '';
+-- toegevoegd in v2.5: vaste frequentie in weken (1 = elke week)
+alter table public.addresses add column if not exists freq int not null default 1 check (freq between 1 and 4);
 
 create index if not exists addresses_sync on public.addresses(team_id, server_ts);
 create index if not exists visits_sync on public.visits(team_id, server_ts);
