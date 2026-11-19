@@ -200,6 +200,7 @@ alter table public.addresses enable row level security;
 alter table public.visits enable row level security;
 alter table public.absences enable row level security;
 alter table public.orders enable row level security;
+alter table public.stock_events enable row level security;
 
 drop policy if exists teams_select on public.teams;
 create policy teams_select on public.teams for select using (public.is_member(id));
