@@ -190,14 +190,15 @@ minimum_password_length = 6
 password_requirements = ""
 
 # Configure passkey sign-ins.
-# [auth.passkey]
-# enabled = false
+[auth.passkey]
+enabled = true
 
 # Configure WebAuthn relying party settings (required when passkey is enabled).
-# [auth.webauthn]
-# rp_display_name = "Supabase"
-# rp_id = "localhost"
-# rp_origins = ["http://127.0.0.1:3000"]
+# Passkeys werken niet op een IP-adres: test lokaal via http://localhost:8765 (of *.localhost).
+[auth.webauthn]
+rp_display_name = "Egg-sellent"
+rp_id = "localhost"
+rp_origins = ["http://localhost:8765", "http://claude-test.localhost:8765", "http://telefoon-b.localhost:8765"]
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
@@ -436,3 +437,6 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+[functions.push]
+verify_jwt = false

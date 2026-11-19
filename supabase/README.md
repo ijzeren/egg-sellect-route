@@ -82,6 +82,35 @@ Een bezorger kan rondes lopen, adressen beheren, afwezigheid melden en bestellin
 Alleen de beheerder kan loopdagen, afronding en de tekst bij afwezigheid wijzigen, en leden
 uitnodigen of verwijderen.
 
+## 8. Inloggen met passkeys (Face ID)
+1. **Authentication → Passkeys**: zet aan.
+2. Relying party: *ID* `ijzeren.github.io`, *naam* `Egg-sellent`, *origin* `https://ijzeren.github.io`.
+3. In de app: eerst één keer inloggen met een code; de app vraagt daarna "Voortaan inloggen met
+   Face ID?". Later ook via Instellingen → Passkeys.
+
+Een passkey hoort bij het adres van de app. Verhuist de app naar een eigen domein, dan moet
+iedereen opnieuw een passkey aanmaken.
+
+## 9. Meldingen
+1. **Databasetabellen**: zitten in [`schema.sql`](schema.sql) (opnieuw uitvoeren is veilig).
+2. **Functie uitrollen** (eenmalig `npx supabase login`):
+   ```bash
+   npx supabase functions deploy push --project-ref istqegonfkfrkyddfajd --no-verify-jwt
+   npx supabase secrets set --env-file supabase/functions/.env --project-ref istqegonfkfrkyddfajd
+   ```
+   `supabase/functions/.env` bevat het VAPID-sleutelpaar (staat niet in git). De publieke sleutel
+   staat ook in [`../config.js`](../config.js). Nieuw paar maken: `npx web-push generate-vapid-keys`;
+   dan moeten alle telefoons de meldingen opnieuw aanzetten.
+3. **Tijdschema**: voer [`cron.sql`](cron.sql) uit in de SQL Editor (elke 15 minuten).
+4. In de app (vanaf het beginscherm): Instellingen → Meldingen → *Zet meldingen aan*, en
+   *Stuur testmelding*.
+
+Wat er gestuurd wordt:
+- **Ochtend van een loopdag**: aantal adressen en eieren. De getallen komen uit een samenvatting
+  die de app na elke synchronisatie bijwerkt (`team_digest`).
+- **Bestellen**: op de gekozen dag om 18:00, met het advies voor volgende week.
+- **Teamberichten**: als iemand een dag afwezig meldt.
+
 ---
 
 ## Goed om te weten
@@ -118,6 +147,9 @@ Open daarna http://localhost:8765.
 
 - Alles wissen en opnieuw beginnen: `npx supabase db reset`.
 - Stoppen: `npx supabase stop`.
+- Passkeys lokaal: alleen via `http://localhost:8765` (niet via 127.0.0.1; passkeys werken niet
+  op een IP-adres).
+- De meldingenfunctie draait lokaal mee; sleutels uit `supabase/functions/.env`.
 - Twee telefoons nabootsen: `http://127.0.0.1:8765` en `http://telefoon-b.localhost:8765` hebben
   elk hun eigen opslag.
 - Zonder Supabase testen (alleen op deze telefoon): in de console

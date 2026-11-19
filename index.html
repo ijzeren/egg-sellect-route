@@ -191,7 +191,7 @@ button.cell:active,a.cell:active{background:var(--press)}
 .mt{border-radius:10px;background:var(--cell2);padding:6px 2px;text-align:center;min-height:56px;display:flex;flex-direction:column;justify-content:center}
 .mt .d{font-size:.647rem;color:var(--label2)}
 .mt .v{font:700 1.176rem/1.15 ui-rounded,-apple-system,sans-serif;font-variant-numeric:tabular-nums}
-.mt.sold .v{color:var(--green)} .mt.nh .v{color:var(--red)} .mt.empty{opacity:.45}
+.mt.sold .v{color:var(--green)} .mt.nh .v{color:var(--red)} .mt.blank{opacity:.45}
 .absc{border-radius:12px;background:var(--cell);padding:14px;border:1.5px solid var(--red)}
 .absc .h{display:flex;gap:8px;align-items:flex-start;color:var(--red);font-weight:600;margin-bottom:10px}
 .wk{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px;margin-bottom:10px}
@@ -202,11 +202,12 @@ button.cell:active,a.cell:active{background:var(--press)}
 .wk div.x{background:var(--red);border-color:var(--red);color:#fff}
 .wk div.x b{text-decoration:line-through}
 .script{font-size:.941rem;font-style:italic;color:var(--label);background:var(--cell2);border-radius:10px;padding:10px 12px;margin-bottom:10px}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:52px 1fr 1.5fr;gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--sep);view-transition-name:dock}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:52px minmax(0,.9fr) minmax(0,1.7fr);gap:8px;padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--sep);view-transition-name:dock}
 .dock.two{grid-template-columns:52px 1fr}
 .dock .iconbtn{min-height:56px;border-radius:14px;background:var(--fill);color:var(--tint);display:flex;align-items:center;justify-content:center}
 .dock .iconbtn:active{opacity:.5}
-.dock .btn{min-height:56px}
+.dock .btn{min-height:56px;padding:0 10px;font-size:1rem;white-space:nowrap}
+.dock .btn small{white-space:nowrap}
 .dock .btn small{display:block;font-size:.706rem;font-weight:500;opacity:.85}
 .dock .btn.stack{flex-direction:column;gap:0;line-height:1.15}
 
@@ -289,7 +290,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.4.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -530,12 +531,112 @@ async function afterLogin(){
   if (S.team && !S.teams.some(t => t.team_id === S.team.id)) S.team = null;
   saveS();
 }
+/* ---------- passkeys (Face ID / Touch ID) via Supabase Auth ---------- */
+const HAS_PASSKEY_API = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+const b64uToBuf = s => { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u.buffer; };
+const bufToB64u = buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const pkCreateOpts = o => ({ ...o, challenge: b64uToBuf(o.challenge), user: { ...o.user, id: b64uToBuf(o.user.id) }, excludeCredentials: (o.excludeCredentials || []).map(c => ({ ...c, id: b64uToBuf(c.id) })) });
+const pkGetOpts = o => ({ ...o, challenge: b64uToBuf(o.challenge), allowCredentials: (o.allowCredentials || []).map(c => ({ ...c, id: b64uToBuf(c.id) })) });
+function pkCredJSON(c){
+  const r = c.response, out = { id: c.id, rawId: bufToB64u(c.rawId), type: c.type, clientExtensionResults: c.getClientExtensionResults ? c.getClientExtensionResults() : {}, response: { clientDataJSON: bufToB64u(r.clientDataJSON) } };
+  if (c.authenticatorAttachment) out.authenticatorAttachment = c.authenticatorAttachment;
+  if (r.attestationObject) { out.response.attestationObject = bufToB64u(r.attestationObject); if (r.getTransports) out.response.transports = r.getTransports(); }
+  else { out.response.authenticatorData = bufToB64u(r.authenticatorData); out.response.signature = bufToB64u(r.signature); out.response.userHandle = r.userHandle ? bufToB64u(r.userHandle) : null; }
+  return out;
+}
+function pkError(e){
+  if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return null; // geannuleerd: geen melding
+  if (e && e.status === 404) return 'Inloggen met passkeys staat (nog) niet aan voor deze app.';
+  if (e && e.name === 'InvalidStateError') return 'Er bestaat al een passkey voor dit account op dit apparaat.';
+  return (e && e.message) || 'Passkey mislukt.';
+}
+async function passkeyLogin(){
+  const o = await api('/auth/v1/passkeys/authentication/options', { method: 'POST', auth: false, body: {} });
+  const cred = await navigator.credentials.get({ publicKey: pkGetOpts(o.options) });
+  const d = await api('/auth/v1/passkeys/authentication/verify', { method: 'POST', auth: false, body: { challenge_id: o.challenge_id, credential: pkCredJSON(cred) } });
+  setSession(d);
+  await afterLogin();
+}
+async function passkeyAdd(){
+  const o = await api('/auth/v1/passkeys/registration/options', { method: 'POST', body: {} });
+  const cred = await navigator.credentials.create({ publicKey: pkCreateOpts(o.options) });
+  const r = await api('/auth/v1/passkeys/registration/verify', { method: 'POST', body: { challenge_id: o.challenge_id, credential: pkCredJSON(cred) } });
+  const name = /iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'Apparaat';
+  if (r && r.id) { try { await api('/auth/v1/passkeys/' + r.id, { method: 'PATCH', body: { friendly_name: `${name} · ${fmtShort(todayStr())}` } }); } catch (e) {} }
+  S.hasPasskey = true; saveS();
+}
+const passkeyList = () => api('/auth/v1/passkeys');
+const passkeyDelete = id => api('/auth/v1/passkeys/' + id, { method: 'DELETE' });
+
+/* ---------- meldingen (web push) ---------- */
+const VAPID = CFG.vapidPublicKey || '';
+const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const DEFAULT_PREFS = { walkday: '07:00', order: null, team: true };
+async function pushSubscribe(){
+  const perm = await Notification.requestPermission(); // direct in de tik: iOS vraagt alleen na een gebruikersactie
+  if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Meldingen zijn geweigerd. Zet ze aan via Instellingen van de iPhone → Meldingen → Egg-sellent.' : 'Geen toestemming gegeven.');
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBuf(VAPID) });
+  await pushSave(sub, S.pushPrefs || DEFAULT_PREFS);
+}
+async function pushSave(sub, prefs){
+  const j = sub.toJSON();
+  await api('/rest/v1/push_subscriptions?on_conflict=endpoint', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: { endpoint: j.endpoint, team_id: S.team.id, p256dh: j.keys.p256dh, auth: j.keys.auth, prefs, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Amsterdam', updated_at: new Date().toISOString() } });
+  S.push = { endpoint: j.endpoint, team: S.team.id }; S.pushPrefs = prefs; saveS();
+}
+async function pushPrefs(patch){
+  S.pushPrefs = { ...(S.pushPrefs || DEFAULT_PREFS), ...patch }; saveS();
+  const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+  if (sub) await pushSave(sub, S.pushPrefs);
+}
+async function pushOff(){
+  try {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) { try { await api('/rest/v1/push_subscriptions?endpoint=eq.' + encodeURIComponent(sub.endpoint), { method: 'DELETE' }); } catch (e) {} await sub.unsubscribe(); }
+  } finally { S.push = null; saveS(); }
+}
+const pushTest = () => api('/functions/v1/push', { method: 'POST', body: { mode: 'test' } });
+function notifyTeam(type, data){
+  if (!syncOn() || !S.team) return;
+  api('/functions/v1/push', { method: 'POST', body: { mode: 'team', type, team_id: S.team.id, ...data } }).catch(() => {});
+}
+// Samenvatting per loopdag en week, voor meldingen met getallen (alleen versturen als er iets veranderd is)
+async function pushDigest(){
+  if (!syncOn() || !S.team) return;
+  const T = todayStr(), wd = db.settings.walkDays, rows = [];
+  for (let i = 0; i < 14; i++) {
+    const d = addDays(T, i); if (!wd.includes(dow(d))) continue;
+    const open = plan(d).shown.filter(x => !x.today);
+    rows.push({ key: 'day:' + d, payload: { open: open.length, eggs: sum(open, x => x.exp || 0), absent: isAbsent(d) } });
+  }
+  for (const k of [0, 1]) { const W = addDays(weekStart(T), 7 * k); rows.push({ key: 'week:' + W, payload: { week: isoWeek(W), advice: orderAdvice(W).adviceMain } }); }
+  const h = hash(JSON.stringify(rows));
+  if (S.digestHash === h + S.team.id) return;
+  const now = new Date().toISOString();
+  await api('/rest/v1/team_digest?on_conflict=team_id,key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: rows.map(r => ({ team_id: S.team.id, key: r.key, payload: r.payload, updated_at: now })) });
+  S.digestHash = h + S.team.id; saveS();
+}
+// Getal op het app-icoon: open adressen van vandaag
+let badgeTimer = null;
+function updateBadge(){
+  clearTimeout(badgeTimer);
+  badgeTimer = setTimeout(() => {
+    if (!navigator.setAppBadge || !('Notification' in window) || Notification.permission !== 'granted') return;
+    try { const n = db.settings.walkDays.includes(dow(todayStr())) ? plan(todayStr()).shown.filter(x => !x.today).length : 0; (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
+  }, 800);
+}
+
 function wipeLocal(){
   db = emptyDb(); H = {}; S.outbox = {}; S.team = null; S.lastPull = null; S.settingsU = null;
   saveH(); saveS(); save(true, true);
 }
 async function logout(){
   if (!(await confirmSheet('Uitloggen?', pendingCount() ? `${pendingCount()} wijziging(en) zijn nog niet verstuurd (geen internet?) en gaan dan verloren.` : 'Je gegevens blijven bewaard bij je team.', 'Log uit', true))) return;
+  if (S.push) await pushOff().catch(() => {});
   const tok = S.session && S.session.access_token;
   if (tok) fetch(CFG.supabaseUrl + '/auth/v1/logout', { method: 'POST', headers: { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + tok } }).catch(() => {});
   wipeLocal();
@@ -581,6 +682,8 @@ async function syncNow(){
   try {
     await push(); await pull(); if (pendingCount()) await push();
     syncErr = null; S.lastSync = new Date().toISOString();
+    pushDigest().catch(() => {});
+    if (S.push && S.push.team !== S.team.id) pushPrefs({}).catch(() => {});
   } catch (e) { syncErr = e; console.warn('sync', e); }
   finally { syncing = false; saveS(); syncBadge(); }
 }
@@ -700,6 +803,15 @@ if (CLOUD) {
 
 /* ---------- afspraken ---------- */
 const DEC = v => v.status !== 'nothome';                 // koop / geen eieren = beslissend bezoek
+// Eieren gaan in doosjes van 6 en 10: alleen aantallen die daarmee kunnen (0, 6, 10, 12, 16, 18, 20, 22, …)
+function boxes(n){
+  if (!n || n < 0) return '';
+  for (let t = Math.floor(n / 10); t >= 0; t--) { const r = n - 10 * t; if (r % 6 === 0) return [t ? `${t}×10` : '', r ? `${r / 6}×6` : ''].filter(Boolean).join(' + '); }
+  return '';
+}
+const validEggs = n => n === 0 || boxes(n) !== '';
+function stepEggs(n, dir){ let x = (n || 0) + dir; while (x > 0 && x < 999 && !validEggs(x)) x += dir; return Math.max(0, Math.min(998, x)); }
+const EGG_CHIPS = [0, 6, 10, 12, 16, 20, 30];
 const agEggs = v => v ? (v.nextEggs ?? v.eggs ?? 0) : 0;   // afgesproken aantal voor volgende keer
 const weeksOf = v => (v && v.nextDate) ? Math.max(1, weeksBetween(v.date, v.nextDate)) : null;
 const isAbsent = d => db.absences.includes(d);
@@ -881,6 +993,8 @@ const ICONS = {
   arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>', arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   egg: '<path d="M12 3c3.9 0 7 6.1 7 10.5S15.9 21 12 21s-7-3.1-7-7.5S8.1 3 12 3z"/>',
   info: '<circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.2"/>',
+  faceid: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16a4 4 0 0 0 5 0"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
 };
 const I = (name, cls) => `<svg class="i ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -994,7 +1108,7 @@ function vHouse(){
   const before = vs.filter(x => x.date < D), last4 = before.slice(-4).reverse();
   const ag = lastDecisive(vs, D), agreed = ag ? agEggs(ag) : 0, pw = weeksOf(ag);
   const imp = pos >= 0 ? nextVisitImpact(a, D) : null; // buiten de ronde (bijv. al gedaan): geen aanbod
-  let h = navBar({ left: backBtn('tab', 'Ronde', 'data-v="home"'), title: pos >= 0 ? `${pos + 1} van ${p.shown.length}` : 'Buiten de ronde', right: `<button class="nb" data-act="housemenu" aria-label="Meer acties">${I('more')}</button>` });
+  let h = navBar({ left: backBtn('tab', 'Ronde', 'data-v="home"'), title: pos >= 0 ? `${pos + 1} van ${p.shown.length}` : 'Buiten de ronde', right: `<button class="nb" data-act="edit" data-id="${a.id}">Wijzig</button>` });
   h += '<main class="house-main">';
   const sub = [];
   if (a.name) sub.push(esc(a.name));
@@ -1021,15 +1135,15 @@ function vHouse(){
   // de afspraak (of wat er vandaag genoteerd is) groot in beeld
   let hero;
   if (v && v.status === 'nothome') hero = `<div class="lbl">Vandaag</div><div class="big red"><b>Niet thuis</b></div><div class="meta">De afspraak blijft staan${ag ? ` (${agreed} eieren)` : ''}.</div>`;
-  else if (v) hero = `<div class="lbl">Vandaag genoteerd</div><div class="big green"><b>${v.eggs}</b><span>${v.eggs === 1 ? 'ei' : 'eieren'}</span></div><div class="meta">${ag ? `Afspraak was ${agreed}` : 'Eerste keer'}${v.double ? ' · voor 2 weken' : ''}</div>`;
-  else if (ag) hero = `<div class="lbl">Afgesproken</div><div class="big"><b>${agreed}</b><span>eieren</span></div><div class="meta">${pw === 1 ? 'Elke week' : `Om de ${pw} weken`}${ag.nextDate && ag.nextDate !== D ? ` · was gepland ${esc(fmtShort(ag.nextDate))}` : ''}${ag.note ? ` · <i>${esc(ag.note)}</i>` : ''}</div>`;
+  else if (v) hero = `<div class="lbl">Vandaag genoteerd</div><div class="big green"><b>${v.eggs}</b><span>${v.eggs === 1 ? 'ei' : 'eieren'}</span></div><div class="meta">${boxes(v.eggs) ? `${boxes(v.eggs)} · ` : ''}${ag ? `Afspraak was ${agreed}` : 'Eerste keer'}${v.double ? ' · voor 2 weken' : ''}</div>`;
+  else if (ag) hero = `<div class="lbl">Afgesproken</div><div class="big"><b>${agreed}</b><span>eieren</span></div><div class="meta">${boxes(agreed) ? `<b style="color:var(--label)">${boxes(agreed)}</b> · ` : ''}${pw === 1 ? 'Elke week' : `Om de ${pw} weken`}${ag.nextDate && ag.nextDate !== D ? ` · was gepland ${esc(fmtShort(ag.nextDate))}` : ''}${ag.note ? ` · <i>${esc(ag.note)}</i>` : ''}</div>`;
   else hero = `<div class="lbl">Nieuw adres</div><div class="big"><b>–</b></div><div class="meta">Nog geen afspraak. Kies hieronder hoeveel.</div>`;
   h += `<div class="grp"><div class="hero">${hero}</div>`;
   if (before.length) {
     h += '<div class="strip" aria-label="Laatste 4 keer">';
     for (let k = 0; k < 4; k++) {
       const x = last4[k];
-      if (!x) { h += '<div class="mt empty"><span class="d">&nbsp;</span><span class="v">–</span></div>'; continue; }
+      if (!x) { h += '<div class="mt blank"><span class="d">&nbsp;</span><span class="v">–</span></div>'; continue; }
       const cls = x.status === 'nothome' ? 'nh' : x.status === 'sold' ? 'sold' : '';
       h += `<div class="mt ${cls}"><span class="d">${esc(fmtShort(x.date))}</span><span class="v">${x.status === 'nothome' ? '✗' : x.eggs}</span></div>`;
     }
@@ -1042,9 +1156,9 @@ function vHouse(){
   if (!nhOn) {
     h += sec(ag ? 'Ander aantal' : 'Aantal', grp(`<div class="cell stack">
       <div class="stepper"><button data-act="minus" aria-label="Eén minder">${I('minus')}</button>
-        <div class="val"><b class="num">${v ? v.eggs : ag ? agreed : 0}</b><span>${v ? 'genoteerd' : 'eieren'}</span></div>
+        <div class="val"><b class="num">${v ? v.eggs : ag ? agreed : 0}</b><span>${boxes(v ? v.eggs : ag ? agreed : 0) || (v ? 'genoteerd' : 'eieren')}</span></div>
         <button data-act="plus" aria-label="Eén meer">${I('plus')}</button></div>
-      <div class="chips grid7">${[0, 6, 10, 12, 15, 20, 30].map(n => chip(n === 0 ? 'Geen' : n, 'eggs', `data-n="${n}"`, v && v.eggs === n && (n ? v.status === 'sold' : v.status === 'none'))).join('')}</div></div>`));
+      <div class="chips grid7">${EGG_CHIPS.map(n => chip(n === 0 ? 'Geen' : n, 'eggs', `data-n="${n}"`, v && v.eggs === n && (n ? v.status === 'sold' : v.status === 'none'))).join('')}</div></div>`));
   }
   // volgende keer: één regel, details in een paneel
   if (v && DEC(v)) {
@@ -1056,7 +1170,16 @@ function vHouse(){
         <span class="tr">${esc(fmtShort(v.nextDate))} · ${v.nextEggs ?? 0}</span>${chev()}</button>
       <button class="cell" data-act="opensheet" data-s="next"><span class="ico" style="background:var(--gray)">${I('note')}</span><span class="tx"><span class="tt">Notitie</span>${v.note ? `<span class="st one">${esc(v.note)}</span>` : ''}</span>${v.note ? '' : '<span class="tr">Toevoegen</span>'}${chev()}</button>`));
   }
-  h += '<p class="sec-f" style="text-align:center;padding-top:18px">Veeg opzij voor het vorige of volgende huis.</p>';
+  // snel wijzigen zonder extra scherm: voorkeursdag(en)
+  if (db.settings.walkDays.length) h += sec('Voorkeursdag', grp(`<div class="cell stack">${prefToggles('prefday', a.prefDays)}</div>`));
+  // alvast voorbereiden op het volgende huis
+  const nxt = pos >= 0 ? p.shown.slice(pos + 1).find(x => !x.today) : null;
+  if (nxt) {
+    const ne = nxt.ag ? agEggs(nxt.ag) : null, nim = nextVisitImpact(nxt.a, D);
+    h += sec('Hierna', grp(`<div class="cell"><span class="ico" style="background:var(--tint)">${I('door')}</span><span class="tx"><span class="tt">${esc(label(nxt.a))}</span>${nxt.a.name || nim ? `<span class="st one">${nim ? `<span class="badge red">${DSH[dow(nim.date)]} ${pd(nim.date).getDate()} uit · bied 2 weken aan</span> ` : ''}${esc(nxt.a.name || '')}</span>` : ''}</span><span class="tr"><b class="num" style="color:var(--label);font-size:1.176rem">${ne != null ? ne : '–'}</b>${ne ? `<br><small>${boxes(ne) || 'eieren'}</small>` : ''}</span></div>`));
+  }
+  if (v) h += `<div class="sec" style="text-align:center"><button class="link" style="color:var(--red)" data-act="clearvisit">Wis invoer van vandaag</button></div>`;
+  h += '<p class="sec-f" style="text-align:center;padding-top:12px">Veeg opzij voor het vorige of volgende huis.</p>';
   h += '</main>';
 
   // actiebalk onder de duim
@@ -1088,8 +1211,8 @@ function sheetNext(){
   const moved = pref && pref !== v.nextDate && isAbsent(pref);
   let h = `<div class="sheet-h"><span></span><div class="nav-t">Volgende keer</div><div class="nav-r"><button class="nb bold" data-act="closesheet">Gereed</button></div></div><div class="sheet-c">`;
   h += sec('Hoeveel eieren', grp(`<div class="cell stack"><div class="stepper"><button data-act="nminus" aria-label="Eén minder">${I('minus')}</button>
-      <div class="val"><b class="num">${v.nextEggs ?? 0}</b><span>eieren</span></div><button data-act="nplus" aria-label="Eén meer">${I('plus')}</button></div>
-      <div class="chips grid7">${[0, 6, 10, 12, 15, 20, 30].map(n => chip(n, 'negg', `data-n="${n}"`, v.nextEggs === n)).join('')}</div></div>`));
+      <div class="val"><b class="num">${v.nextEggs ?? 0}</b><span>${boxes(v.nextEggs) || 'eieren'}</span></div><button data-act="nplus" aria-label="Eén meer">${I('plus')}</button></div>
+      <div class="chips grid7">${EGG_CHIPS.map(n => chip(n, 'negg', `data-n="${n}"`, v.nextEggs === n)).join('')}</div></div>`));
   h += sec('Wanneer', grp(`<div class="cell stack"><div class="segc" role="group" aria-label="Over hoeveel weken">${weeks.map(n => `<button data-act="nweek" data-n="${n}" aria-pressed="${kSel === n}">${n === 0 ? 'Deze week' : n === 1 ? '1 week' : n + ' wkn'}</button>`).join('')}</div>
       ${dayChips.length ? `<div class="chips">${dayChips.map(x => isAbsent(x) ? `<button class="chip abs" disabled aria-label="${esc(fmtShort(x))}, geen ronde">${esc(fmtShort(x))}</button>` : chip(esc(fmtShort(x)), 'nday', `data-date="${x}"`, v.nextDate === x)).join('')}</div>` : ''}</div>
       <label class="cell field"><span class="fl">Andere datum</span><input type="date" data-field="nextDate" value="${esc(custom ? v.nextDate : '')}" min="${addDays(D, 1)}"></label>`),
@@ -1099,8 +1222,9 @@ function sheetNext(){
 }
 
 /* ---------- Planning ---------- */
-function vOrder(){
-  const T = ui.ow, cur = weekStart(todayStr());
+// Besteladvies voor week T (ook gebruikt voor de samenvatting achter de meldingen)
+function orderAdvice(T){
+  const cur = weekStart(todayStr());
   const rows = forecast(T), r = realisation(cur);
   const enough = r.weeks >= 3 && r.ratio != null;
   const ratio = enough ? Math.min(1.1, Math.max(0.5, r.ratio)) : 1;
@@ -1119,6 +1243,12 @@ function vOrder(){
   const acc = offered.length >= 5 ? offered.filter(v => v.double).length / offered.length : null;
   const adviceAcc = acc != null ? Math.round((exact + dblExtra * acc * ratio) / rnd) * rnd : null;
   const adviceMain = adviceAcc ?? advice;
+  return { cur, rows, r, enough, ratio, sold, agreed, proj, sA, sP, exact, rnd, advice, nNew, nUnsure, dblRows, dblExtra, dblDays, adviceDbl, offered, acc, adviceAcc, adviceMain };
+}
+
+function vOrder(){
+  const T = ui.ow;
+  const { cur, rows, r, enough, ratio, sold, agreed, proj, sA, sP, exact, rnd, advice, nNew, nUnsure, dblRows, dblExtra, dblDays, adviceDbl, offered, acc, adviceAcc, adviceMain } = orderAdvice(T);
   const rel = T === cur ? 'deze week' : T === addDays(cur, 7) ? 'volgende week' : T < cur ? 'voorbij' : `over ${weeksBetween(cur, T)} weken`;
 
   let h = navBar({ right: syncButton() }) + '<main>' + largeTitle('Planning');
@@ -1206,7 +1336,7 @@ function vEdit(){
   const idx = isNew ? (a.pos || db.addresses.length + 1) : db.addresses.indexOf(a) + 1;
   const max = db.addresses.length + (isNew ? 1 : 0);
   const streets = [...new Set(db.addresses.map(x => x.street))];
-  let h = navBar({ left: backBtn('editback', ui.from === 'house' ? 'Terug' : 'Route'), title: isNew ? 'Nieuw adres' : 'Adres', right: isNew ? '<button class="nb bold" data-act="addone">Voeg toe</button>' : '' }) + '<main>';
+  let h = navBar({ left: backBtn('editback', ui.from === 'house' ? 'Terug' : 'Route'), title: isNew ? 'Nieuw adres' : 'Adres', right: isNew ? '<button class="nb bold" data-act="addone">Voeg toe</button>' : '<button class="nb bold" data-act="editback">Gereed</button>' }) + '<main>';
   h += sec('Adres', grp(`<label class="cell field"><span class="fl">Straat</span><input type="text" data-field="street" list="streets" value="${esc(a.street)}" autocomplete="off" placeholder="Dorpsstraat"></label>
     <label class="cell field"><span class="fl">Nummer</span><input type="text" data-field="number" value="${esc(a.number)}" autocomplete="off" placeholder="12"></label>
     <label class="cell field"><span class="fl">Naam</span><input type="text" data-field="name" value="${esc(a.name)}" placeholder="optioneel"></label>
@@ -1214,8 +1344,8 @@ function vEdit(){
     + `<datalist id="streets">${streets.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`);
   h += sec('Vaste notitie', grp(`<div class="cell"><textarea class="ta" data-field="note" placeholder="bijv. achterdeur gebruiken, hond">${esc(a.note)}</textarea></div>`));
   h += sec('Voorkeursdag', grp(`<div class="cell stack">${prefToggles('prefday', a.prefDays)}</div>`), (a.prefDays || []).length ? 'Lukt het die dag niet, dan schuift het adres door naar de volgende loopdag.' : 'Geen voorkeur: staat op elke loopdag tot het die week gedaan is.');
-  h += sec('', grp(`<label class="cell field"><span class="fl">Plek in route</span><input type="number" data-field="pos" value="${idx}" min="1" max="${max}" inputmode="numeric"></label>
-    ${isNew ? '' : `<div class="cell"><span class="tx"><span class="tt">Uitgesloten</span></span>${toggleBtn(a.excluded, 'toggleexcl', '', 'Uitgesloten')}</div>`}`), isNew ? '' : 'Uitgesloten = komt niet meer langs. Later weer aan te zetten.');
+  h += sec('', grp(`<label class="cell field"><span class="fl">Plek in route</span><input type="number" data-field="pos" value="${idx}" min="1" max="${max}" inputmode="numeric"></label>`));
+  if (!isNew) h += sec('', grp(`<div class="cell"><span class="ico" style="background:var(--red)">${I('x')}</span><span class="tx"><span class="tt">Uitsluiten</span><span class="st">${a.excluded ? 'Komt niet meer in de ronde' : 'Komt niet meer langs'}</span></span>${toggleBtn(a.excluded, 'toggleexcl', '', 'Uitsluiten')}</div>`), 'Later weer aan te zetten; de geschiedenis blijft bewaard.');
   if (isNew) h += `<div class="sec"><button class="btn big" data-act="addone">Voeg toe</button><p class="sec-f">Daarna blijft de straat staan, zodat je meteen het volgende nummer kunt invoeren.</p></div>`;
   else {
     const vs = visitsOf(a.id).slice().reverse();
@@ -1267,9 +1397,11 @@ function vSettings(){
     const s = syncState();
     h += sec('Account', grp(`<div class="cell"><span class="ico" style="background:var(--gray)">${I('people')}</span><span class="tx"><span class="tt">${esc(S.session ? S.session.email : '')}</span><span class="st">${esc(S.team ? S.team.name : '')} · ${isAdmin() ? 'beheerder' : 'bezorger'}</span></span></div>
       <button class="cell" data-act="openteam"><span class="tx"><span class="tt">Team</span></span><span class="tr">Leden, uitnodigen</span>${chev()}</button>
+      ${HAS_PASSKEY_API ? `<button class="cell" data-act="openpasskeys"><span class="tx"><span class="tt">Passkeys</span></span><span class="tr">${S.hasPasskey ? 'Face ID aan' : 'Inloggen met Face ID'}</span>${chev()}</button>` : ''}
       <button class="cell" data-act="syncnow"><span class="tx"><span class="tt">Synchroniseren</span>${syncErr ? `<span class="st" style="color:var(--red)">${esc(syncErr.message)}</span>` : ''}</span><span class="tr">${pendingCount() ? `${pendingCount()} wacht${!navigator.onLine ? ' · offline' : ''}` : S.lastSync ? fmtTime(S.lastSync) : ''} ${s && s.cls !== 'ok' ? '' : I('check', 'sm')}</span></button>
       <button class="cell red" data-act="logout">Uitloggen</button>`), isAdmin() ? '' : 'Loopdagen en bestelinstellingen wijzigt de beheerder.');
   }
+  h += notifSection();
   h += sec('Loopdagen', grp(`<div class="cell"><div class="daytog">${WEEK.map(d => chip(DSH[d], 'walkday', `data-d="${d}" ${ro} aria-label="${DAYS[d]}"`, wd.includes(d))).join('')}</div></div>`),
     'Adressen verschijnen op hun afgesproken of voorkeursdag. Niet gelukt? Dan staan ze op de volgende loopdag. Afwezigheid stel je in bij Planning.');
   h += sec('Bestellen', grp(`<div class="cell stack"><span class="tt">Advies afronden op</span><div class="segc" role="group">${[1, 6, 10, 12, 30].map(n => `<button data-act="round" data-n="${n}" ${ro} aria-pressed="${rnd === n}">${n === 1 ? 'Niet' : n}</button>`).join('')}</div></div>`), '30 = een tray.');
@@ -1285,6 +1417,25 @@ function vSettings(){
   return h + '</main>' + tabs('settings');
 }
 
+function notifSection(){
+  if (!CLOUD || !syncOn() || !VAPID) return '';
+  const bell = `<span class="ico" style="background:var(--red)">${I('bell')}</span>`;
+  if (!PUSH_OK || (IS_IOS && !isStandalone())) return sec('Meldingen', grp(`<div class="cell">${bell}<span class="tx"><span class="tt">Meldingen</span><span class="st">${IS_IOS ? 'Werkt alleen vanuit de app op het beginscherm: Safari → Deel → Zet op beginscherm.' : 'Deze browser ondersteunt geen meldingen.'}</span></span></div>`));
+  const perm = Notification.permission;
+  if (perm === 'denied') return sec('Meldingen', grp(`<div class="cell">${bell}<span class="tx"><span class="tt">Meldingen staan uit</span><span class="st">Zet ze aan via Instellingen van de iPhone → Meldingen → Egg-sellent.</span></span></div>`));
+  if (!S.push || perm !== 'granted') return sec('Meldingen', grp(`<button class="cell" data-act="pushon">${bell}<span class="tx"><span class="tt" style="color:var(--tint)">Zet meldingen aan</span><span class="st">Op loopdagen, bij bestellen en als een teamgenoot afwezig is</span></span>${chev()}</button>`),
+    'iOS vraagt één keer om toestemming. Weiger je, dan kan het daarna alleen nog via de iPhone-instellingen.');
+  const p = S.pushPrefs || DEFAULT_PREFS;
+  const times = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '10:00'].map(t => `<option ${p.walkday === t ? 'selected' : ''}>${t}</option>`).join('');
+  const days = [['', 'Uit'], ...WEEK.map(d => [String(d), DAYS[d]])].map(([v, l]) => `<option value="${v}" ${String(p.order ? p.order.dow : '') === v ? 'selected' : ''}>${l}</option>`).join('');
+  return sec('Meldingen', grp(`<div class="cell"><span class="tx"><span class="tt">Ochtend van een loopdag</span><span class="st">Adressen en eieren voor vandaag</span></span>${toggleBtn(!!p.walkday, 'pushpref', 'data-k="walkday"', 'Ochtendmelding')}</div>
+    ${p.walkday ? `<label class="cell field"><span class="fl">Om</span><select data-field="pushtime">${times}</select></label>` : ''}
+    <label class="cell field"><span class="fl">Bestellen op</span><select data-field="pushorder">${days}</select></label>
+    <div class="cell"><span class="tx"><span class="tt">Teamberichten</span><span class="st">Als een teamgenoot afwezigheid meldt</span></span>${toggleBtn(p.team !== false, 'pushpref', 'data-k="team"', 'Teamberichten')}</div>
+    <button class="cell tint" data-act="pushtest"><span class="tx"><span class="tt">Stuur testmelding</span></span></button>
+    <button class="cell red" data-act="pushoff">Zet meldingen uit</button>`), 'De bestelherinnering komt om 18:00 op de gekozen dag, met het advies voor volgende week.');
+}
+
 /* ---------- account ---------- */
 const fmtTime = iso => { const d = new Date(tsMs(iso)); return `${ymd(d) === todayStr() ? '' : fmtShort(ymd(d)) + ' '}${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
@@ -1297,7 +1448,10 @@ function vLogin(){
   if (!sent) {
     h += sec('Inloggen of account aanmaken', grp(`<label class="cell field"><span class="fl">E-mail</span><input type="email" id="loginEmail" autocomplete="email" inputmode="email" autocapitalize="off" value="${esc(ui.loginEmail || (S.session && S.session.email) || '')}" placeholder="naam@voorbeeld.nl"></label>`),
       'Je krijgt een mail met een code; geen wachtwoord nodig. Nog geen account? Dat wordt vanzelf aangemaakt.');
-    h += `<div class="sec"><button class="btn big" data-act="sendcode">Stuur code</button></div>`;
+    // heeft dit apparaat al eens een passkey gebruikt? Dan is dat de hoofdknop.
+    const pkFirst = HAS_PASSKEY_API && S.hasPasskey;
+    h += `<div class="sec"><button class="btn big ${pkFirst ? 'gray' : ''}" data-act="sendcode">Stuur code</button></div>`;
+    if (HAS_PASSKEY_API) h += `<div class="sec"><button class="btn big ${pkFirst ? '' : 'gray'}" data-act="passkeylogin">${I('faceid')}Log in met passkey</button><p class="sec-f">Met Face ID of Touch ID, zonder mail. De eerste keer log je in met een code; daarna kun je een passkey aanmaken.</p></div>`;
   } else {
     h += sec(`Code uit de mail aan ${esc(ui.loginEmail)}`, grp(`<div class="cell"><input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" aria-label="Code" style="width:100%;border:0;background:none;font:600 1.8rem/1.4 ui-monospace,Menlo,monospace;letter-spacing:.3em;text-align:center" placeholder="••••••"></div>`),
       'Kijk ook in je spam. Staat er een link in de mail in plaats van een code? Tik daarop; je komt dan ingelogd in de app.');
@@ -1339,6 +1493,29 @@ function vTeam(){
   return h + '</main>';
 }
 
+async function offerPasskey(){
+  if (!HAS_PASSKEY_API || S.hasPasskey || S.passkeyOffered) return;
+  S.passkeyOffered = true; saveS();
+  try { const list = await passkeyList(); if (list && list.length) { S.hasPasskey = true; saveS(); return; } } catch (e) { return; } // passkeys staan uit
+  const r = await actionSheet({ title: 'Voortaan inloggen met Face ID?', message: 'Maak een passkey aan; dan heb je geen mail of code meer nodig.', actions: [{ label: 'Maak passkey', value: 'add' }], cancel: 'Niet nu' });
+  if (r === 'add') { try { await passkeyAdd(); toast('Passkey aangemaakt. Voortaan inloggen met Face ID.'); } catch (e) { const m = pkError(e); if (m) toast(m, null, null, 'err'); } }
+}
+async function loadPasskeys(){
+  try { ui.passkeys = await passkeyList(); ui.passkeyErr = null; S.hasPasskey = (ui.passkeys || []).length > 0; saveS(); }
+  catch (e) { ui.passkeys = []; ui.passkeyErr = pkError(e); }
+  if (ui.sheet === 'passkeys') renderSheet();
+}
+function sheetPasskeys(){
+  const list = ui.passkeys;
+  let h = `<div class="sheet-h"><span></span><div class="nav-t">Passkeys</div><div class="nav-r"><button class="nb bold" data-act="closesheet">Gereed</button></div></div><div class="sheet-c">`;
+  if (ui.passkeyErr) h += `<div class="banner mb">${I('info')}<div>${esc(ui.passkeyErr)}</div></div>`;
+  h += sec('Jouw passkeys', grp(list == null ? '<div class="cell"><span class="st">Laden…</span></div>'
+    : list.length ? list.map(p => `<div class="cell"><span class="ico" style="background:var(--green)">${I('faceid')}</span><span class="tx"><span class="tt">${esc(p.friendly_name || 'Passkey')}</span><span class="st">Aangemaakt ${esc(fmtShort(ymd(new Date(p.created_at))))}${p.last_used_at ? ` · laatst gebruikt ${esc(fmtShort(ymd(new Date(p.last_used_at))))}` : ''}</span></span><button class="link" style="color:var(--red)" data-act="passkeydel" data-id="${esc(p.id)}">Verwijder</button></div>`).join('')
+    : '<div class="cell"><span class="st">Nog geen passkey.</span></div>'),
+    'Een passkey staat in je iCloud-sleutelhanger en gaat mee naar een nieuwe iPhone. Hij werkt alleen op het adres waar de app nu staat.');
+  if (HAS_PASSKEY_API) h += `<div class="sec"><button class="btn big" data-act="passkeyadd">${I('faceid')}Maak passkey op dit apparaat</button></div>`;
+  return h + '</div>';
+}
 async function loadMembers(){
   try { ui.members = await api(`/rest/v1/team_members?team_id=eq.${S.team.id}&select=user_id,role,name,joined_at&order=joined_at`); }
   catch (e) { toast(e.message, null, null, 'err'); }
@@ -1358,10 +1535,39 @@ function authAction(act, el){
     case 'verifycode': {
       const code = val('loginCode').replace(/\D/g, '');
       if (code.length < 6) { toast('Vul de code uit de mail in.', null, null, 'err'); return true; }
-      run(async () => { await verifyCode(ui.loginEmail, code); ui.loginSent = false; saveUi(); render(); syncNow(); });
+      run(async () => { await verifyCode(ui.loginEmail, code); ui.loginSent = false; saveUi(); render(); syncNow(); offerPasskey(); });
       return true;
     }
     case 'otheremail': ui.loginSent = false; saveUi(); render(); return true;
+    case 'passkeylogin':
+      run(async () => {
+        try { await passkeyLogin(); } catch (e) { const m = pkError(e); if (m) toast(m, null, null, 'err'); return; }
+        ui.loginSent = false; saveUi(); render(); syncNow();
+      });
+      return true;
+    case 'passkeyadd':
+      run(async () => {
+        try { await passkeyAdd(); } catch (e) { const m = pkError(e); if (m) toast(m, null, null, 'err'); return; }
+        toast('Passkey aangemaakt. Voortaan inloggen met Face ID.'); await loadPasskeys();
+      });
+      return true;
+    case 'passkeydel': {
+      const id = el.dataset.id;
+      confirmSheet('Passkey verwijderen?', 'Met deze passkey kun je daarna niet meer inloggen. Inloggen met een code blijft werken.', 'Verwijder', true).then(ok => {
+        if (ok) run(async () => { await passkeyDelete(id); await loadPasskeys(); });
+      });
+      return true;
+    }
+    case 'openpasskeys': openSheet('passkeys'); loadPasskeys(); return true;
+    case 'pushon': run(async () => { await pushSubscribe(); render(); toast('Meldingen staan aan'); }); return true;
+    case 'pushoff': run(async () => { await pushOff(); render(); toast('Meldingen staan uit'); }); return true;
+    case 'pushtest': run(async () => { const r = await pushTest(); toast(r && r.results && r.results.some(x => x === 'verstuurd') ? 'Testmelding verstuurd' : 'Versturen mislukt: ' + JSON.stringify((r && r.results) || r), null, null, r && r.results && r.results.some(x => x === 'verstuurd') ? '' : 'err'); }); return true;
+    case 'pushpref': {
+      const k = el.dataset.k, p = S.pushPrefs || DEFAULT_PREFS;
+      const patch = k === 'walkday' ? { walkday: p.walkday ? null : '07:00' } : { team: p.team === false };
+      run(async () => { await pushPrefs(patch); render(); });
+      return true;
+    }
     case 'createteam': {
       const name = val('teamName').trim(), m = val('memberName1').trim();
       if (!name) { toast('Geef je eierbedrijf een naam.', null, null, 'err'); return true; }
@@ -1449,9 +1655,10 @@ function render(){
   openSwipe = null; drag = null; // oude DOM is weg: geen 'open' veegrij meer die de volgende tik inslikt
   const views = { home: vHome, house: vHouse, order: vOrder, route: vRoute, edit: vEdit, bulk: vBulk, settings: vSettings, login: vLogin, onboard: vOnboard, team: vTeam };
   app.innerHTML = (views[ui.view] || vHome)();
-  if (ui.view !== 'house') ui.sheet = null;
+  if (ui.view !== 'house' && ui.sheet === 'next') ui.sheet = null;
   renderSheet();
   onScroll();
+  updateBadge();
 }
 let vtBusy = false; // nooit twee schermovergangen tegelijk
 function go(view, extra){
@@ -1474,7 +1681,7 @@ function go(view, extra){
 function onScroll(){ const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
 window.addEventListener('scroll', onScroll, { passive: true });
 
-const SHEETS = { next: sheetNext };
+const SHEETS = { next: sheetNext, passkeys: sheetPasskeys };
 function renderSheet(){
   const host = document.getElementById('sheet');
   const html = ui.sheet && SHEETS[ui.sheet] ? SHEETS[ui.sheet]() : '';
@@ -1577,19 +1784,6 @@ function moveTo(a, pos){
 const toggleIn = (arr, x) => arr.includes(x) ? arr.filter(y => y !== x) : [...arr, x];
 const agreedFor = id => { const ag = lastDecisive(visitsOf(id), ui.date); return ag ? agEggs(ag) : 0; };
 
-async function houseMenu(){
-  const a = byId(ui.id), v = curVisit();
-  const acts = [{ label: 'Wijzig adres', value: 'edit' }];
-  if (v && DEC(v)) acts.push({ label: 'Volgende keer en notitie', value: 'sheet' });
-  if (v) acts.push({ label: 'Wis invoer van vandaag', value: 'clear', red: true });
-  acts.push(a.excluded ? { label: 'Weer opnemen in route', value: 'include' } : { label: 'Uitsluiten (komt niet meer)', value: 'exclude', red: true });
-  const r = await actionSheet({ title: label(a), actions: acts });
-  if (r === 'edit') go('edit', { id: a.id, from: 'house' });
-  else if (r === 'sheet') openSheet('next');
-  else if (r === 'clear') { const snap = { ...v }; restoreVisit(a.id, null); render(); toast('Invoer gewist', 'Ongedaan', () => { restoreVisit(a.id, snap); render(); }); }
-  else if (r === 'exclude') { a.excluded = true; save(); render(); toast(`${label(a)} uitgesloten`, 'Ongedaan', () => { a.excluded = false; save(); render(); }); }
-  else if (r === 'include') { a.excluded = false; save(); render(); }
-}
 
 document.addEventListener('click', e => {
   if (swipeJustEnded) { swipeJustEnded = false; e.preventDefault(); return; }
@@ -1619,13 +1813,13 @@ document.addEventListener('click', e => {
     case 'swsame': { const n = agreedFor(el.dataset.id); closeSwipe(true); if (n) recordFromList(el.dataset.id, { status: 'sold', eggs: n }); break; }
     case 'swnh': closeSwipe(true); recordFromList(el.dataset.id, { status: 'nothome' }); break;
     case 'swnone': closeSwipe(true); recordFromList(el.dataset.id, { status: 'none', eggs: 0 }); break;
-    case 'housemenu': houseMenu(); break;
+    case 'clearvisit': { const a = byId(ui.id), v = curVisit(); if (!v) break; const snap = { ...v }; restoreVisit(a.id, null); render(); toast('Invoer gewist', 'Ongedaan', () => { restoreVisit(a.id, snap); render(); }); break; }
     case 'eggs': { const n = +el.dataset.n; setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 }); break; }
-    case 'plus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); setVisit({ status: 'sold', eggs: base + 1 }); break; }
-    case 'minus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); const n = Math.max(0, base - 1); setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 }); break; }
+    case 'plus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); setVisit({ status: 'sold', eggs: stepEggs(base, 1) }); break; }
+    case 'minus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); const n = stepEggs(base, -1); setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 }); break; }
     case 'negg': setVisit({ nextEggs: +el.dataset.n, nextManual: true }); break;
-    case 'nplus': { const v = curVisit(); if (v) setVisit({ nextEggs: (v.nextEggs || 0) + 1, nextManual: true }); break; }
-    case 'nminus': { const v = curVisit(); if (v) setVisit({ nextEggs: Math.max(0, (v.nextEggs || 0) - 1), nextManual: true }); break; }
+    case 'nplus': { const v = curVisit(); if (v) setVisit({ nextEggs: stepEggs(v.nextEggs || 0, 1), nextManual: true }); break; }
+    case 'nminus': { const v = curVisit(); if (v) setVisit({ nextEggs: stepEggs(v.nextEggs || 0, -1), nextManual: true }); break; }
     case 'nweek': setVisit({ nextDate: defaultNext(byId(ui.id), D, +el.dataset.n) }); break;
     case 'nday': setVisit({ nextDate: el.dataset.date }); break;
     case 'opensheet': openSheet(el.dataset.s); break;
@@ -1641,13 +1835,14 @@ document.addEventListener('click', e => {
       const d = el.dataset.date;
       db.absences = toggleIn(db.absences, d).sort(); save(); render();
       toast(isAbsent(d) ? `${fmtShort(d)}: geen ronde` : `${fmtShort(d)}: wel ronde`);
+      notifyTeam('absence', { date: d, on: isAbsent(d) });
       break;
     }
     case 'round': db.settings.orderRound = +el.dataset.n; save(); render(); break;
     case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
     case 'editback': ui.draft = null; if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route'); break;
     case 'routeedit': ui.routeEdit = !ui.routeEdit; saveUi(); render(); break;
-    case 'toggleexcl': { const a = byId(ui.id); a.excluded = !a.excluded; save(); render(); break; }
+    case 'toggleexcl': { const a = byId(ui.id); a.excluded = !a.excluded; save(); render(); if (a.excluded) toast(`${label(a)} uitgesloten`, 'Ongedaan', () => { a.excluded = false; save(); render(); }); break; }
     case 'prefday': {
       const d = +el.dataset.d;
       if (!ui.id) { ui.draft.prefDays = toggleIn(ui.draft.prefDays || [], d); saveUi(); render(); break; }
@@ -1781,6 +1976,12 @@ function onField(e){
     return;
   }
   if (f === 'nextDate') { if (e.type === 'change' && el.value) { setVisit({ nextDate: el.value }, null, true); renderAfterTap(); } return; }
+  if (f === 'pushtime' || f === 'pushorder') {
+    if (e.type !== 'change') return;
+    const patch = f === 'pushtime' ? { walkday: el.value } : { order: el.value === '' ? null : { dow: +el.value, time: '18:00' } };
+    pushPrefs(patch).catch(err => toast(err.message, null, null, 'err'));
+    return;
+  }
   if (f === 'absenceScript') {
     if (e.type !== 'change') return;
     db.settings.absenceScript = el.value.trim() === DEFAULT_SCRIPT ? '' : el.value.trim(); save(); return;
@@ -1892,6 +2093,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 ui.sheet = null;
+{ const qv = new URLSearchParams(location.search).get('v'); if (qv && ['home', 'order', 'route', 'settings'].includes(qv)) { ui.view = qv; history.replaceState(null, '', location.pathname); } }
 render();
 if (CLOUD) loginFromLink().then(ok => { if (ok) { ui.loginSent = false; saveUi(); render(); syncNow(); } }).catch(e => toast(e.message, null, null, 'err'));
 syncNow();

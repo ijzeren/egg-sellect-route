@@ -1,6 +1,6 @@
 // Service worker: zorgt dat de app offline werkt en updates binnenkomen.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in index.html).
-const VERSION = '2.2.1';
+const VERSION = '2.4.0';
 const CACHE = 'eggselent-' + VERSION;
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png'];
 
@@ -52,4 +52,21 @@ self.addEventListener('fetch', (e) => {
       return res;
     }))
   );
+});
+
+// Meldingen (web push): tonen, en bij tikken de app openen op de juiste plek.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Egg-sellent', {
+    body: d.body || '', tag: d.tag, icon: 'icon-192.png', badge: 'icon-192.png', data: { url: d.url || './' },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) { if ('focus' in c) { if ('navigate' in c) c.navigate(url).catch(() => {}); return c.focus(); } }
+    return self.clients.openWindow(url);
+  }));
 });

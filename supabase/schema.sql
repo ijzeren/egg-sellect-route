@@ -268,3 +268,48 @@ grant select, update on public.teams to authenticated;
 grant select, update, delete on public.team_members to authenticated;
 grant select, insert, delete on public.team_invites to authenticated;
 revoke all on public.teams, public.team_members, public.team_invites, public.addresses, public.visits, public.absences, public.orders from anon;
+
+-- ---------- meldingen (web push), toegevoegd in v2.3 ----------
+-- Eén rij per telefoon die meldingen wil. prefs: { walkday: "07:00" | null, order: { dow: 5, time: "18:00" } | null, team: true }
+create table if not exists public.push_subscriptions (
+  endpoint text primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  prefs jsonb not null default '{}'::jsonb,
+  tz text not null default 'Europe/Amsterdam',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists push_own on public.push_subscriptions;
+create policy push_own on public.push_subscriptions for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid() and public.is_member(team_id));
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+
+-- Samenvatting die de app na elke synchronisatie bijwerkt, zodat de server meldingen met getallen kan sturen
+-- zonder de route-logica te kopiëren. key = 'day:2026-11-24' of 'week:2026-11-23'.
+create table if not exists public.team_digest (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  key text not null,
+  payload jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (team_id, key)
+);
+alter table public.team_digest enable row level security;
+drop policy if exists team_data on public.team_digest;
+create policy team_data on public.team_digest for all using (public.is_member(team_id)) with check (public.is_member(team_id));
+grant select, insert, update, delete on public.team_digest to authenticated;
+
+-- Wat er al verstuurd is (zodat een herinnering maar één keer per dag gaat). Alleen voor de server.
+create table if not exists public.push_log (
+  endpoint text not null,
+  kind text not null,
+  day date not null,
+  sent_at timestamptz not null default now(),
+  primary key (endpoint, kind, day)
+);
+alter table public.push_log enable row level security;
+revoke all on public.push_subscriptions, public.team_digest, public.push_log from anon;
+revoke all on public.push_log from authenticated;
