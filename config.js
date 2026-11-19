@@ -13,4 +13,13 @@
 window.EGGSELENT_CONFIG = {
   supabaseUrl: 'https://istqegonfkfrkyddfajd.supabase.co',
   supabaseKey: 'sb_publishable_antF0IJbE25Ie9I3i_KmBQ_qxF0vR8q',
+
+  // Lokaal ontwikkelen: geldt alleen als de app op localhost / 127.0.0.1 draait.
+  // Praat met de lokale Supabase uit Docker (npx supabase start): er wordt geen mail verstuurd
+  // en de inlogcode is altijd devCode. Dit is de standaard publishable key van elke lokale Supabase.
+  local: {
+    supabaseUrl: 'http://127.0.0.1:54321',
+    supabaseKey: 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH',
+    devCode: '123456',
+  },
 };

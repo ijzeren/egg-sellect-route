@@ -97,17 +97,28 @@ uitnodigen of verwijderen.
   wijziging.
 
 ## Lokaal ontwikkelen
-Vereist Docker.
+Vereist Docker. Draait de app op `localhost` of `127.0.0.1`, dan gebruikt hij automatisch de
+lokale Supabase (zie `local` in [`../config.js`](../config.js)):
+
+- **Er wordt geen mail verstuurd.** De inlogcode is altijd **123456**. Op het inlogscherm staat
+  dan een blauwe melding "Lokaal testen".
+- Achter de schermen maakt de app bij de eerste keer een lokaal account aan; daarna log je met
+  hetzelfde adres en 123456 weer in.
+- De vaste code werkt alleen als de app met een lokale Supabase praat (`http://127.0.0.1` of
+  `http://localhost`), nooit met de online database.
+- Het schema wordt bij het starten automatisch geladen
+  (`migrations/…_eggselent_schema.sql` verwijst naar [`schema.sql`](schema.sql)).
 
 ```bash
 npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,postgres-meta,supavisor
-docker exec -i supabase_db_lynn-eggselent psql -U postgres -d postgres < supabase/schema.sql
 python3 -m http.server 8765
 ```
 
-- Mails (met de inlogcode) zie je op http://127.0.0.1:54324.
-- Koppel een browsertabblad aan de lokale Supabase zonder `config.js` te wijzigen: in de
-  console `localStorage.setItem('eggselent-config', JSON.stringify({supabaseUrl:'http://127.0.0.1:54321', supabaseKey:'<PUBLISHABLE_KEY uit supabase status>'}))` en herladen.
+Open daarna http://localhost:8765.
+
+- Alles wissen en opnieuw beginnen: `npx supabase db reset`.
+- Stoppen: `npx supabase stop`.
 - Twee telefoons nabootsen: `http://127.0.0.1:8765` en `http://telefoon-b.localhost:8765` hebben
   elk hun eigen opslag.
-- Stoppen: `npx supabase stop`.
+- Zonder Supabase testen (alleen op deze telefoon): in de console
+  `localStorage.setItem('eggselent-config', JSON.stringify({supabaseUrl:''}))` en herladen.

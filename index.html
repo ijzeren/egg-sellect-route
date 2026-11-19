@@ -288,7 +288,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -373,10 +373,15 @@ if (navigator.storage && navigator.storage.persist) {
    elk record met een hash van de vorige keer; wat anders is gaat in de wachtrij (outbox). Die wordt
    verstuurd zodra er internet is. Daarna halen we op wat teamgenoten hebben gewijzigd (server_ts).
    Conflict: laatste wijziging wint (updated_at), ook op de server afgedwongen. */
-const CFG = Object.assign({ supabaseUrl: '', supabaseKey: '' }, window.EGGSELENT_CONFIG || {},
+// Op localhost gebruikt de app de lokale Supabase (config.js → local): er gaat geen mail de deur uit en de code is vast.
+const IS_LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname);
+const BASE_CFG = window.EGGSELENT_CONFIG || {};
+const CFG = Object.assign({ supabaseUrl: '', supabaseKey: '' }, IS_LOCAL_HOST && BASE_CFG.local ? BASE_CFG.local : BASE_CFG,
   (() => { try { return JSON.parse(localStorage.getItem('eggselent-config')) || {}; } catch (e) { return {}; } })()); // laatste: alleen voor testen
 CFG.supabaseUrl = (CFG.supabaseUrl || '').replace(/\/+$/, '');
 const CLOUD = !!(CFG.supabaseUrl && CFG.supabaseKey);
+// Vaste code alleen als de app echt met een lokale Supabase praat; nooit tegen de online database.
+const DEV_CODE = CFG.devCode && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(CFG.supabaseUrl) ? String(CFG.devCode) : null;
 const SKEY = 'eggselent-sync-v1', HKEY = 'eggselent-hash-v1';
 const TABLES = ['addresses', 'visits', 'absences', 'orders'];
 const CONFLICT = { addresses: 'team_id,id', visits: 'team_id,id', absences: 'team_id,date', orders: 'team_id,week_start' };
@@ -474,8 +479,31 @@ function setSession(d){
 }
 const appUrl = () => location.origin + location.pathname;
 // redirect_to: als de mail een inloglink bevat (standaardmail van Supabase), komt die terug in de app
-async function sendCode(email){ await api('/auth/v1/otp?redirect_to=' + encodeURIComponent(appUrl()), { method: 'POST', auth: false, body: { email, create_user: true } }); }
+async function sendCode(email){
+  if (DEV_CODE) return; // lokaal: geen mail, de code is altijd DEV_CODE
+  await api('/auth/v1/otp?redirect_to=' + encodeURIComponent(appUrl()), { method: 'POST', auth: false, body: { email, create_user: true } });
+}
+// Lokaal inloggen: achter de schermen een wachtwoord-account op de lokale Supabase (aangemaakt bij de eerste keer).
+async function devLogin(email, token){
+  if (token !== DEV_CODE) throw new Error(`Lokaal is de code altijd ${DEV_CODE}.`);
+  const password = 'lokaal-' + DEV_CODE;
+  const call = async (path) => {
+    try { return await api(path, { method: 'POST', auth: false, body: { email, password } }); }
+    catch (e) { if (e instanceof TypeError) throw new Error('De lokale Supabase draait niet. Start hem met: npx supabase start'); throw e; }
+  };
+  try { setSession(await call('/auth/v1/token?grant_type=password')); return; }
+  catch (e) { if (e.status !== 400) throw e; }
+  try {
+    const d = await call('/auth/v1/signup');
+    if (!d || !d.access_token) throw new Error('De lokale Supabase vraagt om e-mailbevestiging. Zet in supabase/config.toml enable_confirmations = false.');
+    setSession(d);
+  } catch (e) {
+    if (/already|registered|exists/i.test(e.message)) throw new Error('Dit adres bestaat lokaal al zonder vaste code. Kies een ander adres of wis de lokale database: npx supabase db reset');
+    throw e;
+  }
+}
 async function verifyCode(email, token){
+  if (DEV_CODE) { await devLogin(email, token); await afterLogin(); return; }
   const d = await api('/auth/v1/verify', { method: 'POST', auth: false, body: { type: 'email', email, token } });
   setSession(d);
   await afterLogin();
@@ -1246,6 +1274,7 @@ function vLogin(){
   const sent = ui.loginSent && ui.loginEmail;
   const expired = S.session && S.session.expired;
   let h = `<main><div class="brand"><img src="icon-192.png" alt=""><h1 tabindex="-1">Eggselent</h1><p>Je eierronde, samen bijgehouden</p></div>`;
+  if (DEV_CODE) h += `<div class="banner blue mb">${I('info')}<div><b>Lokaal testen.</b> Er wordt geen mail verstuurd; de code is altijd <b class="num">${DEV_CODE}</b>.</div></div>`;
   if (expired) h += `<div class="banner mb">${I('info')}<div>Je sessie is verlopen. Log opnieuw in; je gegevens op deze telefoon blijven bewaard${pendingCount() ? ` (${pendingCount()} wijzigingen wachten)` : ''}.</div></div>`;
   if (!sent) {
     h += sec('Inloggen of account aanmaken', grp(`<label class="cell field"><span class="fl">E-mail</span><input type="email" id="loginEmail" autocomplete="email" inputmode="email" autocapitalize="off" value="${esc(ui.loginEmail || (S.session && S.session.email) || '')}" placeholder="naam@voorbeeld.nl"></label>`),
@@ -1305,7 +1334,7 @@ function authAction(act, el){
     case 'sendcode': case 'resendcode': {
       const email = (val('loginEmail') || ui.loginEmail || '').trim().toLowerCase();
       if (!/^\S+@\S+\.\S+$/.test(email)) { toast('Vul een geldig e-mailadres in.', null, null, 'err'); return true; }
-      run(async () => { await sendCode(email); ui.loginEmail = email; ui.loginSent = true; saveUi(); render(); toast('Mail verstuurd'); const c = document.getElementById('loginCode'); if (c) c.focus(); });
+      run(async () => { await sendCode(email); ui.loginEmail = email; ui.loginSent = true; saveUi(); render(); toast(DEV_CODE ? `Lokaal: vul ${DEV_CODE} in` : 'Mail verstuurd'); const c = document.getElementById('loginCode'); if (c) c.focus(); });
       return true;
     }
     case 'verifycode': {
