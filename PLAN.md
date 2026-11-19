@@ -1,4 +1,6 @@
-# Eggselent — plan
+# Egg-sellent — plan
+
+*Vers aan de deur, slim gepland.*
 
 Een webapp voor de iPhone om een vaste eierronde te lopen: van huis naar huis, per adres
 direct vastleggen hoeveel eieren er zijn afgenomen, **hoeveel en wanneer de volgende keer**,

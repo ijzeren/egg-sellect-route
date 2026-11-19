@@ -1,4 +1,4 @@
-# Eggselent koppelen aan Supabase
+# Egg-sellent koppelen aan Supabase
 
 Hiermee krijgt de app inloggen (met een code per mail), teams en synchronisatie tussen
 telefoons. Zonder deze stappen werkt de app gewoon lokaal op één telefoon.
@@ -23,7 +23,7 @@ ziet, en de functies voor team aanmaken, uitnodigen en lid worden.
 
 ## 3. Inloggen met een code (belangrijk voor de iPhone)
 Een inloglink in een mail opent in Safari, niet in de app op je beginscherm (die heeft een
-eigen opslag). Daarom logt Eggselent in met een **6-cijferige code** die je in de app typt.
+eigen opslag). Daarom logt Egg-sellent in met een **6-cijferige code** die je in de app typt.
 Supabase stuurt standaard alleen een link, dus de mailteksten moeten aangepast worden.
 **Dat kan pas nadat stap 4 (eigen mailserver) is ingesteld.** Tot die tijd werkt de link uit
 de standaardmail ook: tikken op de link logt in. Op de iPhone opent die link wel in Safari en
@@ -31,7 +31,7 @@ niet in de app op het beginscherm, dus voor dagelijks gebruik is de code nodig.
 
 1. **Authentication → Emails → Templates**.
 2. Pas **Magic Link** én **Confirm signup** allebei zo aan:
-   - Onderwerp: `Je inlogcode voor Eggselent`
+   - Onderwerp: `Je inlogcode voor Egg-sellent`
    - Inhoud: de inhoud van [`templates/code.html`](templates/code.html). Het belangrijkste is
      `{{ .Token }}`; dat wordt de code.
 3. **Authentication → Sign In / Providers → Email**: laat *Email* aan staan.

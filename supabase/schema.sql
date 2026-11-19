@@ -1,4 +1,4 @@
--- Eggselent — databaseschema voor Supabase
+-- Egg-sellent — databaseschema voor Supabase
 -- Uitvoeren in Supabase: Dashboard → SQL Editor → plak dit hele bestand → Run.
 -- Veilig om opnieuw uit te voeren (idempotent waar mogelijk).
 --
@@ -52,6 +52,7 @@ create table if not exists public.addresses (
   street text not null default '',
   number text not null default '',
   name text not null default '',
+  email text not null default '',
   note text not null default '',
   pref_days int[] not null default '{}',
   sort double precision not null default 0,
@@ -105,6 +106,9 @@ create table if not exists public.orders (
   server_ts timestamptz not null default now(),
   primary key (team_id, week_start)
 );
+
+-- toegevoegd in v2.2: optioneel e-mailadres per adres (voor bestaande databases)
+alter table public.addresses add column if not exists email text not null default '';
 
 create index if not exists addresses_sync on public.addresses(team_id, server_ts);
 create index if not exists visits_sync on public.visits(team_id, server_ts);

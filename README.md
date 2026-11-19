@@ -1,5 +1,7 @@
-# egg-sellect-route
-Route, navigatie en planning app voor egg-sellect bezorgers
+# Egg-sellent
+**Vers aan de deur, slim gepland.**
+
+Route, navigatie en planning app voor egg-sellent bezorgers
 
 **App:** https://ijzeren.github.io/egg-sellect-route/
 

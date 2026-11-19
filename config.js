@@ -1,4 +1,4 @@
-// Eggselent — koppeling met Supabase (accounts + synchronisatie).
+// Egg-sellent — koppeling met Supabase (accounts + synchronisatie).
 //
 // Leeg laten = de app werkt alleen op deze telefoon (zoals het prototype).
 // Invullen = inloggen verplicht, gegevens worden gedeeld binnen het team.

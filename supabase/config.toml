@@ -254,11 +254,11 @@ otp_expiry = 3600
 
 
 [auth.email.template.magic_link]
-subject = "Je inlogcode voor Eggselent"
+subject = "Je inlogcode voor Egg-sellent"
 content_path = "./supabase/templates/code.html"
 
 [auth.email.template.confirmation]
-subject = "Je inlogcode voor Eggselent"
+subject = "Je inlogcode voor Egg-sellent"
 content_path = "./supabase/templates/code.html"
 
 # Uncomment to customize email template
