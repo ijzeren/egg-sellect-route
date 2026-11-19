@@ -269,6 +269,18 @@ en installeren daar niet, maar alle schermen wel.
   een tekst om te vertellen (langer houdbaar dan supermarkteieren) en de optie **voor 2 weken**.
   Dat telt mee in de voorspelling.
 
+**19 nov 2026**
+- Naam **Egg-sellent**, slogan *"Vers aan de deur, slim gepland."*
+- Eieren gaan in **doosjes van 6 en 10**; de app telt alleen aantallen die daarmee kunnen en
+  toont welke doosjes (16 = 1×10 + 1×6).
+- Per adres een **frequentie**: elke week (standaard), om de 2, 3 of 4 weken.
+- Per adres optioneel een **e-mailadres**.
+- **Aan de deur zo kort mogelijk**: één tik "Zoals afgesproken", "Wijzig" direct, voorkeursdag en
+  frequentie op het huisscherm, "Hierna" met het volgende adres om alvast eieren te pakken.
+- **Inloggen met passkey** (Face ID) naast de e-mailcode; lokaal altijd code 123456.
+- **Meldingen** (web push): ochtend van een loopdag, bestelherinnering, teambericht bij
+  afwezigheid. Edge Function `push` + `pg_cron`; zie `supabase/README.md` §8–9.
+
 ### Schaal
 - Eén bezoek is ±200 bytes. 200 adressen × 52 weken ≈ 10.000 bezoeken ≈ **2–5 MB per
   verkoper per jaar** (incl. indexen). De gratis 500 MB is dus genoeg voor tientallen
