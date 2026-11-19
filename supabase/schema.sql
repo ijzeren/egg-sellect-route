@@ -118,6 +118,32 @@ create index if not exists visits_sync on public.visits(team_id, server_ts);
 create index if not exists absences_sync on public.absences(team_id, server_ts);
 create index if not exists orders_sync on public.orders(team_id, server_ts);
 
+-- Voorraad (v2.6): leveringen (besteld / geleverd / kapot) en tellingen. Verkoop komt uit visits.
+-- kind = 'delivery': ordered (besteld), delivered (geleverd, leeg = nog onderweg), broken (kapot)
+-- kind = 'count':    counted = werkelijk getelde voorraad op die dag (verschil gaat er FIFO af)
+create table if not exists public.stock_events (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  id text not null,
+  date date not null default current_date,
+  kind text not null default 'delivery' check (kind in ('delivery', 'count')),
+  ordered int,
+  delivered int,
+  broken int not null default 0,
+  counted int,
+  note text not null default '',
+  deleted boolean not null default false,
+  updated_at timestamptz not null,
+  updated_by uuid default auth.uid(),
+  server_ts timestamptz not null default now(),
+  primary key (team_id, id)
+);
+create index if not exists stock_events_sync on public.stock_events(team_id, server_ts);
+
+-- Instellingen voor bestellen (v2.6)
+alter table public.teams add column if not exists margin_pct int not null default 10 check (margin_pct between 0 and 100);
+alter table public.teams add column if not exists order_dow int not null default 5 check (order_dow between 0 and 6);
+alter table public.teams add column if not exists delivery_dow int not null default 3 check (delivery_dow between 0 and 6);
+
 -- ---------- laatste wijziging wint + server-tijdstempel ----------
 create or replace function public.sync_row() returns trigger
 language plpgsql as $$
@@ -137,6 +163,9 @@ begin
     new.walk_days := old.walk_days;
     new.order_round := old.order_round;
     new.absence_script := old.absence_script;
+    new.margin_pct := old.margin_pct;
+    new.order_dow := old.order_dow;
+    new.delivery_dow := old.delivery_dow;
     new.settings_updated_at := old.settings_updated_at;
   end if;
   new.server_ts := clock_timestamp();
@@ -146,7 +175,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['addresses', 'visits', 'absences', 'orders'] loop
+  foreach t in array array['addresses', 'visits', 'absences', 'orders', 'stock_events'] loop
     execute format('drop trigger if exists sync_row on public.%I', t);
     execute format('create trigger sync_row before insert or update on public.%I for each row execute function public.sync_row()', t);
   end loop;
@@ -190,7 +219,7 @@ create policy invites_admin on public.team_invites for all using (public.is_admi
 do $$
 declare t text;
 begin
-  foreach t in array array['addresses', 'visits', 'absences', 'orders'] loop
+  foreach t in array array['addresses', 'visits', 'absences', 'orders', 'stock_events'] loop
     execute format('drop policy if exists team_data on public.%I', t);
     execute format('create policy team_data on public.%I for all using (public.is_member(team_id)) with check (public.is_member(team_id))', t);
   end loop;
@@ -266,11 +295,11 @@ grant execute on function public.create_invite(uuid, text) to authenticated;
 grant execute on function public.join_team(text, text) to authenticated;
 grant execute on function public.my_teams() to authenticated;
 
-grant select, insert, update, delete on public.addresses, public.visits, public.absences, public.orders to authenticated;
+grant select, insert, update, delete on public.addresses, public.visits, public.absences, public.orders, public.stock_events to authenticated;
 grant select, update on public.teams to authenticated;
 grant select, update, delete on public.team_members to authenticated;
 grant select, insert, delete on public.team_invites to authenticated;
-revoke all on public.teams, public.team_members, public.team_invites, public.addresses, public.visits, public.absences, public.orders from anon;
+revoke all on public.teams, public.team_members, public.team_invites, public.addresses, public.visits, public.absences, public.orders, public.stock_events from anon;
 
 -- ---------- meldingen (web push), toegevoegd in v2.3 ----------
 -- Eén rij per telefoon die meldingen wil. prefs: { walkday: "07:00" | null, order: { dow: 5, time: "18:00" } | null, team: true }
