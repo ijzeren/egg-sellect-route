@@ -154,3 +154,23 @@ Open daarna http://localhost:8765.
   elk hun eigen opslag.
 - Zonder Supabase testen (alleen op deze telefoon): in de console
   `localStorage.setItem('eggselent-config', JSON.stringify({supabaseUrl:''}))` en herladen.
+
+### Productiegegevens lokaal gebruiken
+Echte adressen en echte historie lokaal, om mee te testen:
+
+```bash
+node scripts/prod-naar-lokaal.mjs
+```
+
+- Leest productie **alleen-lezen** via de Supabase CLI (je eigen `npx supabase login`; geen
+  databasewachtwoord of geheime sleutel). Productie wordt nooit gewijzigd.
+- Zet teams, adressen, bezoeken (ook verwijderde), afwezigheid, bestellingen en voorraad in de
+  lokale database. Een eerdere kopie van dezelfde teams wordt eerst weggehaald; andere lokale
+  teams blijven staan. Opnieuw draaien geeft een verse kopie.
+- Teamleden worden op e-mailadres gekoppeld aan dezelfde lokale gebruiker. Bestaat die lokaal nog
+  niet: log lokaal één keer in met dat adres (code 123456) en draai het script opnieuw. Of geef een
+  lokaal adres mee dat beheerder wordt: `node scripts/prod-naar-lokaal.mjs jij@voorbeeld.nl`.
+- Daarna in de app: Instellingen → Team → Jouw teams → kies het team.
+- Niet gekopieerd: accounts, uitnodigingen en meldingen.
+- De kopie bevat echte namen, adressen en e-mailadressen; ze staat alleen in de lokale database.
+  `npx supabase db reset` wist alles weer.
