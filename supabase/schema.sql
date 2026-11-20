@@ -125,7 +125,7 @@ create table if not exists public.stock_events (
   team_id uuid not null references public.teams(id) on delete cascade,
   id text not null,
   date date not null default current_date,
-  kind text not null default 'delivery' check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount')),
+  kind text not null default 'delivery' check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount')),
   ordered int,
   delivered int,
   broken int not null default 0,
@@ -142,7 +142,13 @@ create index if not exists stock_events_sync on public.stock_events(team_id, ser
 alter table public.stock_events add column if not exists box6 int;
 alter table public.stock_events add column if not exists box10 int;
 alter table public.stock_events drop constraint if exists stock_events_kind_check;
-alter table public.stock_events add constraint stock_events_kind_check check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount'));
+alter table public.stock_events add constraint stock_events_kind_check check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount'));
+-- Stroopwafels (v2.8): weken waarin ze verkocht worden (maandag van de week), hoeveel weken vooraf aankondigen,
+-- en per bezoek de verkochte en de afgesproken pakjes. Voorraad pakjes: stock_events wafelin (delivered) en wafelcount (counted).
+alter table public.teams add column if not exists stroop_weeks date[] not null default '{}';
+alter table public.teams add column if not exists stroop_lead int not null default 2 check (stroop_lead between 1 and 8);
+alter table public.visits add column if not exists wafels int not null default 0 check (wafels >= 0);
+alter table public.visits add column if not exists wafels_next int check (wafels_next >= 0);
 
 -- Instellingen voor bestellen (v2.6)
 alter table public.teams add column if not exists margin_pct int not null default 10 check (margin_pct between 0 and 100);
@@ -171,6 +177,8 @@ begin
     new.margin_pct := old.margin_pct;
     new.order_dow := old.order_dow;
     new.delivery_dow := old.delivery_dow;
+    new.stroop_weeks := old.stroop_weeks;
+    new.stroop_lead := old.stroop_lead;
     new.settings_updated_at := old.settings_updated_at;
   end if;
   new.server_ts := clock_timestamp();

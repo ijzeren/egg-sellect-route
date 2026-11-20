@@ -1,6 +1,6 @@
 // Service worker: zorgt dat de app offline werkt en updates binnenkomen.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in index.html).
-const VERSION = '2.7.1';
+const VERSION = '2.8.0';
 const CACHE = 'eggselent-' + VERSION;
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png'];
 

@@ -96,7 +96,7 @@ button.cell:active,a.cell:active{background:var(--press)}
 .cell .chev{color:var(--label3);width:.9rem;height:.9rem;stroke-width:2.4}
 .cell.red{color:var(--red)} .cell.tint{color:var(--tint)} .cell.center{justify-content:center}
 .cell.dim{opacity:.5}
-.cell.cur{background:var(--orange-s)}
+.cell.cur{background:linear-gradient(var(--orange-s),var(--orange-s)),var(--cell)}
 .house-main{touch-action:pan-y;transition:transform .2s,opacity .2s}
 .cell .no{width:1.6rem;color:var(--label2);font-size:.882rem;text-align:right;flex:none;font-variant-numeric:tabular-nums}
 .cell.field{padding-top:6px;padding-bottom:6px}
@@ -129,6 +129,10 @@ button.cell:active,a.cell:active{background:var(--press)}
 .chip.abs{background:var(--red-s);color:var(--red);text-decoration:line-through;opacity:.9}
 .chips.grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .chips.grid7 .chip{min-width:0;padding:0}
+.chips.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.chips.grid6 .chip{min-width:0;padding:0}
+.wafel-h{display:flex;gap:10px;align-items:flex-start}
+.wafel-h .i{color:var(--orange);margin-top:1px}
 .segc{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
 .segc button{flex:1;min-height:36px;border-radius:7px;font-size:.882rem;font-weight:500;white-space:nowrap;padding:0 4px}
 .segc button[aria-pressed=true]{background:var(--cell);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
@@ -309,7 +313,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.8.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -347,7 +351,8 @@ const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
 function emptyDb(){ return migrate({}); }
 function migrate(d){
   d.version = 2;
-  d.settings = Object.assign({ walkDays: [], lastBackup: null, orderRound: 1, absenceScript: '', marginPct: 10, orderDow: 5, deliveryDow: 3 }, d.settings || {});
+  d.settings = Object.assign({ walkDays: [], lastBackup: null, orderRound: 1, absenceScript: '', marginPct: 10, orderDow: 5, deliveryDow: 3, stroopWeeks: [], stroopLead: 2 }, d.settings || {});
+  if (!Array.isArray(d.settings.stroopWeeks)) d.settings.stroopWeeks = [];
   d.addresses = Array.isArray(d.addresses) ? d.addresses : [];
   d.visits = Array.isArray(d.visits) ? d.visits : [];
   d.absences = Array.isArray(d.absences) ? d.absences : [];
@@ -359,7 +364,11 @@ function migrate(d){
     if (typeof a.email !== 'string') a.email = '';
     if (![1, 2, 3, 4].includes(a.freq)) a.freq = 1;
   }
-  for (const v of d.visits) if (v.status !== 'nothome' && v.nextEggs == null) v.nextEggs = v.eggs || 0;
+  for (const v of d.visits) {
+    if (v.status !== 'nothome' && v.nextEggs == null) v.nextEggs = v.eggs || 0;
+    if (typeof v.wafels !== 'number') v.wafels = 0;          // stroopwafels: verkochte pakjes
+    if (v.wafelsNext === undefined) v.wafelsNext = null;     // afgesproken pakjes voor de eerstvolgende stroopwafelweek
+  }
   return d;
 }
 function load(){
@@ -426,11 +435,11 @@ const tsMs = s => s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1').replace
 function syncRecords(){
   const out = [];
   db.addresses.forEach((a, i) => out.push(['addresses', a.id, { id: a.id, street: a.street || '', number: a.number || '', name: a.name || '', email: a.email || '', freq: freqOf(a), note: a.note || '', pref_days: a.prefDays || [], sort: i, excluded: !!a.excluded }]));
-  for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered }]);
+  for (const v of db.visits) out.push(['visits', v.id, { id: v.id, address_id: v.addressId, date: v.date, status: v.status, eggs: v.eggs || 0, next_date: v.nextDate || null, next_eggs: v.nextEggs ?? null, next_manual: !!v.nextManual, note: v.note || '', double: !!v.double, offered: !!v.offered, wafels: v.wafels || 0, wafels_next: v.wafelsNext ?? null }]);
   for (const d of db.absences) out.push(['absences', d, { date: d }]);
   for (const [w, n] of Object.entries(db.orders)) out.push(['orders', w, { week_start: w, amount: n }]);
   for (const e of db.stock || []) out.push(['stock_events', e.id, { id: e.id, date: e.date, kind: e.kind, ordered: e.ordered ?? null, delivered: e.delivered ?? null, broken: e.broken || 0, counted: e.counted ?? null, box6: e.box6 ?? null, box10: e.box10 ?? null, note: e.note || '' }]);
-  out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '', margin_pct: db.settings.marginPct ?? 10, order_dow: db.settings.orderDow ?? 5, delivery_dow: db.settings.deliveryDow ?? 3 }]);
+  out.push(['settings', 'team', { walk_days: db.settings.walkDays, order_round: db.settings.orderRound || 1, absence_script: db.settings.absenceScript || '', margin_pct: db.settings.marginPct ?? 10, order_dow: db.settings.orderDow ?? 5, delivery_dow: db.settings.deliveryDow ?? 3, stroop_weeks: (db.settings.stroopWeeks || []).slice().sort(), stroop_lead: db.settings.stroopLead ?? 2 }]);
   return out;
 }
 function tombstone(t, k){
@@ -440,12 +449,20 @@ function tombstone(t, k){
   return { id: k };
 }
 // queue=false: alleen de hashes bijwerken (na ophalen van de server)
+// Velden die later zijn toegevoegd tellen alleen mee in de vergelijking als ze iets bevatten. Zo stuurt een
+// telefoon na een update niet al zijn oude bezoeken opnieuw (met een nieuwe tijd), wat nieuwere gegevens van
+// een andere telefoon zou kunnen overschrijven.
+function hashRow(t, row){
+  if (t === 'visits' && !row.wafels && row.wafels_next == null) { const { wafels, wafels_next, ...r } = row; return r; }
+  if (t === 'settings' && !(row.stroop_weeks || []).length && row.stroop_lead === 2) { const { stroop_weeks, stroop_lead, ...r } = row; return r; }
+  return row;
+}
 function syncDiff(queue){
   if (!CLOUD || !S.team) return;
   const now = new Date().toISOString(), seen = new Set();
   let n = 0;
   for (const [t, k, row] of syncRecords()) {
-    const key = t + ':' + k, h = hash(JSON.stringify(row));
+    const key = t + ':' + k, h = hash(JSON.stringify(hashRow(t, row)));
     seen.add(key);
     if (H[key] !== h) { H[key] = h; if (queue) { S.outbox[key] = { t, k, row, u: now }; n++; } }
   }
@@ -763,7 +780,7 @@ async function pull(){
   S.team.name = team.name;
   const pend = S.outbox['settings:team'];
   if ((!S.settingsU || tsMs(team.settings_updated_at) > tsMs(S.settingsU)) && !(pend && tsMs(pend.u) > tsMs(team.settings_updated_at))) {
-    Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '', marginPct: team.margin_pct ?? 10, orderDow: team.order_dow ?? 5, deliveryDow: team.delivery_dow ?? 3 });
+    Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '', marginPct: team.margin_pct ?? 10, orderDow: team.order_dow ?? 5, deliveryDow: team.delivery_dow ?? 3, stroopWeeks: (team.stroop_weeks || []).map(String).sort(), stroopLead: team.stroop_lead ?? 2 });
     S.settingsU = team.settings_updated_at; if (pend) delete S.outbox['settings:team']; changed = true;
   }
   for (const t of TABLES) {
@@ -796,8 +813,8 @@ function mergeRow(t, r){
   if (t === 'visits') {
     const i = db.visits.findIndex(v => v.id === r.id);
     if (r.deleted) { if (i < 0) return false; db.visits.splice(i, 1); return true; }
-    const v = { id: r.id, addressId: r.address_id, date: r.date, status: r.status, eggs: r.eggs, nextDate: r.next_date, nextEggs: r.next_eggs, nextManual: r.next_manual, note: r.note, double: r.double, offered: r.offered, ts: tsMs(r.updated_at) };
-    if (i >= 0 && ['addressId', 'date', 'status', 'eggs', 'nextDate', 'nextEggs', 'nextManual', 'note', 'double', 'offered'].every(k => (db.visits[i][k] ?? null) === (v[k] ?? null))) return false;
+    const v = { id: r.id, addressId: r.address_id, date: r.date, status: r.status, eggs: r.eggs, nextDate: r.next_date, nextEggs: r.next_eggs, nextManual: r.next_manual, note: r.note, double: r.double, offered: r.offered, wafels: r.wafels || 0, wafelsNext: r.wafels_next ?? null, ts: tsMs(r.updated_at) };
+    if (i >= 0 && ['addressId', 'date', 'status', 'eggs', 'nextDate', 'nextEggs', 'nextManual', 'note', 'double', 'offered', 'wafels', 'wafelsNext'].every(k => (db.visits[i][k] ?? null) === (v[k] ?? null))) return false;
     if (i < 0) db.visits.push(v); else db.visits[i] = Object.assign(db.visits[i], v);
     return true;
   }
@@ -1109,6 +1126,53 @@ function periodHistory(){
 }
 const soldIn = (T) => { const TE = addDays(T, 6); return sum(db.visits.filter(v => v.date >= T && v.date <= TE && DEC(v)), v => v.eggs || 0); };
 
+/* ---------- stroopwafels (niet elke week) ---------- */
+const WAFEL_CHIPS = [0, 1, 2, 3, 4, 5];
+const stroopWeeks = () => (db.settings.stroopWeeks || []).slice().sort();
+const nextStroopAfter = D => stroopWeeks().find(w => w > weekStart(D)) || null;   // eerstvolgende stroopwafelweek ná de week van D
+const stroopLabel = W => `week ${isoWeek(W)} (${weekLabel(W)})`;
+// Voor een adres op dag D: is het stroopwafelweek (afgesproken pakjes), of moet het nu aangekondigd worden?
+// Aankondigen in de weken ervoor: zoveel weken als ingesteld, of meer als het adres minder vaak eieren krijgt.
+function wafelInfo(a, D){
+  const ws = stroopWeeks(); if (!ws.length) return null;
+  const W = weekStart(D);
+  if (ws.includes(W)) {
+    const ag = visitsOf(a.id).filter(v => v.date < W && v.wafelsNext != null && nextStroopAfter(v.date) === W).pop();
+    return { mode: 'week', S: W, agreed: ag ? ag.wafelsNext : null };
+  }
+  const S = nextStroopAfter(D); if (!S) return null;
+  const weeks = weeksBetween(W, S);
+  if (weeks > Math.max(db.settings.stroopLead ?? 2, freqOf(a))) return null;
+  return { mode: 'announce', S, weeks };
+}
+const wafelDraftOf = (id, D) => (ui.wafelDraft && ui.wafelDraft[`${id}_${D}`]) || {};
+// Afgesproken pakjes voor stroopwafelweek S, per adres (laatste afspraak telt)
+function wafelAgreed(S){
+  const out = [];
+  for (const a of db.addresses) {
+    if (a.excluded) continue;
+    const ag = visitsOf(a.id).filter(v => v.date < S && v.wafelsNext != null && nextStroopAfter(v.date) === S).pop();
+    if (ag && ag.wafelsNext > 0) out.push({ a, n: ag.wafelsNext, date: ag.date });
+  }
+  return out;
+}
+const wafelsSold = (from, to) => sum(db.visits.filter(v => v.date >= from && v.date <= to), v => v.wafels || 0);
+// Voorraad pakjes: ontvangen − verkocht; een telling zet het op het getelde aantal
+function wafelStock(asOf){
+  const ev = stockEvents().filter(e => (e.kind === 'wafelin' || e.kind === 'wafelcount') && e.date <= asOf);
+  if (!ev.length) return null;
+  const start = ev.map(e => e.date).sort()[0];
+  const dates = [...new Set([...ev.map(e => e.date), ...db.visits.filter(v => v.wafels && v.date >= start && v.date <= asOf).map(v => v.date)])].sort();
+  let st = 0, inn = 0, sold = 0; const diffs = {};
+  for (const d of dates) {
+    for (const e of ev) if (e.date === d && e.kind === 'wafelin') { st += e.delivered || 0; inn += e.delivered || 0; }
+    const s1 = wafelsSold(d, d); st -= s1; sold += s1;
+    for (const e of ev) if (e.date === d && e.kind === 'wafelcount' && e.counted != null) { diffs[e.id] = { have: st, diff: e.counted - st }; st = e.counted; }
+  }
+  return { start, stock: st, inn, sold, diffs };
+}
+const isWafelEv = e => e.kind === 'wafelin' || e.kind === 'wafelcount';
+
 /* ---------- doosjes van 6 en 10 ---------- */
 const BOX_KINDS = ['boxes', 'boxreturn', 'boxcount'];
 const isBoxEv = e => BOX_KINDS.includes(e.kind);
@@ -1271,9 +1335,23 @@ function vHome(){
   } else if (!wd.length) banner = `<div class="banner blue">${I('info')}<div>Stel bij Instellingen de loopdagen in. Nu staan alle adressen elke dag in de ronde.</div></div>`;
   else if (!isWalk) banner = `<div class="banner blue">${I('info')}<div>${esc(DAYS[dow(D)])} is geen vaste loopdag. Je ziet wat er deze week nog open staat.</div></div>`;
   if (banner) h += `<div class="mb">${banner}</div>`;
+  // stroopwafels: aankondigen of meenemen
+  const wS = stroopWeeks(), W0 = weekStart(D);
+  let wafToday = 0;
+  if (wS.includes(W0)) {
+    const open = p.shown.filter(x => !x.today).map(x => wafelInfo(x.a, D)).filter(i => i && i.agreed);
+    const take = sum(open, i => i.agreed); wafToday = sum(p.shown.filter(x => x.today), x => x.today.wafels || 0);
+    h += `<div class="mb"><div class="banner">${I('info')}<div><b>Stroopwafelweek.</b> ${take ? `Neem <b class="num">${take}</b> afgesproken ${take === 1 ? 'pakje' : 'pakjes'} mee, en een paar extra voor wie het nog wil.` : 'Vraag aan de deur of ze pakjes willen.'}</div></div></div>`;
+  } else {
+    const S = nextStroopAfter(D);
+    if (S && p.shown.some(x => { const i = wafelInfo(x.a, D); return i && i.mode === 'announce'; })) {
+      const asked = p.shown.filter(x => x.today && x.today.wafelsNext != null).length;
+      h += `<div class="mb"><div class="banner">${I('info')}<div><b>Stroopwafels in ${esc(stroopLabel(S))}.</b> Vertel het aan de deur en noteer hoeveel pakjes.${asked ? ` Vandaag ${asked}× gevraagd.` : ''}</div></div></div>`;
+    }
+  }
 
   const total = p.shown.length;
-  h += `<div class="progress"><div class="t"><b class="num">${done} van ${total}</b> gedaan · <span class="num">${eggs}</span> verkocht · nog <span class="num">${expOpen}</span> mee</div>
+  h += `<div class="progress"><div class="t"><b class="num">${done} van ${total}</b> gedaan · <span class="num">${eggs}</span> verkocht${wafToday ? ` · <span class="num">${wafToday}</span> pk` : ''} · nog <span class="num">${expOpen}</span> mee</div>
     <div class="bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><div class="bar-fg" style="width:${total ? Math.round(done / total * 100) : 0}%"></div></div></div>`;
   { const st = stockAt(D); if (st) { const old = st.batches.find(b => b.left > 0);
     h += `<div class="grp mb"><button class="cell" data-act="tab" data-v="order"><span class="ico" style="background:${st.stock < (expOpen || 0) ? 'var(--red)' : 'var(--tint)'}">${I('box')}</span><span class="tx"><span class="tt">Voorraad <b class="num">${st.stock}</b>${expOpen ? ` · nodig vandaag ${expOpen}` : ''}</span>${old ? `<span class="st">Eerst die van ${esc(fmtShort(old.date))} (${old.left} over)</span>` : ''}</span>${chev()}</button></div>`; } }
@@ -1298,6 +1376,9 @@ function homeRow(x, n, im){
   const sub = [];
   if (im) sub.push(`<span class="badge red">${DSH[dow(im.date)]} ${pd(im.date).getDate()} uit${v && v.double ? ' · 2× ✓' : ''}</span>`);
   else if (x.badges.length) sub.push(`<span class="badge ${x.badges[0][0] === 'bad' ? 'red' : x.badges[0][0] === 'info' ? 'blue' : 'gray'}">${esc(x.badges[0][1])}</span>`);
+  const wi = wafelInfo(x.a, ui.date);
+  if (wi && wi.mode === 'week' && (v ? v.wafels : wi.agreed)) sub.push(`<span class="badge gray">${v ? `${v.wafels} pk ✓` : `+${wi.agreed} pk`}</span>`);
+  else if (wi && wi.mode === 'announce' && v && v.wafelsNext) sub.push(`<span class="badge gray">${v.wafelsNext} pk wk ${isoWeek(wi.S)}</span>`);
   if (x.a.name) sub.push(esc(x.a.name));
   let tr;
   if (!v) tr = `<span class="stat num" aria-label="${agreed} afgesproken">${ag ? agreed : '–'}</span>`;
@@ -1379,6 +1460,22 @@ function vHouse(){
         <button data-act="plus" aria-label="Eén meer">${I('plus')}</button></div>
       <div class="chips grid7">${EGG_CHIPS.map(n => chip(n === 0 ? 'Geen' : n, 'eggs', `data-n="${n}"`, v && v.eggs === n && (n ? v.status === 'sold' : v.status === 'none'))).join('')}</div></div>`));
   }
+  // stroopwafels: aankondigen in de weken ervoor, in de week zelf afgesproken pakjes en verkoop
+  const wi = wafelInfo(a, D);
+  if (wi && !nhOn) {
+    const dr = wafelDraftOf(a.id, D);
+    if (wi.mode === 'announce') {
+      const cur = v ? v.wafelsNext : (dr.wafelsNext ?? null);
+      h += sec(`Stroopwafels · week ${isoWeek(wi.S)}`, grp(`<div class="cell stack"><div class="wafel-h">${I('info')}<span>Vertel het: in ${esc(stroopLabel(wi.S))} hebben we stroopwafels. Hoeveel pakjes wilt u dan?</span></div>
+        <div class="chips grid6">${WAFEL_CHIPS.map(n => chip(n === 0 ? 'Geen' : n, 'wafel', `data-k="wafelsNext" data-n="${n}"`, cur === n)).join('')}</div></div>`),
+        cur == null ? 'Nog niet gevraagd. Dit telt niet als bezoek; noteer daarna gewoon de eieren.' : cur ? `Afgesproken: ${plural(cur, 'pakje', 'pakjes')} voor ${esc(stroopLabel(wi.S))}.` : 'Wil geen stroopwafels.');
+    } else {
+      const cur = v ? v.wafels : (dr.wafels ?? 0);
+      h += sec('Stroopwafels · deze week', grp(`<div class="cell stack"><div class="wafel-h">${I('info')}<span>${wi.agreed ? `Afgesproken: <b>${plural(wi.agreed, 'pakje', 'pakjes')}</b>` : wi.agreed === 0 ? 'Wilde geen stroopwafels, maar vraag het gerust.' : 'Niets afgesproken. Vraag of ze pakjes willen.'}</span></div>
+        <div class="chips grid6">${WAFEL_CHIPS.map(n => chip(n === 0 ? 'Geen' : n, 'wafel', `data-k="wafels" data-n="${n}"`, n > 0 && cur === n)).join('')}</div></div>`),
+        cur ? `${plural(cur, 'pakje', 'pakjes')} verkocht.` : wi.agreed ? '"Zoals afgesproken" neemt de afgesproken pakjes mee.' : '');
+    }
+  }
   // volgende keer: één regel, details in een paneel
   if (v && DEC(v)) {
     const k = Math.max(0, weeksBetween(D, v.nextDate));
@@ -1406,7 +1503,7 @@ function vHouse(){
   if (!v) {
     let primary;
     if (imp && imp.agreed > 0) primary = `<button class="btn stack" data-act="doublenext">${imp.k === 1 ? 'Voor 2 weken' : 'Voor 2 keer'}<small>${2 * imp.agreed} eieren · volgende</small></button>`;
-    else if (ag && agreed > 0) primary = `<button class="btn stack" data-act="samenext">Zoals afgesproken<small>${agreed} eieren · volgende</small></button>`;
+    else if (ag && agreed > 0) { const wsx = wafelSame(a.id).wafels || 0; primary = `<button class="btn stack" data-act="samenext">Zoals afgesproken<small>${agreed} eieren${wsx ? ` + ${wsx} pk` : ''} · volgende</small></button>`; }
     else primary = `<button class="btn" data-act="next">Volgende${I('chevR')}</button>`;
     h += `<div class="dock">${prev}<button class="btn gray red" data-act="nhnext">Niet thuis</button>${primary}</div>`;
   } else {
@@ -1561,8 +1658,9 @@ function supplySection(){
   else h += `<button class="cell tint" data-act="stockorder"><span class="ico" style="background:var(--tint)">${I('box')}</span><span class="tx"><span class="tt">Leg bestelling vast: ${sp.advice}</span><span class="st">Je kunt het aantal nog aanpassen</span></span>${chev()}</button>`;
   h += '</div></section>';
   h += boxSection(sp);
+  h += wafelSection(sp);
   // leveringen, bestellingen en tellingen
-  const eggEvs = stockEvents().filter(e => !isBoxEv(e));
+  const eggEvs = stockEvents().filter(e => !isBoxEv(e) && !isWafelEv(e));
   const evs = eggEvs.slice().sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0).slice(0, ui.showAllStock ? 999 : 6);
   if (evs.length) {
     const diffs = (stockAt(sp.T) || { diffs: {} }).diffs;
@@ -1636,15 +1734,54 @@ function boxSection(sp){
   return h + '</section>';
 }
 
+function wafelSection(sp){
+  const T = sp.T, ws = stroopWeeks(), cur = weekStart(T), up = ws.filter(w => w >= cur), past = ws.filter(w => w < cur).reverse();
+  const L = wafelStock(T), S = up[0], m = sp.m;
+  let g = '';
+  if (S) {
+    const ag = wafelAgreed(S), agN = sum(ag, x => x.n), have = L ? L.stock : 0;
+    const need = Math.max(0, Math.ceil(agN * (1 + m)) - Math.max(0, have));
+    g += `<div class="hero"><div class="lbl">${S === cur ? 'Deze week stroopwafels' : `Stroopwafels in ${esc(stroopLabel(S))}`}</div><div class="big"><b class="num">${agN}</b><span>${agN === 1 ? 'pakje' : 'pakjes'} afgesproken</span></div>
+      <div class="meta">${ag.length ? `Bij ${plural(ag.length, 'adres', 'adressen')}. ` : 'Nog niemand heeft pakjes afgesproken. '}${L ? `Op voorraad ${have}. ` : ''}${need ? `Nodig met marge ${Math.round(m * 100)}%: nog <b style="color:var(--label)">${need}</b> pakjes erbij.` : agN ? 'Genoeg op voorraad voor de afspraken.' : ''}</div></div>`;
+    if (ag.length) g += `<button class="cell" data-act="togglewafels" aria-expanded="${!!ui.showWafels}"><span class="tx"><span class="tt" style="color:var(--tint)">Wie heeft afgesproken</span></span><span style="display:inline-flex;transform:rotate(${ui.showWafels ? 90 : 0}deg);transition:transform .2s">${I('chevR', 'chev')}</span></button>`
+      + (ui.showWafels ? ag.map(x => `<div class="cell"><span class="tx"><span class="tt">${esc(label(x.a))}</span><span class="st">afgesproken ${esc(fmtShort(x.date))}</span></span><span class="tr num">${x.n}</span></div>`).join('') : '');
+  } else {
+    g += `<div class="cell"><span class="ico" style="background:var(--orange)">${I('cal')}</span><span class="tx"><span class="tt">Geen stroopwafelweek gepland</span><span class="st">Plan een week; dan meldt de app in de weken ervoor aan de deur dat het eraan komt.</span></span></div>`;
+  }
+  g += up.map(w => `<button class="cell" data-act="wafelweek" data-w="${w}" ${isAdmin() ? '' : 'disabled'}><span class="tx"><span class="tt">${w === cur ? 'Deze week · ' : ''}${esc(stroopLabel(w))}</span><span class="st">${w === cur ? `${wafelsSold(w, addDays(w, 6))} pakjes verkocht` : `aankondigen vanaf ${esc(stroopLabel(addDays(w, -7 * (db.settings.stroopLead ?? 2))))}`}</span></span>${isAdmin() ? chev() : ''}</button>`).join('');
+  if (isAdmin()) g += `<button class="cell tint" data-act="wafeladdweek"><span class="ico" style="background:var(--orange)">${I('plus')}</span><span class="tx"><span class="tt">Stroopwafelweek plannen</span></span>${chev()}</button>`;
+  g += `<div class="cell"><span class="tx"><span class="tt">Op voorraad</span>${L ? `<span class="st">Sinds ${esc(fmtShort(L.start))}: ${L.inn} ontvangen, ${L.sold} verkocht</span>` : '<span class="st">Nog niets ingevoerd</span>'}</span><span class="tr num ${L && L.stock < 0 ? 'red' : ''}">${L ? plural(L.stock, 'pakje', 'pakjes') : '–'}</span></div>`;
+  g += `<button class="cell" data-act="stocknew" data-kind="wafelin"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Pakjes ontvangen</span></span>${chev()}</button>`;
+  g += `<button class="cell" data-act="stocknew" data-kind="wafelcount"><span class="ico" style="background:var(--gray)">${I('check')}</span><span class="tx"><span class="tt">Pakjes tellen</span></span>${chev()}</button>`;
+  let h = sec('Stroopwafels', grp(g), isAdmin() ? '' : 'Stroopwafelweken plant de beheerder.');
+  const wevs = stockEvents().filter(isWafelEv).sort((a, b) => a.date > b.date ? -1 : a.date < b.date ? 1 : 0);
+  if (past.length || wevs.length) {
+    h += `<section class="sec"><button class="sec-h tog ${ui.showWafelHist ? 'open' : ''}" data-act="togglewafelhist" aria-expanded="${!!ui.showWafelHist}">Eerdere stroopwafelweken en invoer${I('chevR', 'sm')}</button>`;
+    if (ui.showWafelHist) {
+      if (past.length) h += grp(past.map(w => { const ag = sum(wafelAgreed(w), x => x.n); return `<div class="cell"><span class="tx"><span class="tt">${esc(stroopLabel(w))}</span><span class="st">${ag} afgesproken</span></span><span class="tr num">${wafelsSold(w, addDays(w, 6))} verkocht</span></div>`; }).join(''));
+      if (wevs.length) h += `<div class="grp mt12">${wevs.slice(0, 12).map(e => {
+        const d = e.kind === 'wafelcount' && L ? L.diffs[e.id] : null;
+        return `<button class="cell" data-act="stockedit" data-id="${esc(e.id)}"><span class="tx"><span class="tt">${esc(fmtShort(e.date))} · ${e.kind === 'wafelin' ? `Ontvangen: ${e.delivered ?? 0}` : `Geteld: ${e.counted ?? 0}`}</span>${d || e.note ? `<span class="st">${[d ? (d.diff === 0 ? 'klopte' : `${d.diff > 0 ? '+' : ''}${d.diff} t.o.v. berekend`) : '', esc(e.note || '')].filter(Boolean).join(' · ')}</span>` : ''}</span>${chev()}</button>`;
+      }).join('')}</div>`;
+    }
+    h += '</section>';
+  }
+  return h;
+}
+
 function sheetStock(){
   const e = stockEvents().find(x => x.id === ui.stockId);
   if (!e) { ui.sheet = null; return ''; }
-  const isCount = e.kind === 'count', isBox = isBoxEv(e);
-  const title = isBox ? { boxes: 'Doosjes gekocht', boxreturn: 'Doosjes terug', boxcount: 'Doosjes tellen' }[e.kind] : isCount ? 'Telling' : e.delivered == null ? 'Bestelling' : 'Levering';
+  const isCount = e.kind === 'count', isBox = isBoxEv(e), isWaf = isWafelEv(e);
+  const title = isWaf ? (e.kind === 'wafelin' ? 'Pakjes ontvangen' : 'Pakjes tellen') : isBox ? { boxes: 'Doosjes gekocht', boxreturn: 'Doosjes terug', boxcount: 'Doosjes tellen' }[e.kind] : isCount ? 'Telling' : e.delivered == null ? 'Bestelling' : 'Levering';
   const num = (f, v, ph) => `<input type="number" inputmode="numeric" min="0" data-field="${f}" value="${v ?? ''}" placeholder="${ph}">`;
   let h = `<div class="sheet-h"><span></span><div class="nav-t">${title}</div><div class="nav-r"><button class="nb bold" data-act="closesheet">Gereed</button></div></div><div class="sheet-c">`;
   h += sec('', grp(`<label class="cell field"><span class="fl">Datum</span><input type="date" data-field="st_date" value="${esc(e.date)}"></label>`));
-  if (isBox) {
+  if (isWaf) {
+    const f = e.kind === 'wafelin' ? 'st_delivered' : 'st_counted', val = e.kind === 'wafelin' ? e.delivered : e.counted;
+    const d = e.kind === 'wafelcount' ? ((wafelStock(e.date) || { diffs: {} }).diffs[e.id]) : null;
+    h += sec('Stroopwafels', grp(`<label class="cell field"><span class="fl">Pakjes</span>${num(f, val, 'aantal')}</label>`), d ? `Berekend was ${d.have}.` : e.kind === 'wafelin' ? 'Komen erbij op de voorraad.' : 'Tel de pakjes die je nog hebt.');
+  } else if (isBox) {
     const d = e.kind === 'boxcount' ? ((boxLedger(e.date) || { diffs: {} }).diffs[e.id]) : null;
     h += sec(e.kind === 'boxcount' ? 'Lege doosjes geteld' : 'Aantal doosjes', grp(`<label class="cell field"><span class="fl">Van 6</span>${num('st_box6', e.box6, '0')}</label>
       <label class="cell field"><span class="fl">Van 10</span>${num('st_box10', e.box10, '0')}</label>`),
@@ -1834,6 +1971,8 @@ function vSettings(){
     <label class="cell field"><span class="fl">Levering op</span><select data-field="set_deldow" ${ro}>${WEEK.map(d => `<option value="${d}" ${(db.settings.deliveryDow ?? 3) === d ? 'selected' : ''}>${DAYS[d]}</option>`).join('')}</select></label>
     <div class="cell stack"><span class="tt">Advies afronden op</span><div class="segc" role="group">${[1, 6, 10, 12, 30].map(n => `<button data-act="round" data-n="${n}" ${ro} aria-pressed="${rnd === n}">${n === 1 ? 'Niet' : n}</button>`).join('')}</div></div>`),
     'Marge = wat er bij de volgende levering nog mag liggen, als % van de verkoop in die periode. Het advies houdt daar rekening mee. 30 = een tray.');
+  h += sec('Stroopwafels', grp(`<div class="cell stack"><span class="tt">Aankondigen vooraf</span><div class="segc" role="group">${[1, 2, 3, 4].map(n => `<button data-act="stroopLead" data-n="${n}" ${ro} aria-pressed="${(db.settings.stroopLead ?? 2) === n}">${n} ${n === 1 ? 'week' : 'weken'}</button>`).join('')}</div></div>`),
+    'Zoveel weken voor een stroopwafelweek meldt de app het aan de deur. Klanten die minder vaak eieren krijgen, horen het bij hun bezoek daarvoor. De weken zelf plan je bij Planning.');
   h += sec('Tekst bij afwezigheid', grp(`<div class="cell"><textarea class="ta" data-field="absenceScript" ${ro} style="min-height:6rem">${esc(db.settings.absenceScript || DEFAULT_SCRIPT)}</textarea></div>`), 'Verschijnt bij een klant van wie de vaste dag de volgende keer uitvalt. {dag} wordt de dag.');
   h += sec('Gegevens', grp(`<button class="cell" data-act="export"><span class="ico" style="background:var(--green)">${I('share')}</span><span class="tx"><span class="tt">Backup maken</span>${needBackup() ? '<span class="st" style="color:var(--red)">Al even geen backup</span>' : ''}</span>${chev()}</button>
     ${isAdmin() ? `<button class="cell" data-act="import"><span class="ico" style="background:var(--orange)">${I('down')}</span><span class="tx"><span class="tt">Backup terugzetten</span></span>${chev()}</button>` : ''}
@@ -2161,7 +2300,7 @@ function openSheet(name){ ui.sheet = name; renderSheet(); }
 function closeSheet(){
   if (ui.sheet === 'stock') {
     const e = stockEvents().find(x => x.id === ui.stockId);
-    if (e && (isBoxEv(e) ? e.box6 == null && e.box10 == null : e.kind === 'count' ? e.counted == null : e.ordered == null && e.delivered == null)) { db.stock = db.stock.filter(x => x !== e); save(true); }
+    if (e && (isWafelEv(e) ? (e.kind === 'wafelin' ? e.delivered == null : e.counted == null) : isBoxEv(e) ? e.box6 == null && e.box10 == null : e.kind === 'count' ? e.counted == null : e.ordered == null && e.delivered == null)) { db.stock = db.stock.filter(x => x !== e); save(true); }
   }
   ui.sheet = null; renderSheet(); render();
 }
@@ -2193,12 +2332,15 @@ function setVisit(patch, id, quiet){
   const D = ui.date, a = byId(id);
   const ag = lastDecisive(visitsOf(a.id), D);
   let v = db.visits.find(x => x.addressId === id && x.date === D);
-  if (!v) { v = { id: `${a.id}_${D}`, addressId: a.id, date: D, status: 'sold', eggs: 0, nextDate: null, nextEggs: null, nextManual: false, note: '' }; db.visits.push(v); }
+  if (!v) { v = { id: `${a.id}_${D}`, addressId: a.id, date: D, status: 'sold', eggs: 0, nextDate: null, nextEggs: null, nextManual: false, note: '', wafels: 0, wafelsNext: null }; db.visits.push(v); }
+  // stroopwafels die al gekozen waren voordat het bezoek genoteerd werd
+  const dk = `${id}_${D}`, dr = ui.wafelDraft && ui.wafelDraft[dk];
+  if (dr) { Object.assign(v, dr); delete ui.wafelDraft[dk]; saveUi(); }
   Object.assign(v, patch, { ts: Date.now() });
   if (v.status !== 'sold') v.double = false;
   // onthouden dat "voor 2 weken" is aangeboden: zo leert de app hoe vaak klanten daarop ingaan
   v.offered = DEC(v) && !!nextVisitImpact(a, D);
-  if (v.status === 'nothome') { v.eggs = 0; v.nextDate = null; v.nextEggs = null; v.nextManual = false; }
+  if (v.status === 'nothome') { v.eggs = 0; v.nextDate = null; v.nextEggs = null; v.nextManual = false; v.wafels = 0; v.wafelsNext = null; }
   else {
     if (!v.nextDate) v.nextDate = defaultNext(a, D, freqOf(a));
     if (!v.nextManual) v.nextEggs = v.eggs > 0 ? v.eggs : agEggs(ag);
@@ -2216,7 +2358,7 @@ function restoreVisit(id, snap){
 }
 function visitSummary(v){
   if (v.status === 'nothome') return 'niet thuis';
-  return `${v.status === 'none' ? 'geen eieren' : v.eggs + ' eieren'} · volgende keer ${fmtShort(v.nextDate)}`;
+  return `${v.status === 'none' ? 'geen eieren' : v.eggs + ' eieren'}${v.wafels ? ` + ${plural(v.wafels, 'pakje', 'pakjes')} stroopwafels` : ''} · volgende keer ${fmtShort(v.nextDate)}`;
 }
 // noteren en door naar het volgende huis, met "ongedaan maken"
 function recordAndNext(patch){
@@ -2251,6 +2393,12 @@ function moveTo(a, pos){
   db.addresses.splice(from, 1); db.addresses.splice(pos, 0, a);
 }
 const toggleIn = (arr, x) => arr.includes(x) ? arr.filter(y => y !== x) : [...arr, x];
+// "Zoals afgesproken" in een stroopwafelweek: de afgesproken pakjes gaan mee, tenzij er al iets gekozen is
+function wafelSame(id){
+  const info = wafelInfo(byId(id), ui.date);
+  if (!info || info.mode !== 'week' || !info.agreed || wafelDraftOf(id, ui.date).wafels != null) return {};
+  return { wafels: info.agreed };
+}
 const agreedFor = id => { const ag = lastDecisive(visitsOf(id), ui.date); return ag ? agEggs(ag) : 0; };
 
 
@@ -2272,11 +2420,41 @@ document.addEventListener('click', e => {
     case 'togglesupply': ui.showSupply = !ui.showSupply; saveUi(); render(); break;
     case 'showallstock': ui.showAllStock = true; render(); break;
     case 'toggleboxes': ui.showBoxes = !ui.showBoxes; saveUi(); render(); break;
+    case 'togglewafels': ui.showWafels = !ui.showWafels; saveUi(); render(); break;
+    case 'togglewafelhist': ui.showWafelHist = !ui.showWafelHist; saveUi(); render(); break;
+    case 'wafeladdweek': {
+      const cur = weekStart(todayStr()), have = stroopWeeks();
+      const opts = []; for (let k = 0; k < 12 && opts.length < 8; k++) { const w = addDays(cur, 7 * k); if (!have.includes(w)) opts.push(w); }
+      actionSheet({ title: 'Welke week stroopwafels?', message: `In de ${db.settings.stroopLead ?? 2} weken ervoor meldt de app het aan de deur.`, actions: opts.map(w => ({ label: `${w === cur ? 'Deze week · ' : ''}Week ${isoWeek(w)} · ${weekLabel(w)}`, value: w })) }).then(w => {
+        if (!w) return; db.settings.stroopWeeks = [...stroopWeeks(), w].sort(); save(); render(); toast(`Stroopwafels in ${stroopLabel(w)}`);
+      });
+      break;
+    }
+    case 'wafelweek': {
+      const w = el.dataset.w;
+      actionSheet({ title: `Stroopwafels in ${stroopLabel(w)}`, actions: [{ label: 'Haal deze week weg', red: true, value: 'del' }] }).then(r => {
+        if (r !== 'del') return; db.settings.stroopWeeks = stroopWeeks().filter(x => x !== w); save(); render();
+        toast(`${stroopLabel(w)} weggehaald`, 'Ongedaan', () => { db.settings.stroopWeeks = [...stroopWeeks(), w].sort(); save(); render(); });
+      });
+      break;
+    }
+    case 'wafel': {
+      // pakjes aan de deur: afgesproken voor de stroopwafelweek (wafelsNext) of verkocht (wafels)
+      const k = el.dataset.k, n = +el.dataset.n, v = curVisit();
+      if (v && v.status !== 'nothome') {
+        v[k] = k === 'wafelsNext' && v[k] === n ? null : n; v.ts = Date.now(); save(); render();
+      } else { // nog geen bezoek genoteerd: onthouden tot het bezoek genoteerd wordt (telt niet als bezoek)
+        const dk = `${ui.id}_${ui.date}`; ui.wafelDraft = ui.wafelDraft || {};
+        const cur = ui.wafelDraft[dk] || {};
+        cur[k] = k === 'wafelsNext' && cur[k] === n ? null : n; ui.wafelDraft[dk] = cur; saveUi(); render();
+      }
+      break;
+    }
     case 'stocknew': {
       const kind = el.dataset.kind, T = todayStr();
       const e = { id: uid(), date: T, kind, ordered: null, delivered: null, broken: 0, counted: null, box6: null, box10: null, note: '' };
       db.stock.push(e); save(true); ui.stockId = e.id; openSheet('stock');
-      setTimeout(() => { const f = document.querySelector(isBoxEv(e) ? '[data-field=st_box6]' : kind === 'count' ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
+      setTimeout(() => { const f = document.querySelector(isBoxEv(e) ? '[data-field=st_box6]' : (kind === 'count' || kind === 'wafelcount') ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
       break;
     }
     case 'stockorder': {
@@ -2296,7 +2474,7 @@ document.addEventListener('click', e => {
     case 'stockedit': ui.stockId = el.dataset.id; openSheet('stock'); break;
     case 'stockdel': {
       const e = stockEvents().find(x => x.id === ui.stockId); if (!e) break;
-      confirmSheet('Verwijderen?', isBoxEv(e) ? 'De doosjesvoorraad wordt opnieuw berekend.' : 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {
+      confirmSheet('Verwijderen?', isBoxEv(e) ? 'De doosjesvoorraad wordt opnieuw berekend.' : isWafelEv(e) ? 'De voorraad stroopwafels wordt opnieuw berekend.' : 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {
         if (!ok) return; db.stock = db.stock.filter(x => x !== e); save(); ui.sheet = null; renderSheet(); render();
       });
       break;
@@ -2304,14 +2482,14 @@ document.addEventListener('click', e => {
     case 'open': ui.sheet = null; go('house', { id: el.dataset.id }); break;
     case 'prev': step(-1); break;
     case 'next': step(1); break;
-    case 'samenext': { const n = agreedFor(ui.id); if (n) recordAndNext({ status: 'sold', eggs: n }); break; }
+    case 'samenext': { const n = agreedFor(ui.id); if (n) recordAndNext({ status: 'sold', eggs: n, ...wafelSame(ui.id) }); break; }
     case 'nhnext': recordAndNext({ status: 'nothome' }); break;
     case 'doublenext': {
       const a = byId(ui.id), imp = nextVisitImpact(a, D); if (!imp) break;
-      recordAndNext({ status: 'sold', eggs: 2 * imp.agreed, double: true, nextDate: defaultNext(a, D, imp.k * 2), nextEggs: imp.agreed, nextManual: true });
+      recordAndNext({ status: 'sold', eggs: 2 * imp.agreed, double: true, ...wafelSame(ui.id), nextDate: defaultNext(a, D, imp.k * 2), nextEggs: imp.agreed, nextManual: true });
       break;
     }
-    case 'swsame': { const n = agreedFor(el.dataset.id); closeSwipe(true); if (n) recordFromList(el.dataset.id, { status: 'sold', eggs: n }); break; }
+    case 'swsame': { const n = agreedFor(el.dataset.id); closeSwipe(true); if (n) recordFromList(el.dataset.id, { status: 'sold', eggs: n, ...wafelSame(el.dataset.id) }); break; }
     case 'swnh': closeSwipe(true); recordFromList(el.dataset.id, { status: 'nothome' }); break;
     case 'swnone': closeSwipe(true); recordFromList(el.dataset.id, { status: 'none', eggs: 0 }); break;
     case 'clearvisit': { const a = byId(ui.id), v = curVisit(); if (!v) break; const snap = { ...v }; restoreVisit(a.id, null); render(); toast('Invoer gewist', 'Ongedaan', () => { restoreVisit(a.id, snap); render(); }); break; }
@@ -2340,6 +2518,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'round': db.settings.orderRound = +el.dataset.n; save(); render(); break;
+    case 'stroopLead': db.settings.stroopLead = +el.dataset.n; save(); render(); break;
     case 'theme': setTheme(el.dataset.v); render(); break;
     case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
     case 'editback': ui.draft = null; if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route'); break;
@@ -2594,11 +2773,11 @@ async function exportBackup(){
 }
 async function exportCsv(){
   const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
-  const lines = ['datum;straat;nummer;naam;email;resultaat;eieren;doosjes_6;doosjes_10;volgende_keer;volgende_aantal;opmerking'];
+  const lines = ['datum;straat;nummer;naam;email;resultaat;eieren;doosjes_6;doosjes_10;stroopwafels;stroopwafels_afgesproken;volgende_keer;volgende_aantal;opmerking'];
   const vs = db.visits.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   for (const v of vs) {
     const a = byId(v.addressId) || {};
-    lines.push([v.date, q(a.street), q(a.number), q(a.name), q(a.email), v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen' : 'verkocht', v.eggs || 0, (boxSplit(v.eggs) || { s: '' }).s, (boxSplit(v.eggs) || { t: '' }).t, v.nextDate || '', v.nextEggs ?? '', q(v.note)].join(';'));
+    lines.push([v.date, q(a.street), q(a.number), q(a.name), q(a.email), v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen' : 'verkocht', v.eggs || 0, (boxSplit(v.eggs) || { s: '' }).s, (boxSplit(v.eggs) || { t: '' }).t, v.wafels || 0, v.wafelsNext ?? '', v.nextDate || '', v.nextEggs ?? '', q(v.note)].join(';'));
   }
   await shareOrDownload(`egg-sellent-bezoeken-${todayStr()}.csv`, '﻿' + lines.join('\r\n'), 'text/csv');
 }

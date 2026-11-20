@@ -300,6 +300,15 @@ en installeren daar niet, maar alle schermen wel.
   geteld (in `stock_events`, soorten `boxes`, `boxreturn`, `boxcount`). Retouren worden na de ronde
   in één keer ingevoerd, niet per adres, om aan de deur geen tijd te verliezen. Een telling op de
   eerste dag is de beginstand.
+- **Stroopwafels** (v2.8): niet elke week. De beheerder plant stroopwafelweken (Planning). In de weken
+  ervoor (standaard 2, instelbaar; bij klanten die minder vaak eieren krijgen ook bij hun bezoek
+  daarvoor) staat aan de deur een blok "Vertel het" met de vraag hoeveel pakjes; dat wordt opgeslagen
+  als afspraak (`visits.wafels_next`) en telt niet als bezoek. In de week zelf: afgesproken pakjes,
+  verkocht (`visits.wafels`), "Zoals afgesproken" neemt de pakjes mee. Voorraad pakjes: ontvangen en
+  geteld (`stock_events` soorten `wafelin`, `wafelcount`). Planning toont afgesproken pakjes en hoeveel
+  er nog nodig zijn (met de eiermarge). Geen prijzen.
+- **Synchronisatie na updates**: nieuwe velden tellen pas mee in de vergelijking als ze iets bevatten,
+  zodat een telefoon na een update niet al zijn oude gegevens opnieuw verstuurt.
 
 ### Schaal
 - Eén bezoek is ±200 bytes. 200 adressen × 52 weken ≈ 10.000 bezoeken ≈ **2–5 MB per
