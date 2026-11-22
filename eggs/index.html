@@ -273,7 +273,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.11.1';
+const APP_VERSION = '3.11.2';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -1240,8 +1240,8 @@ function homeRow(x, n, im){
   if (x.a.name) sub.push(esc(x.a.name));
   let tr;
   if (!v) tr = `<span class="stat num" aria-label="${agreed} afgesproken">${ag ? agreed : '–'}</span>`;
-  else if (v.status === 'nothome') tr = `<span class="stat nh">Niet thuis</span>`;
-  else if (v.status === 'none') tr = `<span class="stat zero">Geen</span>`;
+  else if (v.status === 'nothome') tr = `<span class="stat nh" aria-label="niet thuis">NT</span>`;
+  else if (v.status === 'none') tr = `<span class="stat zero num" aria-label="geen eieren">0</span>`;
   else tr = `<span class="stat done num">${I('check', 'sm')} ${v.eggs}</span>`;
   const aria = `${n + 1}, ${label(x.a)}, ${!v ? (ag ? `open, ${agreed} afgesproken` : 'open') : v.status === 'nothome' ? 'niet thuis' : v.status === 'none' ? 'geen eieren' : `${v.eggs} eieren`}${im ? ', vaste dag valt uit' : ''}`;
   const fg = `<button class="cell ind sw-fg ${x.a.id === ui.id ? 'cur' : ''}" data-act="open" data-id="${x.a.id}" aria-label="${esc(aria)}">
