@@ -1390,3 +1390,13 @@ begin
 end $$;
 drop trigger if exists health_member_left on public.team_members;
 create trigger health_member_left after delete on public.team_members for each row execute function public.health_member_left();
+
+-- ---------- Rechten voor de server (service role) ----------
+-- De Edge Functions (push, integrations) werken met de service role. In productie kreeg die rol geen rechten op
+-- tabellen in public (gezien op 22 nov 2026: "permission denied for table push_subscriptions/integrations"). De
+-- service role is de geheime serversleutel en negeert RLS; hier krijgt hij expliciet toegang, ook op nieuwe tabellen.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
+alter default privileges in schema public grant usage, select on sequences to service_role;

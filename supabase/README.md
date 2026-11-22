@@ -323,13 +323,17 @@ schemawijziging); een oude enkele tijd wordt vanzelf de tijd van elke trainingsd
 Controle: `select count(*) from agenda_items where day_times <> '{}';` → 0.
 
 ## Update naar agendalinks (v3.16.0)
-Doe dit **vóór** je v3.16.0 pusht, in deze volgorde:
+Staat in productie (22 nov 2026, samen met 3.15.0 en 3.17.0). Voor een nieuwe omgeving, vóór het pushen, in deze volgorde:
 
 1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit (bevat ook de stap van 3.15.0). Nieuw:
    `platform_integrations`, `integrations`, `integration_secrets` (de links; alleen voor de server),
    `integration_runs`, op `agenda_items` de kolommen `integration_id` en `external_id`, en de functies
    `integration_save`, `integration_delete`, `platform_set_integration`, `platform_integration_stats`.
    Controle: `select count(*) from integrations;` → 0.
+   Het schema geeft nu ook de **service role** (de server) rechten op alle tabellen in `public`. In productie had die
+   rol geen rechten (ontdekt op 22 nov 2026); daardoor faalden ook de meldingen van Egg-sellent. Controle:
+   `select count(*) filter (where has_table_privilege('service_role', c.oid, 'SELECT')) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r';`
+   → gelijk aan het aantal tabellen.
 2. **Functie deployen**:
    ```bash
    npx supabase functions deploy integrations --project-ref istqegonfkfrkyddfajd --no-verify-jwt
