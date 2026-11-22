@@ -172,3 +172,25 @@ export function status(p, total, now = today()) {
   if (trainedToday) return { line: `Vandaag gedaan · les ${les} op ${fmtShort(plan.d)}`, sub };
   return { line: `Les ${les} op ${fmtShort(plan.d)}`, sub, bonus: true };
 }
+
+/* ---------- welk programma openen? ---------- */
+// Eerstvolgende geplande training van een programma (vandaag als die nog moet), of null (geen dagen / programma klaar).
+export function nextPlanned(p, kind, total, now = today()) {
+  if (!hasSchedule(p)) return null;
+  if (kind === 'circuit') return nextCircuitDay(p, now);
+  const s = schedule(p, total, now)[0];
+  return s ? s.d : null;
+}
+// Kies het meest relevante programma bij het openen van Training:
+//   1. een programma met vandaag een training die nog moet,
+//   2. anders het programma met de eerstvolgende training,
+//   3. anders het laatst gebruikte programma (`last`), anders het eerste waar je in meedoet.
+// entries: [{ id, kind, total, data }] = jouw trainingen (alleen programma's waar je aan meedoet).
+// Bij gelijke dag wint het laatst gebruikte programma.
+export function pickProgram(entries, last, now = today()) {
+  const list = (entries || []).filter(Boolean).map(e => ({ ...e, d: nextPlanned(normalize(e.data), e.kind, e.total, now) }));
+  const planned = list.filter(e => e.d).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : (b.id === last) - (a.id === last)));
+  if (planned.length) return planned[0].id;
+  if (last && list.some(e => e.id === last)) return last;
+  return list.length ? list[0].id : null;
+}

@@ -94,3 +94,20 @@ test('resetten komt ook door op een andere telefoon', async () => {
   P.record(b, 1, WO);
   assert.equal(P.merge(a, b).log.length, 1, 'na de reset gedaan blijft staan');
 });
+
+test('Training opent het meest relevante programma', () => {
+  const pil = days => { const p = prog(days); return { id: 'pilates30', kind: 'lessons', total: 30, data: p }; };
+  const bio = days => { const p = prog(days); return { id: 'biocircuit', kind: 'circuit', total: 0, data: p }; };
+  // MA = maandag. Pilates op wo, Bio-circuit op ma → vandaag Bio-circuit.
+  assert.equal(P.pickProgram([pil([3]), bio([1])], 'pilates30', MA), 'biocircuit');
+  // Vandaag al getraind in Bio-circuit → eerstvolgende: Pilates woensdag (Bio-circuit pas volgende maandag).
+  const b = bio([1]); P.record(b.data, 1, MA);
+  assert.equal(P.pickProgram([pil([3]), b], 'biocircuit', MA), 'pilates30');
+  // Zelfde dag → het laatst gebruikte wint.
+  assert.equal(P.pickProgram([pil([3]), bio([3])], 'biocircuit', MA), 'biocircuit');
+  assert.equal(P.pickProgram([pil([3]), bio([3])], 'pilates30', MA), 'pilates30');
+  // Geen trainingsdagen ingesteld → laatst gebruikte, anders de eerste.
+  assert.equal(P.pickProgram([pil([]), bio([])], 'biocircuit', MA), 'biocircuit');
+  assert.equal(P.pickProgram([pil([])], null, MA), 'pilates30');
+  assert.equal(P.pickProgram([], 'pilates30', MA), null);
+});

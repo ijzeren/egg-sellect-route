@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.9.1', date: '2026-11-22', title: 'Training opent het juiste programma',
+    notes: [
+      { app: 'training', text: 'Training opent meteen het programma dat er nu toe doet: waar je vandaag nog moet trainen, anders de eerstvolgende training, anders het programma dat je het laatst gebruikte.', kb: 'trainingsdagen-bonus' },
+    ],
+  },
+  {
     version: '3.9.0', date: '2026-11-22', title: 'Gerechten met fases, temperaturen en tips',
     notes: [
       { app: 'recipes', text: 'Een gerecht toont de bereiding nu in fases, met genummerde stappen, de tijd per stap (ook een bereik, zoals 4–6 uur), de temperatuur en de kerntemperatuur.', kb: 'gerechten' },

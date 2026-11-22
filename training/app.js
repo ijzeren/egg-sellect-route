@@ -474,8 +474,13 @@ function tick() {
 async function lock() { try { if (navigator.wakeLock && S) S.wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
 function unlock() { try { S && S.wl && S.wl.release(); } catch (e) {} }
 // Scherm-wakker-houden vervalt als de app even naar de achtergrond gaat: opnieuw aanvragen.
+let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { if (S) lock(); scheduleSync(300); }
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  if (S) lock();
+  // Na een uur weg (bijv. de volgende dag) opnieuw het meest relevante programma tonen, tenzij je midden in iets zit.
+  if (!S && hiddenAt && Date.now() - hiddenAt > 3600e3 && ['home', 'programs'].includes(view)) { startProgram(); render(); }
+  scheduleSync(300);
 });
 window.addEventListener('online', () => scheduleSync(300));
 function startSession() {
@@ -531,10 +536,14 @@ document.addEventListener('click', ev => {
   else if (a === 'yesreset') { P.reset(prog); save(); confirmBox = ''; render(); }
 });
 
-// Openen: het laatst gebruikte programma (bestaande Pilates-gebruikers komen meteen in Pilates), anders de keuze.
-{
-  const last = storage.get(APP, PKEY) || (activeOf('pilates30') ? 'pilates30' : null);
-  if (last && programById(last) && activeOf(last)) { openProgram(last); view = P.hasSchedule(prog) ? 'home' : 'days'; }
+// Openen: het meest relevante programma (P.pickProgram): vandaag een training die nog moet, anders de eerstvolgende,
+// anders het laatst gebruikte. Doe je nergens aan mee, dan de keuze uit de programma's.
+function startProgram() {
+  const entries = PROGRAMS.map(pg => { const t = activeOf(pg.id); return t && !isEmpty(t) ? { id: pg.id, kind: pg.kind, total: pg.total || 0, data: t.data } : null; });
+  const id = P.pickProgram(entries, storage.get(APP, PKEY));
+  if (id) { openProgram(id); view = P.hasSchedule(prog) ? 'home' : 'days'; }
+  else view = 'programs';
 }
+startProgram();
 render();
 syncNow();

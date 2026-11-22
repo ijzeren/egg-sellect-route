@@ -71,6 +71,9 @@ Andere gezinnen zien nooit je vraag zelf.</p>`,
 <li>Op een andere dag kun je altijd een les doen: dat is een <b>bonustraining</b>. Die telt mee, dus je loopt dan voor op schema.</li>
 <li><b>Op rij</b> telt je trainingsdagen achter elkaar waarop je getraind hebt. Een bonusdag breekt de reeks niet.</li></ul>
 <p>Trainingsdagen wijzigen: Training → Instellingen → Trainingsdagen. De planning past zich meteen aan.</p>
+<p><b>Welk programma opent Training?</b> Doe je mee aan meer programma's (bijv. Pilates 30 en Bio-circuit), dan opent Training het programma waar je
+vandaag nog moet trainen. Is dat er niet, dan het programma met de eerstvolgende training, en anders het programma dat je het laatst gebruikte.
+Via <b>‹ Training</b> linksboven kies je altijd zelf een ander programma.</p>
 <p><b>Veiligheid:</b> stop bij pijn (spierbrand mag) en kies de makkelijkere variant. Bij blessures, rugklachten, zwangerschap of twijfel: overleg eerst met je huisarts of fysiotherapeut.</p>`,
   },
   {
