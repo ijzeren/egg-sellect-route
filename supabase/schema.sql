@@ -742,6 +742,10 @@ alter table public.recipes add column if not exists tools jsonb not null default
 alter table public.recipes add column if not exists tips jsonb not null default '[]'::jsonb;
 alter table public.recipes drop constraint if exists recipes_extra_check;
 alter table public.recipes add constraint recipes_extra_check check (jsonb_typeof(tools) = 'array' and jsonb_typeof(tips) = 'array');
+-- v3.11 Past goed bij: [{ id?, text }] — een ander gerecht van het gezin (id) of een vrije suggestie (text).
+alter table public.recipes add column if not exists pairs jsonb not null default '[]'::jsonb;
+alter table public.recipes drop constraint if exists recipes_pairs_check;
+alter table public.recipes add constraint recipes_pairs_check check (jsonb_typeof(pairs) = 'array');
 alter table public.recipes drop constraint if exists recipes_status_check;
 alter table public.recipes add constraint recipes_status_check check (status in ('import', 'ready'));
 alter table public.recipes drop constraint if exists recipes_source_check;
@@ -790,8 +794,8 @@ create policy recipes_delete on public.recipes for delete
 -- Gezondheidsscore is alleen voor de Assistent: gezinsleden krijgen op die kolommen geen schrijfrecht.
 revoke all on public.recipes from anon, authenticated;
 grant select, delete on public.recipes to authenticated;
-grant insert (id, team_id, user_id, author, title, intro, category, servings, ingredients, steps, tools, tips, status, source, source_name) on public.recipes to authenticated;
-grant update (author, title, intro, category, servings, ingredients, steps, tools, tips, deleted) on public.recipes to authenticated;
+grant insert (id, team_id, user_id, author, title, intro, category, servings, ingredients, steps, tools, tips, pairs, status, source, source_name) on public.recipes to authenticated;
+grant update (author, title, intro, category, servings, ingredients, steps, tools, tips, pairs, deleted) on public.recipes to authenticated;
 
 drop policy if exists ratings_read on public.recipe_ratings;
 create policy ratings_read on public.recipe_ratings for select using (public.has_app(team_id, 'recipes'));

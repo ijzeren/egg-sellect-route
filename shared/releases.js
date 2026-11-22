@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.11.0', date: '2026-11-22', title: 'Sauzen en "Past goed bij"',
+    notes: [
+      { app: 'recipes', text: 'Nieuwe soort: Saus en dip. Filter erop met Filter → Soort.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Elk gerecht heeft nu "Past goed bij": andere gerechten uit jullie verzameling en losse suggesties. Koppel je een saus aan een gerecht, dan zie je hem bij dat gerecht ook.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Receptpagina\'s in de stijl van jullie BBQ-recepten (.html) en Markdown met tabellen kun je nu ook importeren.', kb: 'gerechten-importeren' },
+      { app: 'recipes', text: 'Nieuw in het gezin: pepersaus (steak au poivre), tzatziki en spareribs Memphis style.' },
+    ],
+  },
+  {
     version: '3.10.1', date: '2026-11-22', title: 'Startscherm: groet bovenaan',
     notes: [
       { app: 'hub', text: 'De groet staat weer bovenaan het startscherm. Je gezin, leden, apps en account vind je onder de tegels.' },

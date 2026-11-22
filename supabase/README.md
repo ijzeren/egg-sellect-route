@@ -294,3 +294,8 @@ Doe dit **vóór** je v3.9.0 pusht (staat al in productie sinds 22 nov 2026):
    verwijderd, zodat er maar één is. Controle: `select count(*) from pg_proc where proname = 'runner_enrich_recipe';` → 1.
 2. Let op: tot de push ziet de oude app (3.8) de nieuwe velden niet; wie in de oude app een gerecht wijzigt, verliest
    titels, fases, temperaturen, benodigdheden en tips van dat gerecht. Push dus snel na stap 1.
+
+## Update naar sauzen en "Past goed bij" (v3.11.0)
+Staat al in productie (22 nov 2026). Voor een nieuwe omgeving: voer [`schema.sql`](schema.sql) opnieuw uit.
+Nieuw op `recipes`: `pairs` (lijst van `{ id?, text }`: een ander gerecht van het gezin of een vrije suggestie), plus de
+rechten om die kolom te vullen. De soort `sauce` (Saus en dip) past binnen de bestaande controle op `category`.

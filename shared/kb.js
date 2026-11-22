@@ -100,7 +100,7 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 <p><b>Veiligheid:</b> laat de toestellen de eerste keer instellen door een trainer. Stop bij pijn. Bij blessures, hartklachten of twijfel: overleg eerst met je huisarts.</p>`,
   },
   {
-    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.10.0',
+    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.11.0',
     body: `<p>In <b>Gerechten</b> verzamelt het gezin zijn favoriete recepten. Iedereen die de app mag gebruiken, kan gerechten toevoegen en sterren geven.</p>
 <ol><li>Tik rechtsboven op <b>+</b>. Vul de naam, de soort en voor hoeveel personen in.</li>
 <li>Zet de <b>ingrediënten</b> erin, één per regel, met de hoeveelheid vooraan (bijv. <i>500 g gehakt</i>). Dan kan de app omrekenen naar meer of minder personen.</li>
@@ -108,10 +108,14 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink <b>tegelijk</b> aan. Optioneel per stap: een korte titel, een fase
 (bijv. Voorbereiding, Roken), de temperatuur van oven of smoker en de kerntemperatuur.</li>
 <li>Zet eventueel <b>benodigdheden</b> (smoker, kernthermometer) en <b>tips</b> erbij. Een tip met "Label: tekst" krijgt een kopje.</li>
+<li>Bij <b>Past goed bij</b> tik je gerechten uit jullie verzameling aan die er goed bij passen, en typ je andere suggesties (bijv. Friet).</li>
 <li>Tik op <b>Bewaar</b>.</li></ol>
 <p>Bij een gerecht kies je <b>Aan tafel om</b>, bijvoorbeeld 18:00. De app zet dan bij elke stap hoe laat je moet beginnen, ook als dat een of meer
 dagen van tevoren is (bijv. pekelen of sous vide). Bij een bereik plant de app met de kortste tijd; houd zelf wat ruimte aan.</p>
 <p><b>Sterren:</b> geef 1 tot 5 sterren. Tik nog een keer op dezelfde ster om ze weg te halen. In de lijst zie je het gemiddelde van het gezin; sorteer op <b>Lekkerst</b> of <b>Gezondst</b> om te kiezen wat je gaat eten.</p>
+<p><b>Past goed bij:</b> bij elk gerecht staan de gerechten en suggesties die erbij passen. Tik op een gerecht om het te openen.
+Koppelen werkt twee kanten op: zet je bij de tzatziki de brisket, dan staat de tzatziki ook bij de brisket. Handig voor sauzen, dips en bijgerechten:
+kies de soort <b>Saus en dip</b> of <b>Bijgerecht</b> en koppel ze aan de gerechten waar ze bij horen.</p>
 <p><b>Filteren:</b> tik naast het zoekveld op <b>Filter</b>. Kies soort, bereiding (smoker, BBQ, oven, airfryer, sous vide, pan, frituur, koken
 of zonder koken), bereidingstijd, aantal personen, gezondheidsscore of sterren, en ingrediënten die er wel of juist niet in moeten
 (meerdere met een komma). Onder de knop staat hoeveel gerechten er overblijven. Actieve filters staan bovenaan de lijst; tik op ✕ om er één weg te halen.
@@ -124,7 +128,8 @@ Je filters blijven bewaard tot je ze wist.</p>
     body: `<p>Heb je recepten al ergens staan, bijvoorbeeld door Claude geschreven? Dan hoef je ze niet over te typen.</p>
 <ol><li>Ga naar <b>Gerechten</b> en tik onderaan op <b>Gerechten importeren</b>.</li>
 <li>Tik op <b>Kies bestanden</b> en kies een of meer bestanden: een receptbestand (<i>.json</i>, schema.org), Markdown (<i>.md</i>), tekst (<i>.txt</i>) of een opgeslagen pagina (<i>.html</i>, bijvoorbeeld een artifact).
-Heb je van een recept zowel een .json als een .md, kies dan de .json: die is het nauwkeurigst.
+Heb je van een recept zowel een .json als een .md, kies dan de .json: die is het nauwkeurigst. Receptpagina's in de opmaak van jullie
+receptstijlgids (.html) worden ook herkend, met fases, tijden, temperaturen en tips.
 Of plak de tekst en tik op <b>Lees in</b>.</li>
 <li>Controleer de lijst. Per gerecht zie je hoeveel personen, ingrediënten en stappen er zijn gevonden. Wat ontbreekt, staat in het oranje.
 Zet uit wat je niet wilt importeren; gerechten die al bestaan staan standaard uit.</li>

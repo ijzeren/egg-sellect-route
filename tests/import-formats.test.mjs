@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRecipes, durationIn } from '../recipes/import.js';
-import { scaleLine, plan, fmtRange, sections, clean } from '../recipes/recipe.js';
+import { scaleLine, plan, fmtRange, sections, clean, pairsFor } from '../recipes/recipe.js';
 
 const MD = `# Gerookte kip
 
@@ -130,4 +130,39 @@ test('bereik omrekenen, plannen over dagen, fases', () => {
   assert.deepEqual(c.steps[0], { text: 'a', min: 4320, par: false, temp: '120 °C' });
   assert.deepEqual(c.tools, ['Smoker', 'Mes']);
   assert.deepEqual(c.tips, [{ label: 'Hout', text: 'Appel' }, { label: '', text: 'Gewoon een tip' }]);
+});
+
+test('saus of dip herkennen, maar niet "pasta met tomatensaus"', async () => {
+  const { categoryIn } = await import('../recipes/import.js');
+  assert.equal(categoryIn('Categorie: Bijgerecht · Dipsaus', 'Tzatziki'), 'sauce');
+  assert.equal(categoryIn('Categorie: Pan · Klassieke Franse Saus', 'Pepersaus — Steak au Poivre'), 'sauce');
+  assert.equal(categoryIn('', 'Pepersaus — Steak au Poivre'), 'sauce');
+  assert.equal(categoryIn('', 'Pasta met tomatensaus'), 'main');
+  assert.equal(categoryIn('Categorie: Smoker, indirecte hitte', 'Brisket met marinade'), 'main');
+});
+
+test('ingrediënten in een Markdown-tabel', () => {
+  const md = '# Rub\n\n## Ingrediënten\n\n| Ingredient | Hoeveelheid |\n|---|---|\n| Paprikapoeder | 1 el |\n| Komijnzaad | ½ el |\n\n## Bereiding\n\n1. Meng alles.\n';
+  assert.deepEqual(parseRecipes(md)[0].recipe.ingredients, ['1 el Paprikapoeder', '½ el Komijnzaad']);
+});
+
+test('past goed bij: eigen koppelingen, terugverwijzingen en vrije suggesties', () => {
+  const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222', C = '33333333-3333-4333-8333-333333333333';
+  const recipes = [
+    { id: A, title: 'Brisket', pairs: [{ text: 'Coleslaw' }] },
+    { id: B, title: 'Tzatziki', pairs: [{ id: A, text: 'Brisket' }, { id: C, text: 'Wrap' }, { text: 'Pita' }, { id: '44444444-4444-4444-8444-444444444444', text: 'Weg' }] },
+    { id: C, title: 'Wrap', pairs: [] },
+  ];
+  assert.deepEqual(pairsFor(recipes[0], recipes), [{ id: B, text: 'Tzatziki' }, { text: 'Coleslaw' }]);
+  assert.deepEqual(pairsFor(recipes[1], recipes), [{ id: A, text: 'Brisket' }, { id: C, text: 'Wrap' }, { text: 'Pita' }]);
+  assert.deepEqual(pairsFor(recipes[2], recipes), [{ id: B, text: 'Tzatziki' }]);
+  assert.deepEqual(clean({ title: 'x', pairs: [{ id: A, text: 'Brisket' }, { id: A }, { text: ' Friet ' }, { text: 'friet' }, { id: 'geen-uuid', text: '' }] }).pairs,
+    [{ id: A, text: 'Brisket' }, { text: 'Friet' }]);
+});
+
+test('koppen met "Bereiding" erin, scheidingslijnen en citaten', () => {
+  const md = '# Ribs\n\n## Ingrediënten\n- 1 kg ribs\n\n---\n\n## Rub — Bereiding\n1. Meng de rub.\n\n---\n\n## Bereidingswijze — Oven\n> Dit is de makkelijke manier.\n\n1. Bak 2 uur.\n';
+  const r = parseRecipes(md)[0].recipe;
+  assert.deepEqual(r.ingredients, ['1 kg ribs']);
+  assert.deepEqual(r.steps.map(s => [s.section || '', s.text]), [['Rub', 'Meng de rub.'], ['Oven', 'Dit is de makkelijke manier.'], ['', 'Bak 2 uur.']]);
 });

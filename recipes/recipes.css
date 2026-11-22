@@ -74,3 +74,8 @@ select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:
 .chips2 button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
 .chips2.small{margin-top:10px}
 .chips2.small button{min-height:32px;padding:0 10px;font-size:.85rem}
+/* past goed bij */
+.pairs{display:flex;flex-wrap:wrap;gap:8px}
+.pair{display:inline-flex;align-items:center;gap:4px;min-height:36px;padding:0 12px;border-radius:99px;background:var(--cell);font-weight:500;color:var(--label);max-width:100%}
+.pair.link{color:var(--tint)}
+.pair .chev{width:.8rem;height:.8rem;color:var(--tint)}

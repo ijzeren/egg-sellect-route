@@ -27,7 +27,14 @@ const SECTION = [
 ];
 const plain = s => String(s || '').replace(/\*\*|__|`/g, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/[:：]\s*$/, '').trim();
 const unmark = s => String(s || '').replace(/\*\*|__/g, '').replace(/(^|\s)[*_]\(([^)]*)\)[*_]/g, '$1($2)').replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, '$1$2').trim();
-const sectionOf = text => { const t = plain(text); for (const [k, re] of SECTION) if (re.test(t)) return k; return null; };
+const sectionOf = text => {
+  const t = plain(text);
+  for (const [k, re] of SECTION) if (re.test(t)) return k;
+  if (/\bbereiding(swijze)?\b|\bwerkwijze\b/i.test(t)) return 'steps';   // "Dry Rub — Bereiding", "Bereidingswijze — Oven"
+  return null;
+};
+// Fase uit een kop als "Dry Rub — Bereiding" of "Bereidingswijze — Oven" → "Dry Rub" / "Oven"; "Bereiding" zelf → ''.
+const phaseOf = text => plain(text).replace(/\s*[—–-]?\s*\b(bereiding(swijze)?|werkwijze)\b\s*[—–-]?\s*/i, ' ').trim();
 const LIST = /^\s*(?:[-*+•–]|\d+[.)]|\[[ xX]\])\s+/;
 const stripList = s => s.replace(LIST, '').replace(/^\[[ xX]\]\s*/, '').trim();
 const META_LINE = /^(⏱|🌡|🔥|kern|tijd\s*:|temperatuur\s*:)/i;
@@ -38,6 +45,8 @@ function tokens(md) {
   for (const raw of String(md || '').replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.trimEnd();
     if (!line.trim()) { out.push({ blank: true }); continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push({ blank: true }); continue; }       // --- scheidingslijn
+    if (/^\s*>/.test(line)) { out.push({ p: line.replace(/^\s*>\s?/, '').trim(), quote: true }); continue; } // citaat = gewone tekst
     const h = line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
     if (h) { out.push({ h: h[1].length, text: h[2].trim() }); continue; }
     // Tabelregel "| Porties | 4 personen |" → "Porties: 4 personen"; scheidingsregels weg.
@@ -110,8 +119,14 @@ const CAT_WORDS = [
   ['breakfast', /ontbijt|lunch|pannenkoek|poffertje|wentelteef|granola|smoothie|tosti/i], ['baking', /taart|cake|koek|brood|muffin|brownie|bakken/i],
   ['snack', /snack|borrel|dip\b|hapje/i], ['starter', /voorgerecht/i], ['side', /bijgerecht/i], ['main', /hoofdgerecht/i],
 ];
+// Saus of dip: in de categorie overal ("Bijgerecht · Dipsaus"), in de titel alleen vooraan ("Pepersaus — Steak au Poivre",
+// niet "Pasta met tomatensaus").
+const SAUCE = /saus|\bdip\b|dipsaus|tzatziki|aioli|mayonaise|salsa|pesto|chutney|dressing|\bjus\b/i;
+const SAUCE_TITLE = /^(\S*saus|saus|dip|tzatziki|aioli|mayonaise|salsa|pesto|chutney|dressing|jus)\b/i;
 export function categoryIn(text, title) {
   const m = String(text || '').replace(/\*\*|__/g, '').match(/(?:soort|categorie|gang|type)\s*[:：]\s*([^\n]+)/i);
+  if (m && SAUCE.test(m[1])) return 'sauce';
+  if (SAUCE_TITLE.test(String(title || '').trim())) return 'sauce';
   if (m) {
     const v = m[1].trim().toLowerCase();
     const c = CATEGORIES.find(([, name]) => name.toLowerCase() === v || v.startsWith(name.toLowerCase().split(' ')[0]));
@@ -125,7 +140,6 @@ export function categoryIn(text, title) {
 /* ---------- ingrediënt- en tipregels ---------- */
 // "**Zout** — ½ tl *(optioneel)* _(om in te smeren)_" → "½ tl Zout (optioneel, om in te smeren)".
 // Meta-opmerkingen over de bron ("eenheid afgeleid") vallen weg.
-const AMOUNT_WORDS = /^(naar smaak|naar behoefte|voldoende|een beetje|snufje|een snuf|hoeveelheid niet vermeld|dun laagje)$/i;
 function ingredientLine(text) {
   const t = String(text || '').trim();
   const m = t.match(/^\*\*(.+?)\*\*\s*[—–:-]+\s*(.+)$/);
@@ -136,8 +150,8 @@ function ingredientLine(text) {
 }
 function joinIngredient(name, amount, notes = []) {
   const keep = notes.map(n => n.trim()).filter(n => n && !/afgeleid|bron|niet vermeld/i.test(n));
-  amount = String(amount || '').trim();
-  const head = /^\d|^[½¼¾⅓⅔]/.test(amount) ? `${amount} ${name}` : AMOUNT_WORDS.test(amount) && !/niet vermeld/i.test(amount) ? `${name}, ${amount}` : name;
+  amount = String(amount || '').trim().replace(/^(±|~|ca\.?|circa|ongeveer)\s*/i, '');   // "± 80 g" → "80 g"
+  const head = /^\d|^[½¼¾⅓⅔]/.test(amount) ? `${amount} ${name}` : amount && !/niet vermeld/i.test(amount) ? `${name}, ${amount}` : name;
   return unmark(head) + (keep.length ? ` (${keep.join(', ')})` : '');
 }
 function tipOf(text) {
@@ -154,13 +168,19 @@ function toRecipe(title, toks) {
   for (const t of toks) {
     if (t.h) {
       const k = sectionOf(t.text);
-      if (k) { sec = k; phase = ''; }
+      if (k) { sec = k; phase = k === 'steps' ? phaseOf(t.text) : ''; }
       else if (sec === 'ingredients') ing.push(plain(t.text) + ':');          // tussenkop, bijv. "Rub" of "Voor de saus"
       else if (sec === 'steps') phase = plain(t.text);                       // fase, bijv. "Garen op de smoker"
       para = null; continue;
     }
     if (t.blank) { para = null; continue; }
     const text = t.text || t.p || '';
+    // Tabel in de ingrediënten ("| Paprikapoeder | 1 el |") → "1 el Paprikapoeder"; kopregel overslaan.
+    if (t.table && sec === 'ingredients') {
+      const [name, ...amt] = text.split(/:\s+/);
+      if (!/^(ingredi[eë]nt|naam|product)/i.test(name)) ing.push(joinIngredient(unmark(name), unmark(amt.join(': '))));
+      continue;
+    }
     if (sec === 'meta' || t.table) { meta.push(unmark(text)); continue; }
     if (sec === 'ingredients') { if (t.li || t.p) ing.push(ingredientLine(text)); }
     else if (sec === 'equipment') { if (t.li || t.p) equip.push(unmark(text)); }
@@ -306,12 +326,64 @@ function done(raw) {
   return { recipe, warnings: w };
 }
 
+// Receptpagina in de opbouw van de receptstijlgids (kop met .tag/.subtitle/.meta-item, .ingredients-grid met .ing-group,
+// .section-title + .steps met .step-content (h4, p, .time-badge, .temp), .tips-block met .note-item) → Markdown.
+function styledToMarkdown(doc) {
+  const T = n => (n ? n.textContent : '').replace(/\s+/g, ' ').trim();
+  const h1 = doc.querySelector('h1');
+  if (h1) h1.querySelectorAll('br').forEach(br => br.replaceWith(' — '));
+  const out = [`# ${T(h1) || T(doc.querySelector('title'))}`, ''];
+  if (doc.querySelector('.subtitle')) out.push(T(doc.querySelector('.subtitle')), '');
+  out.push('## Overzicht', '');
+  if (doc.querySelector('.tag')) out.push(`Categorie: ${T(doc.querySelector('.tag'))}`);
+  doc.querySelectorAll('.meta-item').forEach(m => out.push(`${T(m.querySelector('.meta-label'))}: ${T(m.querySelector('.meta-value'))}`));
+  out.push('');
+  const main = doc.querySelector('main') || doc.body;
+  let section = '', inSteps = false;
+  for (const n of main.querySelectorAll('.section-title, .ingredients-grid, .steps, .tips-block')) {
+    if (n.classList.contains('section-title')) { if (!n.closest('.tips-block')) section = T(n); continue; }
+    if (n.classList.contains('ingredients-grid')) {
+      out.push('## Ingrediënten', '');
+      n.querySelectorAll('.ing-group').forEach(g => {
+        if (g.querySelector('h3')) out.push(`### ${T(g.querySelector('h3'))}`, '');
+        g.querySelectorAll('li').forEach(li => {
+          const nameEl = li.querySelector('.ing-name'), opt = li.querySelector('.ing-opt');
+          const name = nameEl ? T(nameEl).replace(opt ? T(opt) : '\u0000', '').trim() : T(li);
+          const amount = T(li.querySelector('.ing-amount'));
+          out.push(`- **${name}**${amount ? ` — ${amount}` : ''}${opt ? ` _(${T(opt)})_` : ''}`);
+        });
+        out.push('');
+      });
+    } else if (n.classList.contains('steps')) {
+      if (!inSteps) { out.push('## Bereiding', ''); inSteps = true; }
+      if (section && !/^(bereiding|ingredi)/i.test(section)) out.push(`### ${section}`, '');
+      n.querySelectorAll('.step').forEach((st, i) => {
+        const c = st.querySelector('.step-content') || st, h4 = c.querySelector('h4');
+        const text = [...c.querySelectorAll('p')].map(T).join(' ');
+        out.push(`${i + 1}. ${h4 ? `**${T(h4)}** — ` : ''}${text}`);
+        const meta = [...c.querySelectorAll('.time-badge, .temp')].map(b => {
+          const t = T(b).replace(/^⏱\s*/, '');
+          return b.classList.contains('temp') ? `🌡 Temperatuur: ${t}` : /^kern/i.test(t) ? `Kerntemperatuur: ${t.replace(/^kern\w*\s*/i, '')}` : `⏱ Tijd: ${t}`;
+        });
+        if (meta.length) out.push(`   - ${meta.join(' · ')}`);
+      });
+      out.push('');
+    } else if (n.classList.contains('tips-block')) {
+      out.push('## Tips', '');
+      n.querySelectorAll('.note-item').forEach(t => out.push(`- **${T(t.querySelector('strong'))}:** ${T(t.querySelector('span'))}`));
+      out.push('');
+    }
+  }
+  return out.join('\n');
+}
+
 // HTML (bijv. een artifact) → Markdown, zodat parseRecipes het kan lezen. `doc` = een DOM-document (DOMParser).
 export function htmlToMarkdown(doc) {
-  doc.querySelectorAll('script,style,noscript,svg,button,nav,footer').forEach(n => n.remove());
   // JSON-LD in de pagina? Dat is het betrouwbaarst.
   const ld = [...doc.querySelectorAll('script[type="application/ld+json"]')].map(n => n.textContent);
   if (ld.length) return ld[0];
+  doc.querySelectorAll('script,style,noscript,svg,button,nav,footer').forEach(n => n.remove());
+  if (doc.querySelector('.step-content, .ing-group')) return styledToMarkdown(doc);
   const out = [];
   const text = n => (n.textContent || '').replace(/\s+/g, ' ').trim();
   const walk = node => {

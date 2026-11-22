@@ -28,7 +28,8 @@ Pas dan bepaalt de routine "Gezondheidsscore gerechten" de score.
    Optioneel per stap: `section` (fase, alleen bij de eerste stap van een nieuwe fase), `title` (korte kop), `max`
    (bovengrens van een bereik in minuten; `min` is de tijd waarmee de app plant), `temp` (oven/smoker), `core`
    (kerntemperatuur). Stappen tot 3 dagen (4320 min).
-   `category` is een van: main, soup, salad, side, starter, dessert, breakfast, baking, snack.
+   `category` is een van: main, soup, salad, side, sauce (saus en dip), starter, dessert, breakfast, baking, snack.
+   `pairs` (past goed bij) laat je zoals het is; dat regelen gezinsleden zelf.
 4. Sla op: `node scripts/recipe-enrich.mjs save <id> <updated_at> -` met de JSON via stdin (heredoc).
    Neem `id` en `updated_at` precies over uit de lijst. "Niet opgeslagen" = net gewijzigd of al klaar: overslaan.
 

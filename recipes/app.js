@@ -38,7 +38,7 @@ async function fetchAll(path) {
 const isAdmin = () => !!(me && me.apps && me.apps.recipes && me.apps.recipes.role === 'admin');
 const canEdit = r => r && me && (r.user_id === me.userId || isAdmin());
 // Alle kolommen behalve de originele upload (source): die is alleen voor de Assistent en kan groot zijn.
-const COLS = 'id,team_id,user_id,author,title,intro,category,servings,ingredients,steps,tools,tips,health_score,health_notes,health_scored_at,status,source_name,deleted,created_at,updated_at';
+const COLS = 'id,team_id,user_id,author,title,intro,category,servings,ingredients,steps,tools,tips,pairs,health_score,health_notes,health_scored_at,status,source_name,deleted,created_at,updated_at';
 const byId = id => data.recipes.find(r => r.id === id);
 const memberName = id => (id === (me && me.userId) ? me.memberName : (data.members.find(m => m.user_id === id) || {}).name) || 'Gezinslid';
 const myStars = id => (data.ratings.find(r => r.recipe_id === id && r.user_id === (me && me.userId)) || {}).stars || 0;
@@ -202,6 +202,10 @@ function vDetail() {
     <p>${x.health_score == null ? 'De Assistent beoordeelt nieuwe en gewijzigde gerechten automatisch, meestal binnen een dag.' : esc(x.health_notes || '')}</p></div></div>`;
   h += `<div class="card"><h2>Jouw sterren</h2><div class="stars" role="group" aria-label="Geef sterren">${[1, 2, 3, 4, 5].map(n => `<button data-a="rate" data-n="${n}" class="${n <= mine ? 'on' : ''}" aria-label="${n} ${n === 1 ? 'ster' : 'sterren'}" aria-pressed="${n === mine}">★</button>`).join('')}</div>
     <p class="muted small" style="margin-top:6px">${r.count ? `Gezin: <span class="star">★</span> ${R.fmtStars(r.avg)} · ${r.list.map(v => `${esc(memberName(v.user_id))} ${v.stars}`).join(', ')}` : 'Nog niemand heeft sterren gegeven.'}</p></div>`;
+  const pairs = R.pairsFor(x, data.recipes);
+  if (pairs.length) h += sec('Past goed bij', `<div class="pairs">${pairs.map(p => p.id
+    ? `<button class="pair link" data-a="open" data-id="${esc(p.id)}">${esc(p.text)}${ICON_CHEV}</button>`
+    : `<span class="pair">${esc(p.text)}</span>`).join('')}</div>`);
   h += sec('Ingrediënten', `<div class="card" style="margin-top:0"><div class="stepper" style="margin-bottom:8px"><button data-a="srv" data-d="-1" aria-label="Minder personen">−</button><b>${servings} ${servings === 1 ? 'persoon' : 'personen'}</b><button data-a="srv" data-d="1" aria-label="Meer personen">+</button></div>
     <ul class="ing">${x.ingredients.map(i => /:$/.test(i) ? `<li class="gh">${esc(i.slice(0, -1))}</li>` : `<li>${esc(R.scaleLine(i, f))}</li>`).join('')}</ul></div>`, f !== 1 ? `Omgerekend van ${x.servings} naar ${servings} personen.` : '');
   if ((x.tools || []).length) h += sec('Benodigdheden', `<div class="card" style="margin-top:0"><ul class="ing tools">${x.tools.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`);
@@ -241,6 +245,10 @@ function vEdit() {
     <button class="cell tint" data-a="addstep"><span class="tx"><span class="tt">Stap toevoegen</span></span></button></div>`,
     'Per stap: minuten (met "tot" voor een bereik, bijv. 240 tot 360), en eventueel een titel, fase, temperatuur en kerntemperatuur. Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink "tegelijk" aan. Dan rekent de app uit hoe laat je moet beginnen.');
   h += sec('Benodigdheden', `<div class="grp"><div class="cell"><textarea class="ta" id="f-tools" placeholder="Eén per regel, bijv.&#10;Smoker&#10;Kernthermometer" style="min-height:4rem">${esc(d.tools || '')}</textarea></div></div>`);
+  const others = R.sortRecipes(data.recipes.filter(r => r.id !== ui.id), data.ratings, 'az');
+  h += sec('Past goed bij', (others.length ? `<div class="chips2 small">${others.map(r => `<button data-a="pairtoggle" data-id="${esc(r.id)}" aria-pressed="${d.pairIds.includes(r.id)}">${esc(r.title)}</button>`).join('')}</div><div style="height:10px"></div>` : '')
+    + `<div class="grp"><div class="cell"><textarea class="ta" id="f-pairs" placeholder="Andere suggesties, één per regel, bijv.&#10;Friet&#10;Stokbrood" style="min-height:3.5rem">${esc(d.pairText || '')}</textarea></div></div>`,
+    'Tik op gerechten uit jullie verzameling die hier goed bij passen (bijv. een saus bij een stuk vlees). Het andere gerecht laat deze koppeling dan ook zien.');
   h += sec('Tips', `<div class="grp"><div class="cell"><textarea class="ta" id="f-tips" placeholder="Eén per regel, bijv.&#10;Rookhout: appel of kers past goed" style="min-height:4rem">${esc(d.tips || '')}</textarea></div></div>`, 'Eén tip per regel; met "Label: tekst" krijgt de tip een kopje.');
   if (ui.id) h += `<p class="sec-f">Wijzig je naam, personen, ingrediënten of stappen, dan bepaalt de Assistent de gezondheidsscore opnieuw.</p>`;
   return h + '</main>';
@@ -249,7 +257,8 @@ function vEdit() {
 function readDraft() {
   const v = id => (document.getElementById(id) || {}).value ?? '';
   const d = ui.draft;
-  Object.assign(d, { title: v('f-title'), category: v('f-category'), servings: v('f-servings'), intro: v('f-intro'), ingredients: v('f-ingredients'), tools: v('f-tools'), tips: v('f-tips') });
+  Object.assign(d, { title: v('f-title'), category: v('f-category'), servings: v('f-servings'), intro: v('f-intro'), ingredients: v('f-ingredients'), tools: v('f-tools'), tips: v('f-tips'), pairText: v('f-pairs') });
+  d.pairs = [...d.pairIds.map(id => ({ id, text: (byId(id) || {}).title || '' })), ...String(d.pairText || '').split('\n').map(t => ({ text: t.trim() })).filter(p => p.text)];
   const q = (attr, i, fb) => (document.querySelector(`[${attr}="${i}"]`) || {}).value ?? fb;
   d.steps = d.steps.map((s, i) => ({
     text: q('data-step', i, s.text), min: q('data-min', i, s.min), max: q('data-max', i, s.max),
@@ -364,14 +373,16 @@ document.addEventListener('click', ev => {
     const list = f[k].split(',').map(w => w.trim()).filter(Boolean);
     f[k] = (list.includes(v) ? list.filter(w => w !== v) : [...list, v]).join(', ');
   }); render(); }
-  else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', tools: '', tips: '', steps: [{ text: '', min: '', par: false }] } });
-  else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), tools: (x.tools || []).join('\n'), tips: (x.tips || []).map(t => t.label ? `${t.label}: ${t.text}` : t.text).join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
+  else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', tools: '', tips: '', pairIds: [], pairText: '', steps: [{ text: '', min: '', par: false }] } });
+  else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), tools: (x.tools || []).join('\n'), tips: (x.tips || []).map(t => t.label ? `${t.label}: ${t.text}` : t.text).join('\n'),
+    pairIds: (x.pairs || []).filter(p => p.id).map(p => p.id), pairText: (x.pairs || []).filter(p => !p.id).map(p => p.text).join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
   else if (a === 'cancel') go(ui.view === 'import' ? 'list' : ui.id ? 'detail' : 'list');
   else if (a === 'import') go('import', { imp: { text: '', items: null } });
   else if (a === 'impread') { const t = ($('#impText') || {}).value || ''; ui.imp.text = t; if (!t.trim()) { toast('Kies bestanden of plak een recept.', 'err'); return; } ui.imp.items = markItems(readText(t)); render(); window.scrollTo(0, 0); }
   else if (a === 'impagain') { ui.imp.items = null; render(); }
   else if (a === 'imptoggle') { const x = ui.imp.items[+el.dataset.i]; x.on = !x.on; render(); }
   else if (a === 'impsave') run(el, async () => { const n = await saveImport(); go('list', { imp: null }); toast(`${n} ${n === 1 ? 'gerecht' : 'gerechten'} geïmporteerd.`); });
+  else if (a === 'pairtoggle') { readDraft(); const id = el.dataset.id; ui.draft.pairIds = ui.draft.pairIds.includes(id) ? ui.draft.pairIds.filter(x => x !== id) : [...ui.draft.pairIds, id]; render(); }
   else if (a === 'addstep') { readDraft(); ui.draft.steps.push({ text: '', min: '', par: false }); render(); const t = document.querySelector(`[data-step="${ui.draft.steps.length - 1}"]`); if (t) t.focus(); }
   else if (a === 'delstep') { readDraft(); ui.draft.steps.splice(+el.dataset.i, 1); if (!ui.draft.steps.length) ui.draft.steps.push({ text: '', min: '', par: false }); render(); }
   else if (a === 'save') run(el, async () => { readDraft(); await saveRecipe(ui.draft); go('detail', { servings: null }); toast('Bewaard.'); });

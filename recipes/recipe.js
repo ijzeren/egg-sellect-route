@@ -9,12 +9,14 @@
 //                                      section = fase (Voorbereiding, Roken …), temp = oven/smoker, core = kerntemperatuur
 //     tools: ['Smoker', 'Kernthermometer'],                            benodigdheden
 //     tips: [{ label, text }],                                          tips en opmerkingen
+//     pairs: [{ id?, text }],                                           past goed bij: een ander gerecht (id) of een
+//                                                                       vrije suggestie (alleen text, bijv. 'Friet')
 //     health_score: 1-10 | null, health_notes, health_scored_at,       ingevuld door de Assistent (zie docs/recipe-scores.md)
 //     deleted, created_at, updated_at }
 // Sterren (tabel recipe_ratings): { recipe_id, user_id, stars 1-5 } — ieder gezinslid één keer per gerecht.
 
 export const CATEGORIES = [
-  ['main', 'Hoofdgerecht'], ['soup', 'Soep'], ['salad', 'Salade'], ['side', 'Bijgerecht'], ['starter', 'Voorgerecht'],
+  ['main', 'Hoofdgerecht'], ['soup', 'Soep'], ['salad', 'Salade'], ['side', 'Bijgerecht'], ['sauce', 'Saus en dip'], ['starter', 'Voorgerecht'],
   ['dessert', 'Nagerecht'], ['breakfast', 'Ontbijt en lunch'], ['baking', 'Bakken'], ['snack', 'Snack'],
 ];
 export const categoryName = id => (CATEGORIES.find(c => c[0] === id) || CATEGORIES[0])[1];
@@ -159,7 +161,32 @@ export function clean(input) {
     steps: (input.steps || []).map(cleanStep).filter(s => s.text).slice(0, 40).map((s, i) => (i ? s : { ...s, par: false })),
     tools: lines(input.tools, 30).map(t => t.slice(0, 120)),
     tips,
+    pairs: cleanPairs(input.pairs),
   };
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function cleanPairs(v) {
+  const out = [], seen = new Set();
+  for (const p of Array.isArray(v) ? v : []) {
+    const id = p && UUID.test(String(p.id || '')) ? String(p.id) : '', text = str(p && p.text, 60);
+    const key = id || text.toLowerCase();
+    if ((id || text) && !seen.has(key)) { seen.add(key); out.push(id ? { id, text } : { text }); }
+  }
+  return out.slice(0, 20);
+}
+// "Past goed bij" voor een gerecht: zijn eigen koppelingen én gerechten die naar dit gerecht verwijzen
+// (bijv. de tzatziki zegt dat hij bij de brisket past → de brisket toont de tzatziki).
+// → [{ id?, text }], gekoppelde gerechten eerst; verwijzingen naar verwijderde gerechten vallen weg.
+export function pairsFor(x, recipes) {
+  const byId = new Map((recipes || []).map(r => [r.id, r]));
+  const out = [], seen = new Set();
+  const add = p => { const key = p.id || p.text.toLowerCase(); if (!seen.has(key) && p.id !== x.id) { seen.add(key); out.push(p); } };
+  for (const p of x.pairs || []) {
+    if (p.id) { const r = byId.get(p.id); if (r) add({ id: r.id, text: r.title }); }
+    else if (p.text) add({ text: p.text });
+  }
+  for (const r of recipes || []) if (r.id !== x.id && (r.pairs || []).some(p => p.id === x.id)) add({ id: r.id, text: r.title });
+  return out.sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1));
 }
 
 /* ---------- filters ---------- */
