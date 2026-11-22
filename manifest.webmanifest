@@ -1,8 +1,9 @@
 {
-  "name": "Egg-sellent",
-  "short_name": "Egg-sellent",
+  "name": "Familie",
+  "short_name": "Familie",
   "lang": "nl",
-  "description": "Vers aan de deur, slim gepland. Eierronde, afspraken en besteladvies.",
+  "description": "De apps van het gezin: Egg-sellent (eierronde) en Training (Pilates).",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -13,5 +14,9 @@
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "shortcuts": [
+    { "name": "Egg-sellent", "short_name": "Eieren", "url": "./eggs/", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Training", "short_name": "Training", "url": "./training/" }
   ]
 }

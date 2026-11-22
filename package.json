@@ -1,0 +1,9 @@
+{
+  "name": "familie-app",
+  "private": true,
+  "type": "module",
+  "description": "Familie-app: hub met Egg-sellent en Training. Geen build: GitHub Pages publiceert de bestanden zoals ze zijn.",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

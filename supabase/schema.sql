@@ -359,3 +359,28 @@ create table if not exists public.push_log (
 alter table public.push_log enable row level security;
 revoke all on public.push_subscriptions, public.team_digest, public.push_log from anon;
 revoke all on public.push_log from authenticated;
+
+-- ---------- Training (familie-app) ----------
+-- Een gezin is in deze database een team (teams / team_members / team_invites, aansluiten met een code).
+-- training_tracks: één voortgang in een trainingsprogramma (bijv. 'pilates30') met één of meer deelnemers
+-- uit het gezin. Samen trainen = één track met meerdere deelnemers; apart = ieder een eigen track.
+-- data = voortgang (instellingen, log, resetAt). De telefoon voegt zijn versie samen met die van de server
+-- (log = vereniging, instellingen = nieuwste, resetAt = laatste; zie training/program.js → merge()).
+-- name/participants/deleted: laatste wijziging wint (updated_at). Alle gezinsleden zien alle tracks.
+create table if not exists public.training_tracks (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  id text not null check (length(id) between 1 and 80),
+  program text not null check (length(program) between 1 and 40),
+  name text not null default '',
+  participants uuid[] not null default '{}',
+  data jsonb not null default '{}'::jsonb,
+  deleted boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (team_id, id)
+);
+create index if not exists training_tracks_program on public.training_tracks(team_id, program);
+alter table public.training_tracks enable row level security;
+drop policy if exists team_data on public.training_tracks;
+create policy team_data on public.training_tracks for all using (public.is_member(team_id)) with check (public.is_member(team_id));
+revoke all on public.training_tracks from anon;
+grant select, insert, update, delete on public.training_tracks to authenticated;

@@ -174,3 +174,17 @@ node scripts/prod-naar-lokaal.mjs
 - Niet gekopieerd: accounts, uitnodigingen en meldingen.
 - De kopie bevat echte namen, adressen en e-mailadressen; ze staat alleen in de lokale database.
   `npx supabase db reset` wist alles weer.
+
+---
+
+## Update naar de familie-app (v3.0.0)
+Egg-sellent staat nu onder `/eggs/`, met een hub op de root en de app Training ernaast.
+Doe dit **voordat** je de nieuwe versie naar GitHub pusht:
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Dat voegt de tabel `training_tracks` toe
+   (voortgang van trainingen per gezin); de bestaande tabellen blijven zoals ze zijn.
+2. **Authentication → URL Configuration → Redirect URLs**: controleer dat er
+   `https://ijzeren.github.io/egg-sellect-route/**` staat (met `**`). De inloglink stuurt nu terug naar
+   `…/egg-sellect-route/eggs/`; zonder `**` werkt die link niet meer. (Inloggen met de code werkt altijd.)
+3. Optioneel: deploy de push-functie opnieuw (`npx supabase functions deploy push`). Die stuurt dan
+   direct naar `eggs/`. Niet verplicht: de app stuurt oude meldingslinks zelf door.

@@ -79,7 +79,7 @@ async function cron() {
         const body = d && d.open != null
           ? `${d.open} ${d.open === 1 ? "adres" : "adressen"} vandaag. Neem ongeveer ${d.eggs} eieren mee.`
           : "Vandaag is het loopdag. Open de app voor je ronde.";
-        results.push(await deliver(sub, { title: `Ronde ${DAYS[now.dow]}`, body, tag: `walk-${now.date}`, url: "./" }, "walkday", now.date));
+        results.push(await deliver(sub, { title: `Ronde ${DAYS[now.dow]}`, body, tag: `walk-${now.date}`, url: "./eggs/" }, "walkday", now.date));
       }
     }
     // bestelherinnering
@@ -88,7 +88,7 @@ async function cron() {
       const { data: dig } = await db.from("team_digest").select("payload").eq("team_id", sub.team_id).eq("key", `week:${next}`).maybeSingle();
       const d = dig?.payload;
       const body = d && d.advice != null ? `Advies voor week ${d.week}: ${d.advice} eieren.` : "Tijd om de eieren voor volgende week te bestellen.";
-      results.push(await deliver(sub, { title: "Bestellen", body, tag: `order-${next}`, url: "./?v=order" }, "order", now.date));
+      results.push(await deliver(sub, { title: "Bestellen", body, tag: `order-${next}`, url: "./eggs/?v=order" }, "order", now.date));
     }
   }
   return { subs: subs.length, results };
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
 
     if (body.mode === "test") {
       const { data: subs } = await db.from("push_subscriptions").select("*").eq("user_id", user.id);
-      const results = await Promise.all((subs ?? []).map((s: Sub) => deliver(s, { title: "Egg-sellent", body: "Meldingen werken. Vers aan de deur, slim gepland.", tag: "test", url: "./" })));
+      const results = await Promise.all((subs ?? []).map((s: Sub) => deliver(s, { title: "Egg-sellent", body: "Meldingen werken. Vers aan de deur, slim gepland.", tag: "test", url: "./eggs/" })));
       return json({ subs: subs?.length ?? 0, results });
     }
 
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       const who = me.name || "Een teamgenoot";
       const text = body.on ? `${who}: geen ronde op ${fmtShort(body.date)}.` : `${who}: ${fmtShort(body.date)} gaat de ronde toch door.`;
       const targets = (subs ?? []).filter((s: Sub) => s.prefs?.team !== false);
-      const results = await Promise.all(targets.map((s: Sub) => deliver(s, { title: "Afwezigheid", body: text, tag: `abs-${body.date}`, url: "./?v=order" })));
+      const results = await Promise.all(targets.map((s: Sub) => deliver(s, { title: "Afwezigheid", body: text, tag: `abs-${body.date}`, url: "./eggs/?v=order" })));
       return json({ subs: targets.length, results });
     }
     return json({ error: "Onbekende opdracht" }, 400);
