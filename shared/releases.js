@@ -10,6 +10,13 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.10.1', date: '2026-11-22', title: 'Startscherm: groet bovenaan',
+    notes: [
+      { app: 'hub', text: 'De groet staat weer bovenaan het startscherm. Je gezin, leden, apps en account vind je onder de tegels.' },
+      { app: 'hub', text: 'De melding "sessie verlopen" op het startscherm wordt weer netjes weergegeven.' },
+    ],
+  },
+  {
     version: '3.10.0', date: '2026-11-22', title: 'Gerechten filteren',
     notes: [
       { app: 'recipes', text: 'Filter gerechten op soort, bereiding (smoker, oven, airfryer …), bereidingstijd, aantal personen, gezondheidsscore, sterren en ingrediënten (met of zonder).', kb: 'gerechten' },

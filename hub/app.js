@@ -72,9 +72,9 @@ async function refresh() {
 function vHome() {
   const now = new Date(), today = ymd(now), me = account(), hr = now.getHours();
   const hello = hr < 6 ? 'Goedenacht' : hr < 12 ? 'Goedemorgen' : hr < 18 ? 'Goedemiddag' : 'Goedenavond';
-  const right = CLOUD ? (me ? `<button class="nb" data-a="go" data-v="family">${me.teamId ? 'Gezin' : 'Account'}</button>` : `<button class="nb" data-a="go" data-v="login">Log in</button>`) : '';
-  let h = nav('', '', right) + `<main>${lt(hello, `${DAYS[now.getDay()]} ${now.getDate()} ${MONL[now.getMonth()]}${me && me.teamName ? ' · ' + esc(me.teamName) : ''}`)}`;
-  if (CLOUD && F.sessionExpired()) h += `<div class="banner mb">Je sessie is verlopen. <button class="link" data-a="go" data-v="login" style="min-height:0">Log opnieuw in</button>; je gegevens op deze telefoon blijven bewaard.</div>`;
+  // Geen balk bovenaan: de groet staat bovenaan, Gezin/Account staat onder de tegels.
+  let h = `<main class="hub-top">${lt(hello, `${DAYS[now.getDay()]} ${now.getDate()} ${MONL[now.getMonth()]}${me && me.teamName ? ' · ' + esc(me.teamName) : ''}`)}`;
+  if (CLOUD && F.sessionExpired()) h += `<div class="banner mb"><div>Je sessie is verlopen. <button class="link" data-a="go" data-v="login" style="min-height:0">Log opnieuw in</button>; je gegevens op deze telefoon blijven bewaard.</div></div>`;
   else if (CLOUD && !me) h += `<div class="banner blue mb"><div><b>Log in</b> om je gezin te gebruiken: Egg-sellent, samen trainen en je voortgang op al je telefoons. <button class="link" data-a="go" data-v="login" style="min-height:0">Inloggen</button></div></div>`;
   else if (me && me.disabled) h += `<div class="banner red mb"><div><b>${esc(me.teamName)} is uitgeschakeld</b> door de beheerder van de app. Er is niets verwijderd; zodra het gezin weer aan staat, is alles terug.</div></div>`;
   else if (me && !me.teamId) h += `<div class="banner blue mb"><div><b>Nog geen gezin.</b> Maak een gezin of sluit je aan met een code. <button class="link" data-a="go" data-v="onboard" style="min-height:0">Verder</button></div></div>`;
@@ -92,6 +92,9 @@ function vHome() {
   if (seen && seen !== VERSION) h += `<div class="banner blue" style="margin-top:16px"><div><b>Nieuw in versie ${VERSION}:</b> ${esc(RELEASES[0].title)}. <button class="link" data-a="go" data-v="news" style="min-height:0">Bekijk</button></div></div>`;
   else if (!seen) storage.set('hub', 'seenVersion', VERSION);
   const openQ = (help.questions || []).filter(q => q.status === 'open').length;
+  if (CLOUD) h += sec('', grp(me
+    ? `<button class="cell" data-a="go" data-v="family"><span class="tx"><span class="tt">${me.teamId ? esc(me.teamName) : 'Account'}</span><span class="st">${me.teamId ? 'Gezin, leden, apps en account' : 'Gezin maken of aansluiten'}</span></span>${CHEV}</button>`
+    : `<button class="cell" data-a="go" data-v="login"><span class="tx"><span class="tt">Inloggen</span><span class="st">Eén account voor alle apps van je gezin</span></span>${CHEV}</button>`));
   h += sec('Hulp', grp(`<button class="cell" data-a="go" data-v="kb"><span class="tx"><span class="tt">Kennisbank</span></span>${CHEV}</button>
     <button class="cell" data-a="go" data-v="faq"><span class="tx"><span class="tt">Veelgestelde vragen</span></span>${CHEV}</button>
     ${me && me.teamId ? `<button class="cell" data-a="go" data-v="questions"><span class="tx"><span class="tt">Vragen</span></span><span class="tr">${openQ ? `${openQ} open` : ''}</span>${CHEV}</button>` : ''}
