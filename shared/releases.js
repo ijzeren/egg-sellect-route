@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.14.1', date: '2026-11-22', title: 'Eieren: starttijden rustig invullen',
+    notes: [
+      { app: 'eggs', text: 'Het tijdwiel bij de starttijd van een loopdag sluit niet meer halverwege het invullen. De tijd wordt opgeslagen zodra je klaar bent.' },
+    ],
+  },
+  {
     version: '3.14.0', date: '2026-11-22', title: 'Nieuwe naam: Thuis',
     notes: [
       { app: 'hub', text: 'De app heet nu Thuis en heeft een nieuw icoon: een huis met een hart. Alles werkt hetzelfde; je hoeft niets te doen.', kb: 'op-beginscherm' },

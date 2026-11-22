@@ -274,7 +274,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.14.0';
+const APP_VERSION = '3.14.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -750,11 +750,12 @@ const walkerIds = () => { const w = eggApp().walkers; return Array.isArray(w) &&
 async function eggAppSave(patch){
   if (!CLOUD || !S.team) return;
   const before = eggApp(), next = { ...before, ...patch };
-  S.eggApp = { ...(S.eggApp || {}), settings: next }; S.eggAppPending = true; saveS(); render();
+  // niet meteen hertekenen als er een veld open is (bijv. het tijdwiel): dan sluit de iPhone de keuze
+  S.eggApp = { ...(S.eggApp || {}), settings: next }; S.eggAppPending = true; saveS(); safeRender();
   try {
     await api(`/rest/v1/team_apps?team_id=eq.${S.team.id}&app=eq.eggs`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { settings: next, updated_at: new Date().toISOString() } });
   } catch (e) {
-    S.eggApp = { ...(S.eggApp || {}), settings: before }; render();
+    S.eggApp = { ...(S.eggApp || {}), settings: before }; safeRender();
     toast(navigator.onLine ? 'Opslaan mislukt: ' + e.message : 'Geen verbinding. Probeer het straks opnieuw.', null, null, 'err');
   } finally { S.eggAppPending = false; saveS(); }
 }
@@ -2480,6 +2481,7 @@ function renderAfterTap(){
   }, 250);
 }
 let noteTimer = null;
+const walkTimer = {};
 function onField(e){
   const el = e.target, f = el.dataset && el.dataset.field;
   if (!f) return;
@@ -2501,10 +2503,16 @@ function onField(e){
     return;
   }
   if (f === 'walkstart') {
+    // De iPhone meldt een wijziging al tijdens het draaien aan het tijdwiel: pas opslaan als het een tel stil is
     if (e.type !== 'change' || !famAdmin()) return;
-    const v = /^\d{2}:\d{2}$/.test(el.value) ? el.value : '', ws = { ...(eggApp().walkStart || {}) };
-    if (v) ws[el.dataset.d] = v; else delete ws[el.dataset.d];
-    eggAppSave({ walkStart: ws }); return;
+    const d = el.dataset.d, v = /^\d{2}:\d{2}$/.test(el.value) ? el.value : '';
+    clearTimeout(walkTimer[d]);
+    walkTimer[d] = setTimeout(() => {
+      const ws = { ...(eggApp().walkStart || {}) };
+      if (v) ws[d] = v; else delete ws[d];
+      if ((eggApp().walkStart || {})[d] !== ws[d]) eggAppSave({ walkStart: ws });
+    }, 900);
+    return;
   }
   if (f === 'sumuplink') { const c = sumupCfg(); c.link = el.value.trim(); sumupSave(c); return; }
   if (f === 'set_margin' || f === 'set_orderdow' || f === 'set_deldow') {
