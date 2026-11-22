@@ -1,0 +1,43 @@
+/* Agenda — bovenop shared/theme.css en shared/ui.css. Eigen accentkleur: blauw. */
+body{--tint:var(--blue)}
+.card{background:var(--cell);border-radius:12px;padding:16px;margin:12px 0}
+.card h2{font-size:1.06rem;font-weight:700;margin:0 0 4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none;vertical-align:middle}
+.dot.big{width:14px;height:14px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chips::-webkit-scrollbar{display:none}
+.chips button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:99px;background:var(--cell);font-weight:500;white-space:nowrap;color:var(--label)}
+.chips button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.pager{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin:4px 0 10px}
+.pager .nb{font-size:1.8rem;font-weight:300}
+.pager .lbl{display:flex;flex-direction:column;align-items:center;min-height:44px;justify-content:center}
+.pager .lbl span{font-size:.82rem;color:var(--label2)}
+.cell.item{align-items:flex-start}
+.cell.item .tm{width:3.6rem;flex:none;display:flex;flex-direction:column;font-variant-numeric:tabular-nums}
+.cell.item .tm span{font-size:.72rem;color:var(--label2)}
+.cell.item.skipped .tt,.cell.item.skipped .tm{text-decoration:line-through;color:var(--label3)}
+.cell.task{align-items:flex-start;gap:10px}
+.cell.task .tx{text-align:left;color:var(--label)}
+.cell.task.done .tt{text-decoration:line-through;color:var(--label2)}
+.check{width:26px;height:26px;border-radius:50%;border:2px solid var(--label3);flex:none;margin-top:1px;position:relative}
+.check[aria-checked=true]{background:var(--green);border-color:var(--green)}
+.check[aria-checked=true]::after{content:"";position:absolute;left:7px;top:3px;width:6px;height:11px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+.late{color:var(--red);font-weight:600}
+.sec-h.wk{margin-top:18px}
+.sec-h.wk.now{color:var(--tint);font-weight:600}
+.daypick{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.sec .daypick{grid-template-columns:repeat(5,1fr)}
+.cell .daypick{grid-template-columns:repeat(7,1fr)}
+.daypick button{min-height:44px;border-radius:10px;background:var(--fill);font-weight:600;color:var(--label)}
+.daypick button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.quick button{min-height:34px;padding:0 12px;border-radius:99px;background:var(--fill);color:var(--tint);font-weight:500;font-size:.88rem}
+.quick button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.colors{display:flex;gap:12px;flex-wrap:wrap}
+.colors button{width:34px;height:34px;border-radius:50%}
+.colors button[aria-pressed=true]{box-shadow:0 0 0 3px var(--cell),0 0 0 5px var(--label)}
+textarea.ta{width:100%;min-height:5rem;border:0;background:none;font:inherit;line-height:1.45;resize:vertical;padding:8px 0;color:var(--label)}
+textarea.ta:focus{outline:none}
+select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right;max-width:60%}
+.segc{flex-wrap:wrap}

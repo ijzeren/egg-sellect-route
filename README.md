@@ -7,7 +7,9 @@ De apps van het gezin onder één icoon: een startscherm (hub) met daaronder los
 |---|---|
 | `/` | Hub: tegels per app met een korte stand van zaken |
 | `/eggs/` | **Egg-sellent** — *Vers aan de deur, slim gepland.* Eierronde, afspraken en besteladvies |
-| `/training/` | **Training** — Pilates 30: 30 lessen op je vaste trainingsdagen, samen of apart, met bonuslessen |
+| `/training/` | **Training** — Pilates 30 (30 lessen) en Bio-circuit (30 min op de toestellen, gewicht per toestel), op je vaste trainingsdagen, samen of apart |
+| `/recipes/` | **Gerechten** — recepten van het gezin met bereidingsschema, sterren per lid en een gezondheidsscore |
+| `/agenda/` | **Agenda** — schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen |
 
 Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beheerder, lid, kind); aansluiten gaat
 met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
@@ -39,12 +41,15 @@ Engels, schermteksten in het Nederlands.
 | `shared/kb.js` | kennisbank: handleidingen (Hulp → Kennisbank); bron voor de Assistent |
 | `scripts/runner.mjs`, `docs/runner.md` | de Assistent: geplande Claude-routine die open vragen beantwoordt |
 | `eggs/index.html` | Egg-sellent (schermen, logica, opslag, synchronisatie) |
-| `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `sports/pilates/` (oefeningen en lessen) |
+| `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `programs.js` (lijst), `sports/pilates/`, `sports/biocircuit/` |
+| `recipes/` | Gerechten: `app.js` (schermen, opslaan), `recipe.js` (omrekenen, bereidingsschema, sterren; testbaar) |
+| `scripts/recipe-scores.mjs`, `docs/recipe-scores.md` | de Assistent: geplande routine die gerechten een gezondheidsscore geeft |
+| `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
 | `manifest.webmanifest`, `icon-*.png` | naam en icoon op het beginscherm |
 | `supabase/` | databaseschema, mailtekst met inlogcode en [installatiehandleiding](supabase/README.md) |
-| `tests/` | `npm test`: versies en release notes, Pilates-inhoud (elke les precies 30 min) en planning |
+| `tests/` | `npm test`: versies en release notes, Pilates-inhoud en planning, Bio-circuit, gerechten, agenda |
 | `PLAN.md` | plan van Egg-sellent (schermafbeeldingen in `docs/design/`) |
 
 ## Training: trainingsdagen en bonus

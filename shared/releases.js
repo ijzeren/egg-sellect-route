@@ -10,6 +10,32 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.5.0', date: '2026-11-22', title: 'Nieuwe app: Agenda',
+    notes: [
+      { app: 'agenda', text: 'Nieuw: Agenda. Schoolrooster, trainingen, wedstrijden en afspraken van de kinderen in één dag- en weekoverzicht.', kb: 'agenda' },
+      { app: 'agenda', text: 'Een kind hoeft geen eigen account te hebben om in de agenda te staan.', kb: 'agenda' },
+      { app: 'agenda', text: 'Schoolrooster snel invoeren: per dag de lessen plakken.', kb: 'agenda-rooster-huiswerk' },
+      { app: 'agenda', text: 'Huiswerk en toetsen bijhouden en afvinken; de app stelt de datum van de volgende les van dat vak voor.', kb: 'agenda-rooster-huiswerk' },
+    ],
+  },
+  {
+    version: '3.4.0', date: '2026-11-22', title: 'Nieuwe app: Gerechten',
+    notes: [
+      { app: 'recipes', text: 'Nieuw: Gerechten. Zet je favoriete gerechten erin met ingrediënten en bereidingsschema; de app rekent om naar het aantal personen en vertelt hoe laat je moet beginnen.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Geef sterren aan gerechten. Zo zie je wat het hele gezin het lekkerst vindt.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Elk gerecht krijgt automatisch een gezondheidsscore van 1 tot 10, met een tip om het gezonder te maken.', kb: 'gezondheidsscore' },
+      { app: 'hub', text: 'Een beheerder zet Gerechten aan bij Gezin → Apps. Kinderen alleen als je het per kind aanzet.', kb: 'apps-aanzetten' },
+    ],
+  },
+  {
+    version: '3.3.0', date: '2026-11-22', title: 'Bio-circuit in Training',
+    notes: [
+      { app: 'training', text: 'Nieuw programma: Bio-circuit. 30 minuten op de toestellen in de sportschool, op je eigen vaste trainingsdagen.', kb: 'bio-circuit' },
+      { app: 'training', text: 'Noteer na elke training je gewicht per toestel; volgende keer zie je wat je de vorige keer deed.', kb: 'bio-circuit' },
+      { app: 'training', text: 'Training begint nu met een keuze uit de programma\'s. Ieder kiest zelf waar hij of zij aan meedoet.' },
+    ],
+  },
+  {
     version: '3.2.0', date: '2026-11-22', title: 'Hulp: kennisbank, veelgestelde vragen en vragen stellen',
     notes: [
       { app: 'hub', text: 'Kennisbank met handleidingen bij alle apps, onder Hulp op het startscherm.' },
@@ -47,4 +73,4 @@ export const RELEASES = [
   { version: '2.0.0', date: '2026-11-19', title: 'Egg-sellent online', notes: [{ app: 'eggs', text: 'Accounts, teams en synchronisatie tussen telefoons.' }] },
 ];
 export const VERSION = RELEASES[0].version;
-export const APP_NAMES = { hub: 'Algemeen', eggs: 'Egg-sellent', training: 'Training' };
+export const APP_NAMES = { hub: 'Algemeen', eggs: 'Egg-sellent', training: 'Training', recipes: 'Gerechten', agenda: 'Agenda' };

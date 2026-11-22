@@ -71,3 +71,8 @@ details p{margin:0 0 12px;color:var(--label2);font-size:.94rem;line-height:1.45}
 .next{color:var(--label2);text-align:center;font-size:.9rem;margin-top:10px}
 .big{font-size:3.5rem;text-align:center;margin:24px 0 0}
 .center{text-align:center}
+
+/* programmakeuze */
+.cell.prog{align-items:center;padding-top:14px;padding-bottom:14px}
+.cell.prog .pic{font-size:2rem;line-height:1;flex:none}
+.cell.prog.now .tt b::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:8px;vertical-align:middle}

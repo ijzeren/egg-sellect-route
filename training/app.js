@@ -1,17 +1,21 @@
-// Training — app (voorlopig één sport: Pilates, programma "Pilates 30").
-// Overgenomen uit de losse Pilates-pagina; gedrag van de speler is gelijk gebleven. Nieuw:
-//   - vaste trainingsdagen per week; de lessen worden daarover ingepland (program.js)
-//   - op een andere dag mag je altijd een les doen: dat is een bonustraining
-//   - trainingen per gezin: samen (meerdere deelnemers) of apart; Supabase-tabel training_tracks, lokaal eerst
+// Training — app met meerdere programma's (zie programs.js):
+//   - Pilates 30: 30 lessen in vaste volgorde, ingepland op je vaste trainingsdagen (program.js)
+//   - Bio-circuit: steeds hetzelfde circuit van 30 min op de toestellen, op je vaste dagen, met gewichten per toestel
+//   - op een andere dag mag je altijd trainen: dat is een bonustraining
+//   - trainingen per gezin: samen (meerdere deelnemers) of apart; Supabase-tabel training_tracks, lokaal eerst.
+//     Niet iedereen hoeft mee te doen: wie een programma nooit opent, heeft er geen training in.
 import { storage, account, api, applyTheme, esc, registerSW, canUse } from '../shared/family.js';
 import * as P from './program.js';
-import { E, WEEKS, DAYS, PHASES, LESSON_SECONDS, planFor, lessonTitle, PROGRAM } from './sports/pilates/index.js';
+import { PROGRAMS, programById } from './programs.js';
+import { E, WEEKS, DAYS, PHASES, planFor, lessonTitle } from './sports/pilates/index.js';
+import * as BIO from './sports/biocircuit/index.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 registerSW('../');
 
-const TOTAL = PROGRAM.total;
+let PROGRAM = null, TOTAL = 0;
+const isCircuit = () => PROGRAM && PROGRAM.kind === 'circuit';
 const APP = 'training';
 const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 const blockName = w => WEEKS[w].t.split(' · ')[1];
@@ -26,41 +30,50 @@ const ICON_CHEV = '<svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><p
 const me = account();
 const FAMILY = me && me.teamId ? me.teamId : null;
 const SCOPE = FAMILY || 'local';
-const TKEY = `${SCOPE}:tracks`, AKEY = `${SCOPE}:active:${PROGRAM.id}`, MKEY = `${SCOPE}:members`;
+const TKEY = `${SCOPE}:tracks`, MKEY = `${SCOPE}:members`, PKEY = `${SCOPE}:program`;
+const AKEY = pid => `${SCOPE}:active:${pid}`;
 const nowIso = () => new Date().toISOString();
 // Tijden van telefoon (…Z) en server (…+00:00, microseconden) vergelijkbaar maken.
 const ms = s => s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1').replace(' ', 'T')) || 0 : 0;
-const defaultId = me && FAMILY ? `${PROGRAM.id}:${me.userId}` : `${PROGRAM.id}:local`;
+const defaultId = (pid = PROGRAM.id) => me && FAMILY ? `${pid}:${me.userId}` : `${pid}:local`;
 let tracks = storage.get(APP, TKEY, {}) || {};
 let members = storage.get(APP, MKEY, []) || [];   // [{ user_id, name }]
 const isEmpty = t => !t.data.log.length && !t.data.settings.days.length && !t.data.resetAt;
-const newTrack = (id, participants) => ({ id, program: PROGRAM.id, name: '', participants, data: P.emptyProgress(), deleted: false, u: nowIso(), dirty: true });
+const newTrack = (id, participants, pid = PROGRAM.id) => ({ id, program: pid, name: '', participants, data: P.emptyProgress(), deleted: false, u: nowIso(), dirty: true });
 for (const t of Object.values(tracks)) t.data = P.normalize(t.data);
-const mine = () => Object.values(tracks).filter(t => t.program === PROGRAM.id && !t.deleted && (!FAMILY || t.participants.includes(me.userId)));
+const mine = (pid = PROGRAM.id) => Object.values(tracks).filter(t => t.program === pid && !t.deleted && (!FAMILY || t.participants.includes(me.userId)));
 
 // Eerder zonder gezin getraind op deze telefoon: die voortgang gaat mee naar je eigen training in het gezin.
 if (FAMILY) {
-  const loc = (storage.get(APP, 'local:tracks', {}) || {})[`${PROGRAM.id}:local`];
-  if (loc && !isEmpty({ data: P.normalize(loc.data) })) {
-    if (!tracks[defaultId]) tracks[defaultId] = newTrack(defaultId, [me.userId]);
-    tracks[defaultId].data = P.merge(tracks[defaultId].data, loc.data); tracks[defaultId].dirty = true;
+  for (const loc of Object.values(storage.get(APP, 'local:tracks', {}) || {})) {
+    const pid = loc && loc.program, id = pid && defaultId(pid);
+    if (!id || isEmpty({ data: P.normalize(loc.data) })) continue;
+    if (!tracks[id]) tracks[id] = newTrack(id, [me.userId], pid);
+    tracks[id].data = P.merge(tracks[id].data, loc.data); tracks[id].dirty = true;
   }
   storage.remove(APP, 'local:tracks');
 }
-if (!mine().length) tracks[defaultId] = newTrack(defaultId, FAMILY ? [me.userId] : []);
-let activeId = storage.get(APP, AKEY);
+let activeId = null, prog = null;
+// Actieve training binnen het gekozen programma; zonder training (nog nooit geopend) een eigen, lege training.
 function pickActive() {
   const list = mine();
   if (!list.length) { // nergens (meer) deelnemer: eigen training terugzetten
-    const t = tracks[defaultId] || newTrack(defaultId, []);
-    tracks[defaultId] = Object.assign(t, { deleted: false, participants: FAMILY ? [...new Set([...t.participants, me.userId])] : [] });
+    const id = defaultId(), t = tracks[id] || newTrack(id, []);
+    tracks[id] = Object.assign(t, { deleted: false, participants: FAMILY ? [...new Set([...t.participants, me.userId])] : [] });
   }
-  if (!list.some(t => t.id === activeId)) activeId = (mine().find(t => !isEmpty(t)) || mine()[0]).id;
+  if (!mine().some(t => t.id === activeId)) activeId = (mine().find(t => !isEmpty(t)) || mine()[0]).id;
 }
-pickActive();
-let prog = tracks[activeId].data;
+function openProgram(pid) {
+  PROGRAM = programById(pid); TOTAL = PROGRAM.total || 0;
+  activeId = storage.get(APP, AKEY(pid));
+  pickActive(); prog = tracks[activeId].data;
+  storage.set(APP, PKEY, pid);
+}
 const track = () => tracks[activeId];
-const persist = () => { if (!storage.set(APP, TKEY, tracks)) alert('Opslaan op deze telefoon is mislukt.'); storage.set(APP, AKEY, activeId); };
+const persist = () => { if (!storage.set(APP, TKEY, tracks)) alert('Opslaan op deze telefoon is mislukt.'); if (PROGRAM) storage.set(APP, AKEY(PROGRAM.id), activeId); };
+// Actieve training van de gebruiker in een programma, zonder iets aan te maken (voor het programma-overzicht).
+const activeOf = pid => { const list = mine(pid); return list.find(t => t.id === storage.get(APP, AKEY(pid))) || list.find(t => !isEmpty(t)) || null; };
+const statusOf = (pg, data) => pg.kind === 'circuit' ? P.circuitStatus(data) : P.status(data, pg.total);
 let localVersion = 0;
 
 function save() {
@@ -84,14 +97,14 @@ async function syncNow() {
   let changedHere = false;
   try {
     const [rows, mem] = await Promise.all([
-      api(`/rest/v1/training_tracks?team_id=eq.${FAMILY}&program=eq.${PROGRAM.id}&select=id,name,participants,data,deleted,updated_at`),
+      api(`/rest/v1/training_tracks?team_id=eq.${FAMILY}&select=id,program,name,participants,data,deleted,updated_at`),
       api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name&order=joined_at`).catch(() => null),
     ]);
     if (mem) { members = mem; storage.set(APP, MKEY, members); }
     const remote = new Map((rows || []).map(r => [r.id, r]));
     for (const r of remote.values()) {
       const t = tracks[r.id];
-      if (!t) { tracks[r.id] = { id: r.id, program: PROGRAM.id, name: r.name, participants: r.participants || [], data: P.normalize(r.data), deleted: r.deleted, u: r.updated_at }; changedHere = true; continue; }
+      if (!t) { tracks[r.id] = { id: r.id, program: r.program, name: r.name, participants: r.participants || [], data: P.normalize(r.data), deleted: r.deleted, u: r.updated_at }; changedHere = true; continue; }
       const merged = P.merge(t.data, r.data);
       if (!P.same(merged, t.data)) { t.data = merged; changedHere = true; }
       if (ms(r.updated_at) > ms(t.u)) { Object.assign(t, { name: r.name, participants: r.participants || [], deleted: r.deleted, u: r.updated_at }); changedHere = true; }
@@ -99,7 +112,6 @@ async function syncNow() {
     // Wat hier nieuwer of anders is: terugschrijven. Een lege eigen training sturen we niet mee.
     const out = [];
     for (const t of Object.values(tracks)) {
-      if (t.program !== PROGRAM.id) continue;
       const r = remote.get(t.id);
       if (!r && isEmpty(t) && t.participants.length <= 1 && !t.deleted) continue;
       if (r && P.same(r.data, t.data) && ms(r.updated_at) >= ms(t.u)) { delete t.dirty; continue; }
@@ -107,8 +119,7 @@ async function syncNow() {
     }
     if (out.length) await api('/rest/v1/training_tracks?on_conflict=team_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: out });
     if (v === localVersion) for (const t of Object.values(tracks)) delete t.dirty; else scheduleSync(500);
-    const before = activeId; pickActive(); if (before !== activeId) changedHere = true;
-    prog = track().data;
+    if (PROGRAM) { const before = activeId; pickActive(); if (before !== activeId) changedHere = true; prog = track().data; }
     persist();
     sync = { state: 'ok', at: new Date() };
   } catch (e) {
@@ -130,7 +141,7 @@ function syncText() {
 
 /* ---------- scherm ---------- */
 const $ = s => document.querySelector(s);
-let view = P.hasSchedule(prog) ? 'home' : 'days', cur = 1, S = null, timer = null, AC = null, muted = false, confirmBox = '', pick = null, lastDone = null;
+let view = 'programs', cur = 1, S = null, timer = null, AC = null, muted = false, confirmBox = '', pick = null, lastDone = null;
 
 const navBar = (left, title = '') => `<header class="nav" id="nav"><div class="nav-l">${left || ''}</div><div class="nav-t">${title}</div><div class="nav-r"></div></header>`;
 const hubLink = () => `<a class="nb back" href="../" aria-label="Naar alle apps">${ICON_BACK}<span>Apps</span></a>`;
@@ -146,14 +157,29 @@ function cues(e) {
 function render() {
   const a = $('#app');
   if (!canUse('training')) { a.innerHTML = navBar(hubLink()) + '<main>' + lt('Training', esc(me.teamName)) + '<div class="card"><p>Training staat niet aan voor jou in dit gezin. Een beheerder kan de app aanzetten bij <b>Gezin → Apps</b> in het startscherm.</p><a class="btn" href="../?view=family">Naar gezin</a></div></main>'; return; }
-  if (view === 'home') a.innerHTML = home();
+  const c = isCircuit();
+  if (view === 'programs' || !PROGRAM) a.innerHTML = programsView();
+  else if (view === 'home') a.innerHTML = c ? circuitHome() : home();
   else if (view === 'days') a.innerHTML = daysView();
   else if (view === 'people') a.innerHTML = peopleView();
-  else if (view === 'day') a.innerHTML = dayView();
-  else if (view === 'session') { a.innerHTML = sessionView(); updateSession(); }
-  else if (view === 'done') a.innerHTML = doneView();
+  else if (view === 'stations') a.innerHTML = stationsView();
+  else if (view === 'day') a.innerHTML = c ? circuitDay() : dayView();
+  else if (view === 'session') { a.innerHTML = c ? circuitSessionView() : sessionView(); updateSession(); }
+  else if (view === 'done') a.innerHTML = c ? circuitDone() : doneView();
   window.scrollTo(0, 0);
   onScroll();
+}
+
+function programsView() {
+  let h = navBar(hubLink()) + '<main>' + lt('Training', FAMILY ? esc(me.teamName) : 'Kies een programma');
+  h += '<div class="grp">' + PROGRAMS.map(pg => {
+    const t = activeOf(pg.id), s = t ? statusOf(pg, t.data) : null;
+    const line = s ? s.line : pg.tagline, sub = s ? [FAMILY ? trackName(t) : '', s.sub].filter(Boolean).join(' · ') : 'Nog niet begonnen';
+    return `<button class="cell prog${s && s.today ? ' now' : ''}" data-a="program" data-id="${pg.id}"><span class="pic" aria-hidden="true">${pg.icon}</span><span class="tx"><span class="tt"><b>${esc(pg.name)}</b></span><span class="st">${esc(line)}</span>${sub ? `<span class="st">${esc(sub)}</span>` : ''}</span>${ICON_CHEV}</button>`;
+  }).join('') + '</div>';
+  h += `<p class="sec-f">Ieder kiest zelf aan welke programma's hij of zij meedoet. Samen trainen of apart regel je per programma bij "Wie doen er mee?".</p>`;
+  h += `<p class="sec-f" id="syncline">${syncText()}</p>`;
+  return h + '</main>';
 }
 
 function stats() {
@@ -196,7 +222,7 @@ function nextCard() {
 function home() {
   const nl = P.nextLesson(prog, TOTAL), done = P.doneMap(prog);
   const planned = Object.fromEntries(P.schedule(prog, TOTAL).map(x => [x.les, x.d]));
-  let h = navBar(hubLink()) + '<main>' + lt(PROGRAM.name, `Training · ${PROGRAM.sport}${FAMILY ? ' · ' + esc(trackName(track())) : ''}`);
+  let h = navBar(backTo('programs', 'Training')) + '<main>' + lt(PROGRAM.name, `Training · ${PROGRAM.sport}${FAMILY ? ' · ' + esc(trackName(track())) : ''}`);
   h += nextCard() + weekStrip() + stats();
   WEEKS.forEach((w, wi) => {
     const ls = DAYS.map((d, i) => [d, i + 1]).filter(x => x[0].w === wi);
@@ -227,16 +253,19 @@ function home() {
 function daysView() {
   if (!pick) pick = prog.settings.days.slice();
   const first = !P.hasSchedule(prog);
-  let h = navBar(first && mine().length <= 1 ? hubLink() : backTo('home', 'Overzicht'), first ? '' : 'Trainingsdagen') + '<main>';
+  let h = navBar(first && mine().length <= 1 ? backTo('programs', 'Training') : backTo('home', 'Overzicht'), first ? '' : 'Trainingsdagen') + '<main>';
   h += lt(first ? PROGRAM.name : 'Trainingsdagen', first ? 'Op welke dagen train je meestal?' : 'Op welke dagen train je meestal?');
   h += `<div class="card"><div class="daypick">${P.WEEK_ORDER.map(d => `<button data-a="pick" data-d="${d}" aria-pressed="${pick.includes(d)}" aria-label="${P.DAYNAMES[d]}">${P.DSH[d]}</button>`).join('')}</div>`;
-  if (pick.length) {
+  if (pick.length && isCircuit()) {
+    const tmp = P.normalize(prog); tmp.settings.days = pick.slice();
+    h += `<p class="muted small" style="margin-top:12px">${pick.length} keer per week · eerste training ${P.fmtShort(P.nextCircuitDay(tmp))}.</p>`;
+  } else if (pick.length) {
     const tmp = P.normalize(prog); tmp.settings.days = pick.slice();
     const s = P.schedule(tmp, TOTAL), end = s.length ? s[s.length - 1].d : null;
     h += `<p class="muted small" style="margin-top:12px">${pick.length} ${pick.length === 1 ? 'dag' : 'dagen'} per week${end ? ` · klaar rond ${P.fmtShort(end)}` : ''}${s.length ? ` · eerste les ${P.fmtShort(s[0].d)}` : ''}.</p>`;
   } else h += `<p class="muted small" style="margin-top:12px">Kies minstens één dag.</p>`;
   h += `<button class="btn" data-a="savedays" ${pick.length ? '' : 'disabled'}>${first ? 'Begin' : 'Bewaren'}</button></div>`;
-  h += `<p class="sec-f">Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd een les doen als bonustraining.</p>`;
+  h += `<p class="sec-f">Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd ${isCircuit() ? 'trainen' : 'een les doen'} als bonustraining.</p>`;
   return h + '</main>';
 }
 
@@ -293,8 +322,8 @@ function updateSession() {
   const q = (i, f) => { const x = $(i); if (x) f(x); };
   q('#tm', x => x.textContent = fmt(Math.ceil(S.left)));
   q('#rg', x => x.setAttribute('stroke-dashoffset', (339.29 * (1 - S.left / it.s)).toFixed(1)));
-  q('#tb', x => x.style.width = (done / LESSON_SECONDS * 100) + '%');
-  q('#te', x => x.textContent = fmt(done)); q('#tr', x => x.textContent = '−' + fmt(LESSON_SECONDS - done));
+  q('#tb', x => x.style.width = (done / S.total * 100) + '%');
+  q('#te', x => x.textContent = fmt(done)); q('#tr', x => x.textContent = '−' + fmt(S.total - done));
   q('#sd', x => x.textContent = S.flip ? 'Kant 2 van 2' : 'Kant 1 van 2');
   q('#fl', x => x.style.display = (S.flip && S.flashUntil > performance.now()) ? 'block' : 'none');
 }
@@ -305,6 +334,126 @@ function doneView() {
   <p class="muted center">${all ? 'Wat een prestatie, jullie hebben het samen volgehouden.' : lastDone && lastDone.bonus ? 'Bonustraining gedaan: je loopt voor op schema. Drink wat water en rek jullie even uit.' : 'Goed gedaan, samen. Drink wat water en rek jullie even uit.'}</p>
   ${stats()}
   <div style="height:16px"></div>${nl ? `<button class="btn" data-a="open" data-n="${nl}">Volgende: les ${nl}${plan ? ` · ${P.fmtShort(plan.d)}` : ''}</button>` : ''}<button class="btn sec" style="margin-top:10px" data-a="home">Naar overzicht</button></main>`;
+}
+
+/* ---------- Bio-circuit (kind 'circuit'): steeds hetzelfde circuit op vaste dagen ---------- */
+const stations = () => BIO.stationsOf(prog);
+const kg = v => v === '' || v == null ? '' : `${String(v).replace('.', ',')} kg`;
+
+function circuitStats() {
+  const n = P.sessionCount(prog), w = P.thisWeek(prog);
+  return `<div class="stats"><div class="stat"><b>${n}</b><span>trainingen</span></div>
+  <div class="stat"><b>${P.streak(prog)}</b><span>op rij</span></div>
+  <div class="stat"><b>${w.done}/${w.planned}</b><span>deze week</span></div>
+  <div class="stat"><b>${n * PROGRAM.minutes}</b><span>minuten</span></div></div>`;
+}
+
+function circuitCard() {
+  const t = P.today(), trainedToday = P.sessionsOn(prog, t).length > 0, next = P.nextCircuitDay(prog, t);
+  const meta = `<p class="muted small">${stations().length} toestellen · ${BIO.ROUNDS} rondes · ${PROGRAM.minutes} min</p>`;
+  if (P.isTrainingDay(prog, t) && !trainedToday) return `<div class="card"><span class="badge">${P.sessionCount(prog) ? 'Vandaag' : 'Begin hier'}</span><h2>${esc(PROGRAM.name)}</h2>${meta}<button class="btn" data-a="open">Bekijk &amp; start</button></div>`;
+  if (trainedToday) return `<div class="card"><span class="badge">Vandaag gedaan ✓</span><h2>Volgende training ${P.fmtShort(next)}</h2>${meta}<button class="btn sec" data-a="open">Bekijk circuit</button></div>`;
+  return `<div class="card"><span class="badge bonus">Vrije dag</span><h2>Volgende training ${P.fmtShort(next)}</h2>
+  <p class="muted small">Komt het vandaag beter uit? Train nu als bonustraining.</p><button class="btn sec" data-a="open">Bonustraining</button></div>`;
+}
+
+function circuitHome() {
+  const last = P.lastWeights(prog), recent = prog.log.slice(-5).reverse();
+  let h = navBar(backTo('programs', 'Training')) + '<main>' + lt(PROGRAM.name, `Training · ${PROGRAM.sport}${FAMILY ? ' · ' + esc(trackName(track())) : ''}`);
+  h += circuitCard() + weekStrip() + circuitStats();
+  h += `<section class="sec"><h2 class="sec-h">Toestellen en gewicht</h2><div class="grp">${stations().map((st, i) => `<div class="cell"><span class="tx"><span class="tt">${i + 1}. ${esc(st.n)}</span>${BIO.stationInfo(st.id) ? `<span class="st">${esc(BIO.stationInfo(st.id).g)}</span>` : ''}</span><span class="tr">${last[st.id] ? kg(last[st.id].w) : '–'}</span></div>`).join('')}</div>
+  <p class="sec-f">Het gewicht dat je het laatst noteerde. Dat doe je na elke training.</p></section>`;
+  if (recent.length) h += `<section class="sec"><h2 class="sec-h">Laatste trainingen</h2><div class="grp">${recent.map(x => `<div class="cell"><span class="tx"><span class="tt">${P.fmtShort(x.d)}</span><span class="st">${x.bonus ? 'Bonustraining' : 'Trainingsdag'}${x.manual ? ' · zonder de app' : ''}</span></span><span class="tr">${Object.values(x.w || {}).filter(v => v !== '').length ? '✓ gewichten' : ''}</span></div>`).join('')}</div></section>`;
+  h += `<section class="sec"><h2 class="sec-h">Instellingen</h2><div class="grp">
+    <button class="cell" data-a="days"><span class="tx"><span class="tt">Trainingsdagen</span></span><span class="tr">${daysText(prog.settings.days)}</span>${ICON_CHEV}</button>
+    <button class="cell" data-a="stations"><span class="tx"><span class="tt">Toestellen</span></span><span class="tr">${stations().length}</span>${ICON_CHEV}</button>
+    <button class="cell" data-a="people"><span class="tx"><span class="tt">Wie doen er mee?</span></span><span class="tr">${esc(trackName(track()))}</span>${ICON_CHEV}</button>
+  </div><p class="sec-f" id="syncline">${syncText()}</p></section>`;
+  h += `<section class="sec info"><h2 class="sec-h">Goed om te weten</h2>
+  <details><summary><span>Hoe werkt het circuit?</span><span>+</span></summary><p>Je gaat ${BIO.ROUNDS} keer langs alle toestellen, in een vaste volgorde. Per toestel werk je ongeveer een minuut in een rustig, gelijkmatig tempo; daarna heb je tijd om naar het volgende toestel te gaan. Samen precies ${PROGRAM.minutes} minuten. Geeft het toestel zelf tempo of tijd aan? Volg dan het toestel.</p></details>
+  <details><summary><span>Gewicht kiezen</span><span>+</span></summary><p>Kies een gewicht waarmee je de hele minuut netjes kunt blijven bewegen; de laatste herhalingen mogen zwaar voelen. Lukt dat twee trainingen achter elkaar makkelijk, ga dan een stapje omhoog.</p></details>
+  <details><summary><span>Trainingsdagen en bonus</span><span>+</span></summary><p>Op je vaste dagen staat het circuit klaar. Mis je een dag, dan is de volgende trainingsdag gewoon de volgende. Op een andere dag trainen kan altijd: dat is een bonustraining.</p></details>
+  <details><summary><span>Veiligheid</span><span>+</span></summary><p>Laat je de eerste keer de toestellen instellen door een trainer. Stop bij pijn (spierbrand mag). Bij blessures, hartklachten of twijfel: overleg eerst met je huisarts.</p></details>
+  </section>`;
+  h += confirmBox === 'reset'
+    ? `<div class="card"><p>Alle trainingen en gewichten van ${PROGRAM.name} wissen${me ? ', ook op je andere telefoons' : ''}? Trainingsdagen en toestellen blijven staan.</p><div class="row"><button class="btn sec" data-a="noreset">Annuleren</button><button class="btn" style="background:var(--red);color:#fff" data-a="yesreset">Wissen</button></div></div>`
+    : `<div style="margin-top:18px"><button class="btn danger" data-a="reset">Trainingen wissen</button></div>`;
+  return h + '</main>';
+}
+
+function circuitDay() {
+  const items = BIO.planFor(stations()), t = P.today(), bonus = P.isBonusDay(prog, t), last = P.lastWeights(prog);
+  const work = items.find(x => x.ph === 0), sw = items.find(x => x.ph === 1);
+  let h = navBar(backTo('home', 'Overzicht')) + '<main>' + lt(PROGRAM.name, `${stations().length} toestellen · ${BIO.ROUNDS} rondes · ${PROGRAM.minutes} min`);
+  h += `<div style="padding:0 4px"><span class="badge">${fmt(work.s)} werken</span><span class="badge rest">${fmt(sw ? sw.s : 0)} wisselen</span>${bonus ? '<span class="badge bonus">Vandaag = bonus</span>' : ''}</div>`;
+  h += `<button class="btn" style="margin:10px 0" data-a="start">${bonus ? 'Start als bonustraining' : 'Start training'}</button>`;
+  h += `<div class="ph"><span>Per ronde</span><span>${fmt(items.filter(x => x.round === 1).reduce((a, x) => a + x.s, 0))}</span></div>`;
+  stations().forEach((st, i) => {
+    const info = BIO.stationInfo(st.id);
+    h += `<details><summary><span>${i + 1}. ${esc(st.n)}</span><span>${last[st.id] ? kg(last[st.id].w) : ''}</span></summary><p>${info ? `${esc(info.t)}<br><i>${esc(info.g)}</i>` : 'Eigen toestel.'}${last[st.id] ? `<br>Laatst: ${kg(last[st.id].w)} op ${P.fmtShort(last[st.id].d)}` : ''}</p></details>`;
+  });
+  h += `<button class="btn plain" style="margin-top:14px" data-a="mark">Getraind zonder de app</button>`;
+  return h + '</main>';
+}
+
+function circuitSessionView() {
+  const it = S.items[S.i], n = stations().length, last = P.lastWeights(prog)[it.id], info = BIO.stationInfo(it.id);
+  const nextWork = S.items.slice(S.i + 1).find(x => x.ph === 0);
+  const head = `<div class="row" style="margin-bottom:6px"><span class="muted small">Ronde ${it.round} van ${BIO.ROUNDS} · toestel ${it.k} van ${n}</span><span style="text-align:right"><button class="nb" data-a="mute" style="min-height:32px;padding:0">${muted ? '🔇 Geluid uit' : '🔊 Geluid aan'}</button></span></div>
+  <div class="bar"><i id="tb"></i></div><div class="tot"><span id="te">0:00</span><span id="tr">30:00</span></div>`;
+  const ring = color => `<div class="ring"><svg width="200" height="200" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="var(--fill)" stroke-width="8"/><circle id="rg" cx="60" cy="60" r="54" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="0"/></svg><div class="t" id="tm">0:00</div></div>`;
+  const body = it.ph === 0
+    ? `<div class="ex"><span class="badge">${BIO.PHASES[0]}</span><h1>${esc(it.n)}</h1>${ring('var(--green)')}${last ? `<div class="side">Vorige keer: ${kg(last.w)}</div>` : ''}${info ? `<p>${esc(info.t)}</p>` : ''}</div>`
+    : `<div class="ex"><span class="badge rest">${BIO.PHASES[1]}</span><h1>Naar ${esc(nextWork ? nextWork.n : '')}</h1>${ring('var(--blue)')}${nextWork && P.lastWeights(prog)[nextWork.id] ? `<div class="side">Vorige keer: ${kg(P.lastWeights(prog)[nextWork.id].w)}</div>` : ''}<p class="muted">Stel het toestel in en adem even rustig door.</p></div>`;
+  return `<main class="player">${head}${body}
+  <div class="ctl"><button class="btn sec" data-a="prev" aria-label="Vorige">◀◀</button><button class="btn" id="pp" data-a="pause">${S.run ? 'Pauze' : 'Verder'}</button><button class="btn sec" data-a="skip" aria-label="Volgende">▶▶</button></div>
+  <div class="next">${nextWork && it.ph === 0 ? 'Straks: ' + esc(nextWork.n) : !nextWork && it.ph === 0 ? 'Laatste toestel' : ''}</div>
+  ${confirmBox === 'stop' ? `<div class="card"><p>Training stoppen? Hij telt dan niet mee.</p><div class="row"><button class="btn sec" data-a="nostop">Doorgaan</button><button class="btn" data-a="yesstop">Stoppen</button></div></div>` : `<button class="btn plain" style="margin-top:16px" data-a="stop">Stoppen</button>`}</main>`;
+}
+
+function circuitDone() {
+  const prev = P.lastWeights({ log: prog.log.filter(x => x !== lastDone) }), cur = (lastDone && lastDone.w) || {};
+  let h = `<main><div class="big">${lastDone && lastDone.bonus ? '⭐' : '💪'}</div><div class="lt center"><h1 tabindex="-1">Training klaar</h1></div>
+  <p class="muted center">${lastDone && lastDone.bonus ? 'Bonustraining gedaan. Drink wat water.' : 'Goed gedaan. Drink wat water.'} Noteer je gewichten, dan zie je volgende keer waar je stond.</p>`;
+  h += `<section class="sec"><h2 class="sec-h">Gewicht per toestel (kg)</h2><div class="grp">${stations().map(st => {
+    const v = cur[st.id] ?? (prev[st.id] ? prev[st.id].w : '');
+    return `<label class="cell field"><span class="fl">${esc(st.n)}</span><input type="text" inputmode="decimal" data-w="${esc(st.id)}" value="${esc(String(v).replace('.', ','))}" placeholder="–"></label>`;
+  }).join('')}</div><p class="sec-f">Ingevuld met je gewicht van de vorige keer; pas aan wat anders was. Leeg laten mag.</p></section>`;
+  h += `<div style="height:12px"></div><button class="btn" data-a="saveweights">Bewaren</button>${circuitStats()}`;
+  return h + '</main>';
+}
+function saveWeights() {
+  if (!lastDone) { view = 'home'; render(); return; }
+  const w = {};
+  document.querySelectorAll('[data-w]').forEach(el => { const v = el.value.trim().replace(',', '.'); if (v !== '' && !isNaN(+v)) w[el.dataset.w] = +v; });
+  lastDone.w = w; lastDone.u = nowIso();
+  save(); view = 'home'; render();
+}
+
+function stationsView() {
+  const list = stations(), custom = Array.isArray(prog.settings.stations);
+  let h = navBar(backTo('home', 'Overzicht'), 'Toestellen') + '<main>' + lt('Toestellen', 'In de volgorde van je circuit');
+  h += `<div class="grp">${list.map((st, i) => `<div class="cell"><span class="tx"><span class="tt">${i + 1}. ${esc(st.n)}</span></span>
+    <button class="nb" data-a="st-up" data-i="${i}" ${i ? '' : 'disabled'} aria-label="${esc(st.n)} eerder">↑</button>
+    <button class="nb" data-a="st-del" data-i="${i}" ${list.length > 1 ? '' : 'disabled'} aria-label="${esc(st.n)} weghalen" style="color:var(--red)">✕</button></div>`).join('')}</div>`;
+  h += `<section class="sec"><div class="grp"><label class="cell field"><span class="fl">Toestel</span><input type="text" id="stName" placeholder="bijv. Glute" maxlength="40"></label><button class="cell tint" data-a="st-add"><span class="tx"><span class="tt">Voeg toe</span></span></button></div>
+  <p class="sec-f">Elke sportschool heeft een eigen opstelling. Zet de toestellen in de volgorde waarin jullie ze doen; de tijd per toestel past zich aan zodat het samen ${PROGRAM.minutes} minuten blijft.</p></section>`;
+  if (custom) h += `<div style="margin-top:18px"><button class="btn plain" data-a="st-reset">Standaardtoestellen terugzetten</button></div>`;
+  return h + '</main>';
+}
+function editStations(a, b) {
+  const list = stations().map(x => ({ ...x })), i = +b.dataset.i;
+  if (a === 'st-up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+  else if (a === 'st-del' && list.length > 1) list.splice(i, 1);
+  else if (a === 'st-add') {
+    const n = (document.getElementById('stName').value || '').trim(); if (!n) return;
+    const base = n.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'station';
+    let id = base, k = 2; while (list.some(x => x.id === id)) id = `${base}-${k++}`;
+    list.push({ id, n });
+  }
+  prog.settings = { ...prog.settings, stations: a === 'st-reset' ? undefined : list.map(({ id, n }) => ({ id, n })), u: nowIso() };
+  if (a === 'st-reset') delete prog.settings.stations;
+  save(); render();
 }
 
 /* ---------- speler ---------- */
@@ -331,12 +480,13 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => scheduleSync(300));
 function startSession() {
   try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
-  S = { items: planFor(cur), i: 0, left: 0, run: true, flip: false, last: performance.now() };
+  const items = isCircuit() ? BIO.planFor(BIO.stationsOf(prog)) : planFor(cur);
+  S = { items, total: items.reduce((a, x) => a + x.s, 0), i: 0, left: 0, run: true, flip: false, last: performance.now() };
   view = 'session'; confirmBox = ''; lock(); goTo(0); clearInterval(timer); timer = setInterval(tick, 200); beep(700, .2);
 }
 function endSession() { clearInterval(timer); timer = null; unlock(); S = null; }
 function complete(manual) {
-  lastDone = P.record(prog, cur, P.today(), manual);
+  lastDone = P.record(prog, isCircuit() ? P.nextSessionNo(prog) : cur, P.today(), manual);
   save();
 }
 function finish() { endSession(); complete(false); view = 'done'; render(); }
@@ -346,7 +496,9 @@ window.addEventListener('scroll', onScroll, { passive: true });
 
 document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
-  if (a === 'open') { cur = +b.dataset.n; view = 'day'; render(); }
+  if (a === 'program') { openProgram(b.dataset.id); pick = null; confirmBox = ''; view = P.hasSchedule(prog) ? 'home' : 'days'; render(); }
+  else if (a === 'programs') { view = 'programs'; confirmBox = ''; render(); }
+  else if (a === 'open') { cur = +b.dataset.n || 0; view = 'day'; render(); }
   else if (a === 'home') { view = 'home'; confirmBox = ''; render(); }
   else if (a === 'days') { pick = null; view = 'days'; render(); }
   else if (a === 'pick') { const d = +b.dataset.d; pick = pick.includes(d) ? pick.filter(x => x !== d) : [...pick, d]; render(); }
@@ -363,7 +515,10 @@ document.addEventListener('click', ev => {
     tracks[id] = newTrack(id, [me.userId]); switchTrack(id); pick = null; view = 'days'; render();
   }
   else if (a === 'start') startSession();
-  else if (a === 'mark') { complete(true); view = 'home'; render(); }
+  else if (a === 'mark') { complete(true); view = isCircuit() ? 'done' : 'home'; render(); }
+  else if (a === 'stations') { view = 'stations'; render(); }
+  else if (a === 'st-up' || a === 'st-del' || a === 'st-reset' || a === 'st-add') editStations(a, b);
+  else if (a === 'saveweights') saveWeights();
   else if (a === 'pause') { S.run = !S.run; S.last = performance.now(); $('#pp').textContent = S.run ? 'Pauze' : 'Verder'; }
   else if (a === 'skip') goTo(S.i + 1);
   else if (a === 'prev') { const it = S.items[S.i]; if (it.s - S.left > 3) goTo(S.i); else goTo(S.i - 1); }
@@ -376,5 +531,10 @@ document.addEventListener('click', ev => {
   else if (a === 'yesreset') { P.reset(prog); save(); confirmBox = ''; render(); }
 });
 
+// Openen: het laatst gebruikte programma (bestaande Pilates-gebruikers komen meteen in Pilates), anders de keuze.
+{
+  const last = storage.get(APP, PKEY) || (activeOf('pilates30') ? 'pilates30' : null);
+  if (last && programById(last) && activeOf(last)) { openProgram(last); view = P.hasSchedule(prog) ? 'home' : 'days'; }
+}
 render();
 syncNow();

@@ -687,3 +687,207 @@ insert into public.faq (id, app, question, answer, sort) values
   ('00000000-0000-4000-8000-000000000004', 'training', 'Ik heb een trainingsdag gemist. Wat nu?', 'Niets aan de hand: de volgende les schuift op naar je eerstvolgende trainingsdag. Komt het een andere dag beter uit, doe dan een bonustraining.', 40),
   ('00000000-0000-4000-8000-000000000005', 'eggs', 'Waarom is het besteladvies lager dan ik verwacht?', 'Het advies is bewust voorzichtig: het telt alleen verkochte eieren, afspraken en het vaste ritme van adressen, gecorrigeerd met hoeveel afspraken de laatste weken echt verkocht zijn. Nieuwe adressen en losse verkoop tellen niet mee.', 50)
 on conflict (id) do nothing;
+
+-- ---------- Gerechten (familie-app, v3.4) ----------
+-- recipes         gerechten van het gezin: ingrediënten, bereidingsschema (stappen met minuten) en een
+--                 gezondheidsscore (1-10) met uitleg. Die score vult de Assistent (geplande Claude-routine) in;
+--                 gezinsleden kunnen hem niet zelf zetten. Wijzigt het recept, dan vervalt de score en wordt hij opnieuw bepaald.
+-- recipe_ratings  sterren (1-5) per gezinslid per gerecht.
+-- Rechten: wie Gerechten mag gebruiken, leest alles en plaatst gerechten; wijzigen en verwijderen mag wie het
+-- plaatste of een beheerder van de app. Sterren alleen op eigen naam.
+create table if not exists public.recipes (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  author text not null default '',
+  title text not null check (length(trim(title)) between 1 and 120),
+  intro text not null default '' check (length(intro) <= 1000),
+  category text not null default 'main' check (category ~ '^[a-z]{2,20}$'),
+  servings int not null default 4 check (servings between 1 and 30),
+  ingredients jsonb not null default '[]'::jsonb check (jsonb_typeof(ingredients) = 'array'),
+  steps jsonb not null default '[]'::jsonb check (jsonb_typeof(steps) = 'array'),
+  health_score smallint check (health_score between 1 and 10),
+  health_notes text,
+  health_scored_at timestamptz,
+  deleted boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists recipes_team on public.recipes(team_id, updated_at desc);
+create index if not exists recipes_unscored on public.recipes(created_at) where health_score is null and not deleted;
+create table if not exists public.recipe_ratings (
+  recipe_id uuid not null references public.recipes(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  stars smallint not null check (stars between 1 and 5),
+  updated_at timestamptz not null default now(),
+  primary key (recipe_id, user_id)
+);
+create index if not exists recipe_ratings_team on public.recipe_ratings(team_id);
+
+-- Inhoud gewijzigd → score opnieuw laten bepalen. updated_at altijd bijwerken.
+create or replace function public.recipe_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' and (new.title, new.servings, new.ingredients, new.steps) is distinct from (old.title, old.servings, old.ingredients, old.steps) then
+    new.health_score := null; new.health_notes := null; new.health_scored_at := null;
+  end if;
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; new.user_id := old.user_id; new.created_at := old.created_at; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists recipe_guard on public.recipes;
+create trigger recipe_guard before insert or update on public.recipes for each row execute function public.recipe_guard();
+
+alter table public.recipes enable row level security;
+alter table public.recipe_ratings enable row level security;
+drop policy if exists recipes_read on public.recipes;
+create policy recipes_read on public.recipes for select using (public.has_app(team_id, 'recipes'));
+drop policy if exists recipes_insert on public.recipes;
+create policy recipes_insert on public.recipes for insert with check (public.has_app(team_id, 'recipes') and user_id = auth.uid());
+drop policy if exists recipes_update on public.recipes;
+create policy recipes_update on public.recipes for update
+  using (public.has_app(team_id, 'recipes') and (user_id = auth.uid() or public.app_role(team_id, 'recipes') = 'admin'))
+  with check (public.has_app(team_id, 'recipes'));
+drop policy if exists recipes_delete on public.recipes;
+create policy recipes_delete on public.recipes for delete
+  using (public.has_app(team_id, 'recipes') and (user_id = auth.uid() or public.app_role(team_id, 'recipes') = 'admin'));
+-- Gezondheidsscore is alleen voor de Assistent: gezinsleden krijgen op die kolommen geen schrijfrecht.
+revoke all on public.recipes from anon, authenticated;
+grant select, delete on public.recipes to authenticated;
+grant insert (id, team_id, user_id, author, title, intro, category, servings, ingredients, steps) on public.recipes to authenticated;
+grant update (author, title, intro, category, servings, ingredients, steps, deleted) on public.recipes to authenticated;
+
+drop policy if exists ratings_read on public.recipe_ratings;
+create policy ratings_read on public.recipe_ratings for select using (public.has_app(team_id, 'recipes'));
+drop policy if exists ratings_own on public.recipe_ratings;
+create policy ratings_own on public.recipe_ratings for all
+  using (user_id = auth.uid() and public.has_app(team_id, 'recipes'))
+  with check (user_id = auth.uid() and public.has_app(team_id, 'recipes')
+    and exists (select 1 from public.recipes r where r.id = recipe_id and r.team_id = recipe_ratings.team_id));
+revoke all on public.recipe_ratings from anon;
+grant select, insert, update, delete on public.recipe_ratings to authenticated;
+
+-- De Assistent: gerechten zonder gezondheidsscore (alleen titel, porties, ingrediënten en stappen; geen namen of gezin)
+-- en de score terugzetten. Is het recept intussen gewijzigd (p_updated_at klopt niet meer), dan wordt het niet gescoord.
+create or replace function public.runner_unscored_recipes()
+returns table(id uuid, title text, category text, servings int, ingredients jsonb, steps jsonb, updated_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  return query select r.id, r.title, r.category, r.servings, r.ingredients, r.steps, r.updated_at
+    from recipes r where r.health_score is null and not r.deleted order by r.created_at limit 50;
+end $$;
+create or replace function public.runner_score_recipe(p_recipe uuid, p_updated_at timestamptz, p_score int, p_notes text)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  if p_score not between 1 and 10 then raise exception 'Score moet tussen 1 en 10 liggen'; end if;
+  update recipes set health_score = p_score, health_notes = left(trim(coalesce(p_notes, '')), 1000), health_scored_at = now()
+    where recipes.id = p_recipe and date_trunc('milliseconds', recipes.updated_at) = date_trunc('milliseconds', p_updated_at) and not recipes.deleted;
+  return found;
+end $$;
+revoke all on function public.runner_unscored_recipes() from public, anon;
+revoke all on function public.runner_score_recipe(uuid, timestamptz, int, text) from public, anon;
+grant execute on function public.runner_unscored_recipes() to authenticated;
+grant execute on function public.runner_score_recipe(uuid, timestamptz, int, text) to authenticated;
+
+-- ---------- Agenda (familie-app, v3.5) ----------
+-- Weekoverzicht van de kinderen (en wie er verder in staat): schoolrooster, trainingen, wedstrijden, huiswerk.
+-- agenda_people  personen in de agenda; een kind zonder eigen account kan ook (user_id leeg)
+-- agenda_items   afspraken: één keer (on_date) of elke week (days, 0 = zondag) binnen valid_from/valid_until,
+--                eventueel alleen even/oneven weken (weeks); skip = data waarop het niet doorgaat
+-- agenda_tasks   huiswerk en toetsen per persoon, met inleverdatum en afvinken
+-- Rechten: iedereen die Agenda mag gebruiken, ziet en wijzigt alles van het gezin (kinderen alleen als een
+-- beheerder Agenda voor hen aanzet). Verwijderen = deleted (zacht), zodat telefoons het ook zien.
+create table if not exists public.agenda_people (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 40),
+  color text not null default '#0A84FF' check (color ~ '^#[0-9A-Fa-f]{6}$'),
+  user_id uuid references auth.users(id) on delete set null,
+  sort int not null default 0,
+  deleted boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.agenda_items (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  person_ids uuid[] not null default '{}',
+  kind text not null default 'other' check (kind in ('lesson', 'school', 'sport', 'match', 'other')),
+  title text not null check (length(trim(title)) between 1 and 80),
+  place text not null default '' check (length(place) <= 120),
+  notes text not null default '' check (length(notes) <= 1000),
+  start_time text not null default '' check (start_time ~ '^([0-2][0-9]:[0-5][0-9])?$'),
+  end_time text not null default '' check (end_time ~ '^([0-2][0-9]:[0-5][0-9])?$'),
+  meet_time text not null default '' check (meet_time ~ '^([0-2][0-9]:[0-5][0-9])?$'),
+  on_date date,
+  days smallint[] not null default '{}',
+  valid_from date,
+  valid_until date,
+  weeks text not null default '' check (weeks in ('', 'odd', 'even')),
+  skip date[] not null default '{}',
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  check (on_date is not null or cardinality(days) > 0)
+);
+create index if not exists agenda_items_team on public.agenda_items(team_id);
+create table if not exists public.agenda_tasks (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  person_id uuid not null references public.agenda_people(id) on delete cascade,
+  kind text not null default 'homework' check (kind in ('homework', 'test')),
+  subject text not null default '' check (length(subject) <= 60),
+  text text not null check (length(trim(text)) between 1 and 500),
+  due date,
+  done boolean not null default false,
+  done_at timestamptz,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists agenda_tasks_team on public.agenda_tasks(team_id, due);
+
+create or replace function public.agenda_touch() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['agenda_people', 'agenda_items', 'agenda_tasks'] loop
+    execute format('drop trigger if exists agenda_touch on public.%I', t);
+    execute format('create trigger agenda_touch before insert or update on public.%I for each row execute function public.agenda_touch()', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists team_data on public.%I', t);
+    execute format('create policy team_data on public.%I for all using (public.has_app(team_id, ''agenda'')) with check (public.has_app(team_id, ''agenda''))', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+-- Een persoon koppelen aan een account mag alleen met een lid van hetzelfde gezin; huiswerk hoort bij een persoon van hetzelfde gezin.
+create or replace function public.agenda_people_guard() returns trigger
+language plpgsql as $$
+begin
+  if new.user_id is not null and not exists (select 1 from public.team_members m where m.team_id = new.team_id and m.user_id = new.user_id) then
+    raise exception 'Dit account hoort niet bij het gezin';
+  end if;
+  return new;
+end $$;
+drop trigger if exists agenda_people_guard on public.agenda_people;
+create trigger agenda_people_guard before insert or update on public.agenda_people for each row execute function public.agenda_people_guard();
+create or replace function public.agenda_tasks_guard() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.agenda_people p where p.id = new.person_id and p.team_id = new.team_id) then
+    raise exception 'Onbekende persoon';
+  end if;
+  if new.done and not coalesce(old.done, false) then new.done_at := now(); elsif not new.done then new.done_at := null; end if;
+  return new;
+end $$;
+drop trigger if exists agenda_tasks_guard on public.agenda_tasks;
+create trigger agenda_tasks_guard before insert or update on public.agenda_tasks for each row execute function public.agenda_tasks_guard();

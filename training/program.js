@@ -38,7 +38,10 @@ export function normalize(p) {
   const s = p.settings && typeof p.settings === 'object' ? p.settings : {};
   const days = Array.isArray(s.days) ? [...new Set(s.days.map(Number).filter(n => n >= 0 && n <= 6))].sort((a, b) => a - b) : [];
   const log = Array.isArray(p.log) ? p.log.filter(x => x && x.id && x.les >= 1 && /^\d{4}-\d{2}-\d{2}$/.test(x.d)) : [];
-  return { v: 1, settings: { days, u: s.u || null }, resetAt: p.resetAt || null, log: activeLog(log, p.resetAt) };
+  const settings = { days, u: s.u || null };
+  // Circuit (Bio-circuit): eigen lijst toestellen in vaste volgorde.
+  if (Array.isArray(s.stations)) settings.stations = s.stations.filter(x => x && x.id && x.n).map(x => ({ id: String(x.id), n: String(x.n) }));
+  return { v: 1, settings, resetAt: p.resetAt || null, log: activeLog(log, p.resetAt) };
 }
 const activeLog = (log, resetAt) => (resetAt ? log.filter(x => (x.at || '') > resetAt) : log)
   .slice().sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : (a.at || '') < (b.at || '') ? -1 : 1));
@@ -118,7 +121,7 @@ export function record(p, les, d = today(), manual = false) {
 }
 
 export function setDays(p, days) {
-  p.settings = { days: [...new Set(days)].sort((a, b) => a - b), u: new Date().toISOString() };
+  p.settings = { ...p.settings, days: [...new Set(days)].sort((a, b) => a - b), u: new Date().toISOString() };
 }
 
 export function reset(p) { p.resetAt = new Date().toISOString(); p.log = []; }
@@ -127,13 +130,36 @@ export function reset(p) { p.resetAt = new Date().toISOString(); p.log = []; }
 export function merge(a, b) {
   a = normalize(a); b = normalize(b);
   const resetAt = [a.resetAt, b.resetAt].filter(Boolean).sort().pop() || null;
-  const byId = new Map();
-  for (const x of [...a.log, ...b.log]) byId.set(x.id, x);
+  // Dezelfde sessie aan twee kanten (bijv. later gewichten ingevuld): de laatst gewijzigde wint (u, anders at).
+  const byId = new Map(), ver = x => x.u || x.at || '';
+  for (const x of [...a.log, ...b.log]) { const y = byId.get(x.id); if (!y || ver(x) >= ver(y)) byId.set(x.id, x); }
   const settings = (a.settings.u || '') >= (b.settings.u || '') ? a.settings : b.settings;
   return { v: 1, settings, resetAt, log: activeLog([...byId.values()], resetAt) };
 }
 
 export const same = (a, b) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+
+/* ---------- circuit: steeds dezelfde training op vaste dagen (Bio-circuit) ---------- */
+// Geen genummerde lessen: elke sessie krijgt gewoon het volgende volgnummer.
+export const sessionCount = p => new Set(p.log.map(x => x.id)).size;
+export const nextSessionNo = p => p.log.reduce((m, x) => Math.max(m, x.les), 0) + 1;
+// Laatst genoteerde gewicht per toestel: { toestel-id: { w, d } }.
+export function lastWeights(p) {
+  const m = {};
+  for (const x of p.log) for (const [id, w] of Object.entries(x.w || {})) if (w !== '' && w != null) m[id] = { w, d: x.d };
+  return m;
+}
+// Eerstvolgende geplande circuittraining: vandaag als je vandaag nog niet hebt getraind, anders vanaf morgen.
+export const nextCircuitDay = (p, now = today()) => nextTrainingDay(p, sessionsOn(p, now).length ? addDays(now, 1) : now);
+export function circuitStatus(p, now = today()) {
+  const n = sessionCount(p);
+  if (!hasSchedule(p)) return { line: 'Kies je trainingsdagen', sub: n ? `${n} ${n === 1 ? 'training' : 'trainingen'}` : '' };
+  const w = thisWeek(p, now), sub = `${n} ${n === 1 ? 'training' : 'trainingen'} · deze week ${w.done} van ${w.planned}`;
+  const trainedToday = sessionsOn(p, now).length > 0, next = nextCircuitDay(p, now);
+  if (isTrainingDay(p, now) && !trainedToday) return { line: 'Vandaag trainen', sub, today: true };
+  if (trainedToday) return { line: `Vandaag gedaan · volgende ${fmtShort(next)}`, sub };
+  return { line: `Volgende training ${fmtShort(next)}`, sub, bonus: true };
+}
 
 // Korte status voor de tegel op het startscherm en de kop van de app.
 export function status(p, total, now = today()) {

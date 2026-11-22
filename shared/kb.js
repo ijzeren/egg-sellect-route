@@ -71,6 +71,63 @@ Andere gezinnen zien nooit je vraag zelf.</p>`,
 Bij meer trainingen wissel je daar ook tussen.</p>`,
   },
   {
+    slug: 'bio-circuit', app: 'training', title: 'Bio-circuit: trainen op de toestellen', updated: '2026-11-22', version: '3.3.0',
+    body: `<p>Bio-circuit is een vast circuit van 30 minuten op de toestellen in de sportschool. Niet iedereen hoeft mee te doen:
+alleen wie het programma opent en trainingsdagen kiest, heeft een Bio-circuit-training.</p>
+<ol><li>Open <b>Training → Bio-circuit</b> en kies je vaste trainingsdagen.</li>
+<li>Zet bij <b>Instellingen → Toestellen</b> de toestellen in de volgorde van jouw sportschool. Toevoegen, weghalen en verschuiven kan.</li>
+<li>Tik op <b>Start training</b>. Je gaat 2 rondes langs alle toestellen: werken, dan wisselen naar het volgende toestel.
+De tijd per toestel past zich aan het aantal toestellen aan, zodat het samen 30 minuten blijft.</li>
+<li>Na afloop noteer je het <b>gewicht per toestel</b>. Volgende keer zie je bij elk toestel wat je de vorige keer deed.</li></ol>
+<p>Zonder de app getraind? Tik bij het circuit op <b>Getraind zonder de app</b> en vul je gewichten in.
+Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
+<p><b>Samen trainen</b> kan ook, net als bij Pilates: Instellingen → Wie doen er mee? Het gewicht is dan van de training, dus apart trainen is meestal handiger.</p>
+<p><b>Veiligheid:</b> laat de toestellen de eerste keer instellen door een trainer. Stop bij pijn. Bij blessures, hartklachten of twijfel: overleg eerst met je huisarts.</p>`,
+  },
+  {
+    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.4.0',
+    body: `<p>In <b>Gerechten</b> verzamelt het gezin zijn favoriete recepten. Iedereen die de app mag gebruiken, kan gerechten toevoegen en sterren geven.</p>
+<ol><li>Tik rechtsboven op <b>+</b>. Vul de naam, de soort en voor hoeveel personen in.</li>
+<li>Zet de <b>ingrediënten</b> erin, één per regel, met de hoeveelheid vooraan (bijv. <i>500 g gehakt</i>). Dan kan de app omrekenen naar meer of minder personen.</li>
+<li>Maak het <b>bereidingsschema</b>: per stap wat je doet en hoeveel minuten het duurt. Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink <b>tegelijk met vorige</b> aan.</li>
+<li>Tik op <b>Bewaar</b>.</li></ol>
+<p>Bij een gerecht kies je <b>Aan tafel om</b>, bijvoorbeeld 18:00. De app zet dan bij elke stap hoe laat je moet beginnen.</p>
+<p><b>Sterren:</b> geef 1 tot 5 sterren. Tik nog een keer op dezelfde ster om ze weg te halen. In de lijst zie je het gemiddelde van het gezin; sorteer op <b>Lekkerst</b> of <b>Gezondst</b> om te kiezen wat je gaat eten.</p>
+<p><b>Wijzigen of verwijderen</b> kan wie het gerecht plaatste, en een beheerder van de app.</p>`,
+  },
+  {
+    slug: 'gezondheidsscore', app: 'recipes', title: 'Hoe werkt de gezondheidsscore?', updated: '2026-11-22', version: '3.4.0',
+    body: `<p>Elk gerecht krijgt een score van <b>1 tot 10</b>. Die wordt automatisch bepaald door de Assistent, meestal binnen een dag nadat je een gerecht toevoegt of wijzigt. Tot die tijd staat er <b>…</b>.</p>
+<p>De score volgt de Schijf van Vijf van het Voedingscentrum, per portie:</p>
+<ul><li><b>Hoger</b> door veel groente, volkoren, peulvruchten, vis, noten en zachte olie.</li>
+<li><b>Lager</b> door bewerkt of veel rood vlees, veel kaas, room of boter, frituren, veel suiker of zout.</li>
+<li>Een nagerecht of taart scoort meestal laag. Dat is niet erg: het hoort bij af en toe.</li></ul>
+<p>Bij de score staat een korte uitleg met een tip om het gerecht gezonder te maken.</p>
+<p>Je kunt de score niet zelf aanpassen. Wijzig je de naam, het aantal personen, de ingrediënten of de stappen, dan wordt de score opnieuw bepaald.
+De Assistent ziet alleen het recept, niet wie het plaatste of bij welk gezin het hoort.</p>`,
+  },
+  {
+    slug: 'agenda', app: 'agenda', title: 'De agenda van het gezin', updated: '2026-11-22', version: '3.5.0',
+    body: `<p>In <b>Agenda</b> staat wat de kinderen (en wie je er verder in zet) per dag doen: school, trainingen, wedstrijden en andere afspraken.</p>
+<ol><li>Zet eerst de <b>personen</b> erin: Agenda → Personen. Geef iedereen een eigen kleur.
+Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het gezin, koppel dat dan: de agenda opent voor hem of haar meteen op de eigen planning.</li>
+<li>Tik op <b>+</b> voor een afspraak. Kies de soort (les, school, training, wedstrijd, anders), voor wie, en <b>Elke week</b> (op welke dagen) of <b>Eén keer</b> (datum).</li>
+<li>Bij een <b>wedstrijd</b> vul je ook de verzameltijd in; die staat dan bovenaan bij de dag. Een adres opent in Kaarten.</li></ol>
+<p><b>Gaat een training een keer niet door?</b> Open de afspraak op die dag en tik op <b>Gaat … niet door</b>. Alleen die dag vervalt; de weken erna blijven staan.</p>
+<p>Bovenaan kies je <b>Iedereen</b> of één persoon. Met ‹ en › blader je door de dagen; <b>Weekoverzicht</b> toont de hele week.</p>
+<p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
+  },
+  {
+    slug: 'agenda-rooster-huiswerk', app: 'agenda', title: 'Schoolrooster en huiswerk', updated: '2026-11-22', version: '3.5.0',
+    body: `<p><b>Schoolrooster invoeren:</b> Agenda → Schoolrooster invoeren. Kies voor wie en welke dag, en plak of typ de lessen, één per regel:</p>
+<p><i>8:30-9:20 Wiskunde, 1.12</i><br><i>9:20-10:10 Engels, 2.04</i></p>
+<p>Eerst de tijden, dan het vak, en na een komma het lokaal. Regels zonder tijd (zoals "Pauze") slaat de app over. Tik op <b>Bewaar</b>; de app gaat dan door naar de volgende dag.
+De lessen gelden voor het schooljaar dat eronder staat. Wisselt het rooster per week (A- en B-week), maak die lessen dan als losse afspraak met <b>even</b> of <b>oneven weken</b>.</p>
+<p><b>Huiswerk of een toets:</b> tik op <b>Huiswerk of toets toevoegen</b>. Kies voor wie, het vak en wat er moet gebeuren.
+Staat het rooster erin, dan stelt de app de datum van de <b>volgende les van dat vak</b> voor. Afvinken doe je met het rondje ervoor.</p>
+<p>Huiswerk dat vandaag of morgen af moet, zie je ook op het startscherm bij de tegel Agenda. Te laat? Dan staat het in het rood bovenaan.</p>`,
+  },
+  {
     slug: 'eggs-ronde', app: 'eggs', title: 'Een ronde lopen', updated: '2026-11-22', version: '2.8.0',
     body: `<p>Het tabblad <b>Ronde</b> toont de adressen van vandaag in loopvolgorde, met het afgesproken aantal eieren.</p>
 <ol><li>Tik op <b>Start ronde</b> (of <b>Verder bij …</b>).</li>

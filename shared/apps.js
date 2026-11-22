@@ -5,7 +5,9 @@
 //   icon    emoji op de tegel
 //   status(ctx) → { line, sub } korte stand van zaken; ctx = { today, account, storage }
 import * as P from '../training/program.js';
-import { PROGRAM as PILATES } from '../training/sports/pilates/index.js';
+import { PROGRAMS } from '../training/programs.js';
+import { ratingOf, fmtStars } from '../recipes/recipe.js';
+import { dayItems, dueSoon, kindOf } from '../agenda/plan.js';
 
 const DSH = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
 const MON = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -44,15 +46,61 @@ export const APPS = [
     name: 'Training',
     route: 'training/',
     icon: '🧘',
-    about: 'Pilates 30: lessen op je vaste trainingsdagen, samen of apart.',
-    // Toont de actieve training van deze gebruiker (zie training/app.js: tracks per gezin).
+    about: 'Pilates 30 en Bio-circuit: trainen op je vaste dagen, samen of apart.',
+    // Toont de actieve trainingen van deze gebruiker (zie training/app.js: tracks per gezin, per programma).
     status({ today, account, storage }) {
       const scope = account && account.teamId ? account.teamId : 'local';
       const tracks = storage.get('training', `${scope}:tracks`, {}) || {};
-      const t = tracks[storage.get('training', `${scope}:active:${PILATES.id}`)];
-      if (!t || t.deleted) return { line: `${PILATES.name}: kies je trainingsdagen`, sub: 'Samen of apart trainen' };
-      const s = P.status(P.normalize(t.data), PILATES.total, today);
-      return { line: `${PILATES.name}: ${s.line}`, sub: s.sub, today: s.today };
+      const mine = t => t && !t.deleted && (!account || !account.teamId || (t.participants || []).includes(account.userId));
+      const list = [];
+      for (const pg of PROGRAMS) {
+        const t = tracks[storage.get('training', `${scope}:active:${pg.id}`)];
+        if (!mine(t)) continue;
+        const d = P.normalize(t.data);
+        if (!d.log.length && !d.settings.days.length) continue;
+        const s = pg.kind === 'circuit' ? P.circuitStatus(d, today) : P.status(d, pg.total, today);
+        list.push({ ...s, line: `${pg.name}: ${s.line}` });
+      }
+      if (!list.length) return { line: 'Kies een programma', sub: 'Pilates 30 of Bio-circuit' };
+      list.sort((a, b) => (b.today ? 1 : 0) - (a.today ? 1 : 0));
+      return { line: list[0].line, sub: list[1] ? list[1].line : list[0].sub, today: list[0].today };
+    },
+  },
+  {
+    id: 'recipes',
+    name: 'Gerechten',
+    route: 'recipes/',
+    icon: '🍲',
+    about: 'Recepten van het gezin met bereidingsschema, sterren en een gezondheidsscore.',
+    roles: { admin: 'Beheerder', member: 'Lid' },
+    // Uit de kopie op de telefoon (recipes/app.js): favoriet van het gezin en aantal gerechten.
+    status({ account, storage }) {
+      const d = account && account.teamId ? storage.get('recipes', `${account.teamId}:data`) : null;
+      const list = (d && d.recipes) || [];
+      if (!list.length) return { line: 'Zet jullie favoriete gerechten erin', sub: '' };
+      const best = list.map(x => ({ x, r: ratingOf(d.ratings, x.id) })).filter(o => o.r.count).sort((a, b) => b.r.avg - a.r.avg || b.r.count - a.r.count)[0];
+      const sub = plural(list.length, 'gerecht', 'gerechten');
+      return best ? { line: `Favoriet: ${best.x.title} ★ ${fmtStars(best.r.avg)}`, sub } : { line: 'Geef sterren aan je favorieten', sub };
+    },
+  },
+  {
+    id: 'agenda',
+    name: 'Agenda',
+    route: 'agenda/',
+    icon: '📅',
+    about: 'Schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen in één weekoverzicht.',
+    // Uit de kopie op de telefoon (agenda/app.js). Gekoppeld aan een persoon in de agenda? Dan alleen die planning.
+    status({ today, account, storage }) {
+      const d = account && account.teamId ? storage.get('agenda', `${account.teamId}:data`) : null;
+      if (!d || !(d.people || []).length) return { line: 'Rooster, sport en huiswerk', sub: '' };
+      const p = d.people.find(x => x.user_id && x.user_id === account.userId), pid = p ? p.id : null;
+      const items = dayItems(d.items, today, pid), soon = dueSoon(d.tasks, pid, today);
+      const hw = soon.length ? plural(soon.length, 'taak', 'taken') + ' huiswerk voor morgen' : '';
+      if (!items.length) return { line: 'Vandaag niets gepland', sub: hw };
+      const now = new Date(), hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const next = items.find(it => (it.end || it.start || '24:00') >= hm);
+      const line = next ? `${next.meet || next.start || ''} ${kindOf(next.kind)[2]} ${next.title}`.trim() : `Vandaag: ${plural(items.length, 'afspraak', 'afspraken')}`;
+      return { line, sub: [plural(items.length, 'afspraak', 'afspraken') + ' vandaag', hw].filter(Boolean).join(' · '), today: !!next };
     },
   },
 ];

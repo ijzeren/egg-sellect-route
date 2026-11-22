@@ -177,14 +177,16 @@ node scripts/prod-naar-lokaal.mjs
 
 ---
 
-## Van Egg-sellent 2.8 naar de familie-app 3.2 in één keer
+## Van Egg-sellent 2.8 naar de familie-app 3.5 in één keer
 Alle stappen hieronder samen, in deze volgorde, **vóór** de push naar `main` (een push gaat direct naar alle telefoons):
-1. **SQL Editor**: voer [`schema.sql`](schema.sql) één keer uit (het bevat alles t/m v3.2).
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) één keer uit (het bevat alles t/m v3.5).
 2. **SQL Editor**: voer [`migrate-family-dongstra.sql`](migrate-family-dongstra.sql) één keer uit; controleer de laatste regel
    (Familie Dongstra, member:Lynn, admin:Marien, eggs:walker, eggs + training, 145 adressen, 183 bezoeken).
 3. Maak het account voor de Assistent aan (zie v3.2.0, stap 2).
 4. **Redirect URLs**: `https://ijzeren.github.io/egg-sellect-route/**` (met `**`).
 5. Push naar `main`.
+6. Na de push: zet in de app bij **Gezin → Apps** Gerechten en Agenda aan, en per kind bij **Gezin → (kind) → Apps**
+   (zie v3.4.0 en v3.5.0). Plan de routine voor de gezondheidsscore (zie v3.4.0, stap 2).
 
 Push je vóór stap 1–2, dan werken synchroniseren van Training en de rechten per app niet op de telefoons.
 De losse secties hieronder beschrijven per versie wat er veranderde.
@@ -231,3 +233,31 @@ Doe dit vóór je v3.2.0 pusht. Push je 3.1.0 en 3.2.0 tegelijk, dan volstaat: `
    2. **SQL Editor**: `insert into platform_roles (user_id, role) select id, 'runner' from auth.users where email = 'assistent@…';`
    3. Dit account kan alleen open vraagteksten lezen en antwoorden plaatsen (geen namen, gezinnen of gegevens).
       Gebruik: `RUNNER_EMAIL=… RUNNER_PASSWORD=… node scripts/runner.mjs list` — zie [`docs/runner.md`](../docs/runner.md).
+
+## Update naar Bio-circuit in Training (v3.3.0)
+Geen databasewijziging: Bio-circuit gebruikt dezelfde tabel `training_tracks` (programma `biocircuit`).
+De app haalt nu de trainingen van alle programma's in één keer op; oudere telefoons blijven werken.
+
+## Update naar Gerechten (v3.4.0)
+Doe dit **vóór** je v3.4.0 pusht:
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `recipes`, `recipe_ratings`, en voor de Assistent
+   `runner_unscored_recipes()` en `runner_score_recipe()`. Gezinsleden kunnen de gezondheidsscore niet zelf zetten
+   (geen schrijfrecht op die kolommen); wijzigt een recept, dan maakt de database de score leeg.
+   Controle: `select count(*) from recipes;` → 0.
+2. **Routine voor de gezondheidsscore**: zelfde runner-account als de vragen (v3.2.0, stap 2), geen extra rechten nodig.
+   Plan een Claude-routine (bijv. elke ochtend) met de instructies uit [`docs/recipe-scores.md`](../docs/recipe-scores.md):
+   `RUNNER_EMAIL=… RUNNER_PASSWORD=… node scripts/recipe-scores.mjs list`, beoordelen, en per gerecht `score`.
+3. Na de push: een beheerder zet **Gerechten** aan bij Gezin → Apps. Kinderen per kind.
+
+Getest op de lokale database (22 nov 2026): schema twee keer achter elkaar; lid kan score niet zetten (ook niet bij
+invoegen); ander lid kan andermans recept niet wijzigen, beheerder wel; sterren alleen op eigen naam; runner-functies
+alleen voor de runner; score op een verouderde versie wordt geweigerd; recept wijzigen wist de score.
+
+## Update naar Agenda (v3.5.0)
+Doe dit **vóór** je v3.5.0 pusht:
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `agenda_people`, `agenda_items`, `agenda_tasks`
+   (alleen voor wie Agenda mag gebruiken in het gezin). Controle: `select count(*) from agenda_people;` → 0.
+2. Na de push: een beheerder zet **Agenda** aan bij Gezin → Apps, en voor een kind met eigen account bij
+   Gezin → (kind) → Apps. Kinderen zonder account zet je gewoon als persoon in de agenda.

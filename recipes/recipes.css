@@ -1,0 +1,38 @@
+/* Gerechten — bovenop shared/theme.css en shared/ui.css (standaard accentkleur: oranje). */
+.card{background:var(--cell);border-radius:12px;padding:16px;margin:12px 0}
+.card h2{font-size:1.06rem;font-weight:700;margin:0 0 4px}
+.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 10px;margin:8px 0 10px}
+.search input{flex:1;min-width:0;border:0;background:none;padding:9px 0;font-size:1rem}
+.search input:focus{outline:none}
+.hs{display:inline-flex;align-items:center;justify-content:center;min-width:2rem;height:2rem;border-radius:99px;font-weight:700;font-variant-numeric:tabular-nums;flex:none;padding:0 6px;font-size:.94rem}
+.hs.good{background:var(--green-s);color:var(--green)} .hs.mid{background:var(--orange-s);color:var(--orange)}
+.hs.low{background:var(--red-s);color:var(--red)} .hs.none{background:var(--fill);color:var(--label2);font-weight:500;font-size:.75rem}
+.health{display:flex;gap:14px;align-items:flex-start}
+.health .hs{min-width:3.2rem;height:3.2rem;font-size:1.35rem}
+.health p{margin:4px 0 0;color:var(--label2);font-size:.94rem;line-height:1.45}
+.stars{display:flex;gap:4px}
+.stars button{font-size:1.9rem;line-height:1;min-width:44px;min-height:44px;color:var(--label3)}
+.stars button.on{color:#F5A623}
+.star{color:#F5A623}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{width:36px;height:36px;border-radius:99px;background:var(--fill);color:var(--tint);font-size:1.2rem;font-weight:600}
+.stepper b{min-width:5.5rem;text-align:center;font-variant-numeric:tabular-nums}
+.ing{margin:0;padding:4px 0 4px 20px;line-height:1.6}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:grid;grid-template-columns:3.4rem 1fr;gap:10px;padding:10px 0;border-top:.5px solid var(--sep)}
+.steps li:first-child{border-top:0}
+.steps .at{font-weight:700;font-variant-numeric:tabular-nums}
+.steps .du{display:block;font-size:.76rem;color:var(--label2);font-weight:400}
+.steps .par{font-size:.76rem;color:var(--blue)}
+.eat{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.eat input{font:inherit;font-weight:600;border:0;background:var(--fill);border-radius:8px;padding:6px 10px;color:var(--label)}
+textarea.ta{width:100%;min-height:7rem;border:0;background:none;font:inherit;line-height:1.45;resize:vertical;padding:8px 0;color:var(--label)}
+textarea.ta:focus{outline:none}
+.steprow{display:flex;flex-direction:column;gap:6px;padding:10px 16px;border-top:.5px solid var(--sep)}
+.steprow:first-child{border-top:0}
+.steprow textarea{width:100%;min-height:3.2rem;border:0;background:var(--fill);border-radius:8px;padding:8px;font:inherit;color:var(--label);resize:vertical}
+.steprow .opts{display:flex;align-items:center;gap:12px;font-size:.88rem;color:var(--label2)}
+.steprow .opts input[type=number]{width:4.5rem;border:0;background:var(--fill);border-radius:8px;padding:6px 8px;font:inherit;color:var(--label)}
+.steprow .opts label{display:flex;align-items:center;gap:6px}
+.steprow .opts .del{margin-left:auto;color:var(--red)}
+select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right}

@@ -20,9 +20,11 @@ export const lessonTitle = n => DAYS[n - 1].t.replace(/^Rustdag: /, 'Rustige les
 
 export const PROGRAM = {
   id: 'pilates30',
+  kind: 'lessons',
   sport: 'Pilates',
   name: 'Pilates 30',
   tagline: '30 lessen · 30 minuten · samen oefenen',
   total: DAYS.length,
   minutes: 30,
+  icon: '🧘',
 };
