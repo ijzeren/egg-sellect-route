@@ -1,7 +1,12 @@
 # De Assistent: vragen van gezinnen beantwoorden
 
-Instructies voor de geplande Claude-routine die open vragen uit de hub beantwoordt.
-Script: `scripts/runner.mjs` (zie de kop van dat bestand voor inloggen).
+Instructies voor de geplande Claude-taak die open vragen uit de hub beantwoordt.
+Script: `scripts/runner.mjs` (zie de kop van dat bestand voor de twee manieren van inloggen).
+
+De taak "De Assistent beantwoordt vragen" draait in de Claude-app op de Mac (08:00, 13:00 en 19:00) en gebruikt de
+Supabase CLI-login van die Mac, net als "Gezondheidsscore gerechten" (docs/recipe-scores.md). Staat de Mac uit, dan
+draait de taak bij de volgende start van de app. Er is ook een cloud-routine (uitgeschakeld) voor als er later een
+runner-account met wachtwoord is.
 
 ## Werkwijze
 1. `node scripts/runner.mjs list` → open vragen zonder antwoord van de Assistent (id, app, tekst, aantal antwoorden van gezinsleden).
@@ -24,5 +29,6 @@ Script: `scripts/runner.mjs` (zie de kop van dat bestand voor inloggen).
 - Ontbreekt er een kennisbankartikel voor iets wat vaker gevraagd wordt? Zet dat in het verslag, zodat het wordt toegevoegd.
 
 ## Rechten
-Het runner-account heeft in `platform_roles` de rol `runner`. Daarmee kan het alleen `runner_open_questions()` en
+Via de CLI-login gebruikt het script alleen twee vaste queries die precies doen wat de runner-functies doen.
+Met een runner-account: dat heeft in `platform_roles` de rol `runner`. Daarmee kan het alleen `runner_open_questions()` en
 `runner_answer()` gebruiken: vraagtekst en app, geen namen, gezinnen of andere gegevens.
