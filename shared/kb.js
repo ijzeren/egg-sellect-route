@@ -108,6 +108,21 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 <p><b>Wijzigen of verwijderen</b> kan wie het gerecht plaatste, en een beheerder van de app.</p>`,
   },
   {
+    slug: 'gerechten-importeren', app: 'recipes', title: 'Gerechten importeren', updated: '2026-11-22', version: '3.7.0',
+    body: `<p>Heb je recepten al ergens staan, bijvoorbeeld door Claude geschreven? Dan hoef je ze niet over te typen.</p>
+<ol><li>Ga naar <b>Gerechten</b> en tik onderaan op <b>Gerechten importeren</b>.</li>
+<li>Tik op <b>Kies bestanden</b> en kies een of meer bestanden: Markdown (<i>.md</i>), tekst (<i>.txt</i>) of een opgeslagen pagina (<i>.html</i>, bijvoorbeeld een artifact).
+Of plak de tekst en tik op <b>Lees in</b>.</li>
+<li>Controleer de lijst. Per gerecht zie je hoeveel personen, ingrediënten en stappen er zijn gevonden. Wat ontbreekt, staat in het oranje.
+Zet uit wat je niet wilt importeren; gerechten die al bestaan staan standaard uit.</li>
+<li>Tik op <b>Importeer</b>. Ontbrekende tijden of personen vul je daarna aan bij het gerecht (Wijzig).</li></ol>
+<p><b>Zo herkent de app een recept:</b> een kop met de naam (bijv. <i># Lasagne</i>), een kop of vette regel <i>Ingrediënten</i> met een lijst,
+en een kop <i>Bereiding</i> met de stappen. "Voor 4 personen" of "Personen: 4" geeft het aantal personen; "15 minuten" in een stap wordt de tijd van die stap,
+en een stap die begint met "Ondertussen" gaat tegelijk met de vorige. Meerdere recepten in één bestand kan: elk met een eigen kop.</p>
+<p>Tip: vraag Claude om je recepten "als Markdown, met kopjes Ingrediënten en Bereiding en minuten per stap". Dan gaat het importeren het best.</p>
+<p>Geïmporteerde gerechten krijgen vanzelf een gezondheidsscore, net als gerechten die je zelf invoert.</p>`,
+  },
+  {
     slug: 'gezondheidsscore', app: 'recipes', title: 'Hoe werkt de gezondheidsscore?', updated: '2026-11-22', version: '3.4.0',
     body: `<p>Elk gerecht krijgt een score van <b>1 tot 10</b>. Die wordt automatisch bepaald door de Assistent, meestal binnen een dag nadat je een gerecht toevoegt of wijzigt. Tot die tijd staat er <b>…</b>.</p>
 <p>De score volgt de Schijf van Vijf van het Voedingscentrum, per portie:</p>

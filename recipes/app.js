@@ -5,6 +5,7 @@
 //     dan wordt hij opnieuw bepaald
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as R from './recipe.js';
+import { parseRecipes, htmlToMarkdown, isHtml, sameTitle } from './import.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -45,7 +46,7 @@ async function load() {
     offline = e instanceof TypeError || !navigator.onLine;
     if (!offline) toast(e.message, 'err');
   } finally { loading = false; }
-  if (ui.view !== 'edit') render();
+  if (ui.view !== 'edit' && ui.view !== 'import') render();
 }
 const need = () => { if (!navigator.onLine) throw new Error('Geen verbinding. Probeer het straks opnieuw.'); };
 
@@ -119,7 +120,7 @@ function vList() {
   let h = navBar(hubLink(), '', plus) + '<main>' + lt('Gerechten', esc(me.teamName));
   const all = data.recipes, list = R.sortRecipes(all.filter(x => R.matches(x, ui.q)), data.ratings, ui.sort);
   if (!all.length) {
-    h += `<div class="card"><h2>Nog geen gerechten</h2><p class="muted">Zet je favoriete gerechten erin, met ingrediënten en het bereidingsschema. Iedereen in het gezin kan sterren geven; zo zie je wat de familie het lekkerst vindt.</p><button class="btn" data-a="new" style="margin-top:12px">Eerste gerecht toevoegen</button></div>`;
+    h += `<div class="card"><h2>Nog geen gerechten</h2><p class="muted">Zet je favoriete gerechten erin, met ingrediënten en het bereidingsschema. Iedereen in het gezin kan sterren geven; zo zie je wat de familie het lekkerst vindt.</p><button class="btn" data-a="new" style="margin-top:12px">Eerste gerecht toevoegen</button><button class="btn plain" data-a="import" style="margin-top:4px">Gerechten importeren</button></div>`;
     return h + (offline ? '<p class="sec-f">Geen verbinding.</p>' : loading ? '<p class="sec-f">Laden…</p>' : '') + '</main>';
   }
   h += `<label class="search"><span aria-hidden="true">🔍</span><input type="search" id="q" value="${esc(ui.q)}" placeholder="Zoek op gerecht of ingrediënt" aria-label="Zoeken"></label>`;
@@ -130,6 +131,7 @@ function vList() {
     return `<button class="cell" data-a="open" data-id="${esc(x.id)}"><span class="tx"><span class="tt">${esc(x.title)}</span><span class="st">${sub}</span></span>${hs(x.health_score)}${ICON_CHEV}</button>`;
   }).join('') || '<div class="cell"><span class="tx muted">Niets gevonden.</span></div>'}</div>`,
   `${all.length} ${all.length === 1 ? 'gerecht' : 'gerechten'}. Het getal is de gezondheidsscore (1-10); "…" = wordt nog bepaald.${offline ? ' Geen verbinding: je ziet de laatst opgehaalde gerechten.' : ''}`);
+  h += `<div style="margin-top:8px"><button class="btn plain" data-a="import">Gerechten importeren</button></div>`;
   return h + '</main>';
 }
 
@@ -182,11 +184,74 @@ function readDraft() {
   }));
 }
 
+/* ---------- importeren (Markdown of HTML, bijv. van Claude) ---------- */
+// ui.imp = { text, items: [{ recipe, warnings, source, dup, on }] | null }
+async function readFiles(files) {
+  const items = [];
+  for (const f of files) {
+    let text = await f.text();
+    const name = f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+    if (/\.html?$/i.test(f.name) || isHtml(text)) text = htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html'));
+    for (const x of parseRecipes(text, name)) items.push({ ...x, source: f.name });
+    if (!items.some(x => x.source === f.name)) items.push({ recipe: null, warnings: ['Geen recept herkend'], source: f.name });
+  }
+  return items;
+}
+function readText(text) {
+  const md = isHtml(text) ? htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html')) : text;
+  const out = parseRecipes(md).map(x => ({ ...x, source: 'geplakte tekst' }));
+  return out.length ? out : [{ recipe: null, warnings: ['Geen recept herkend'], source: 'geplakte tekst' }];
+}
+function markItems(items) {
+  const seen = [];
+  return items.map(x => {
+    if (!x.recipe) return { ...x, on: false };
+    const dup = data.recipes.some(r => sameTitle(r.title, x.recipe.title)) ? 'bestaat al' : seen.some(t => sameTitle(t, x.recipe.title)) ? 'dubbel in de import' : '';
+    seen.push(x.recipe.title);
+    return { ...x, dup, on: !dup && !!x.recipe.title && x.recipe.ingredients.length > 0 };
+  });
+}
+function vImport() {
+  const imp = ui.imp;
+  let h = navBar(`<button class="nb" data-a="cancel">Annuleer</button>`, 'Importeren') + '<main>';
+  if (!imp.items) {
+    h += lt('Gerechten importeren', 'Uit Markdown, tekst of een opgeslagen pagina');
+    h += sec('Bestanden', `<div class="grp"><label class="cell tint"><span class="tx"><span class="tt">Kies bestanden…</span><span class="st">.md, .txt of .html, meerdere tegelijk</span></span><input type="file" id="impFiles" multiple accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html" style="position:absolute;opacity:0;width:1px;height:1px"></label></div>`,
+      'Bijvoorbeeld recepten die Claude voor je schreef (als Markdown bewaard of gedownload), of een artifact opgeslagen als pagina.');
+    h += sec('Of plak de tekst', `<div class="grp"><div class="cell"><textarea class="ta" id="impText" placeholder="# Lasagne&#10;Voor 4 personen&#10;&#10;## Ingrediënten&#10;- 500 g gehakt&#10;&#10;## Bereiding&#10;1. Bak het gehakt 10 minuten." style="min-height:10rem">${esc(imp.text || '')}</textarea></div></div>`,
+      'Meerdere recepten in één keer mag: elk recept met een eigen kop. De app herkent ingrediënten, bereiding, personen en minuten per stap.');
+    h += `<div class="sec"><button class="btn" data-a="impread">Lees in</button></div>`;
+    return h + '</main>';
+  }
+  const chosen = imp.items.filter(x => x.on).length;
+  h += lt('Controleren', `${imp.items.filter(x => x.recipe).length} ${imp.items.filter(x => x.recipe).length === 1 ? 'gerecht' : 'gerechten'} gevonden`);
+  h += `<div class="grp">${imp.items.map((x, i) => {
+    if (!x.recipe) return `<div class="cell"><span class="tx"><span class="tt muted">${esc(x.source)}</span><span class="st" style="color:var(--orange)">Geen recept herkend</span></span></div>`;
+    const r = x.recipe, mins = R.totalMinutes(r.steps);
+    const sub = [`${r.servings} pers.`, `${r.ingredients.length} ingrediënten`, `${r.steps.length} stappen`, mins ? R.fmtMinutes(mins) : '', R.categoryName(r.category)].filter(Boolean).join(' · ');
+    const warn = [x.dup, ...x.warnings].filter(Boolean).join(' · ');
+    return `<div class="cell"><span class="tx"><span class="tt">${esc(r.title || '(geen naam)')}</span><span class="st">${sub}</span>${warn ? `<span class="st" style="color:var(--orange)">${esc(warn)}</span>` : ''}</span>${toggleHtml(x.on, i, r.title)}</div>`;
+  }).join('')}</div>`;
+  h += `<p class="sec-f">Wat oranje staat, kun je na het importeren aanvullen bij het gerecht (Wijzig). Bestaat een gerecht al, dan staat het standaard uit. De gezondheidsscore volgt vanzelf.</p>`;
+  h += `<div class="sec"><button class="btn" data-a="impsave" ${chosen ? '' : 'disabled'}>Importeer ${chosen} ${chosen === 1 ? 'gerecht' : 'gerechten'}</button><button class="btn plain" data-a="impagain" style="margin-top:6px">Andere bestanden</button></div>`;
+  return h + '</main>';
+}
+const toggleHtml = (on, i, label) => `<button class="toggle" role="switch" aria-checked="${!!on}" aria-label="${esc(label || 'Gerecht')} importeren" data-a="imptoggle" data-i="${i}"></button>`;
+async function saveImport() {
+  need();
+  const rows = ui.imp.items.filter(x => x.on && x.recipe).map(x => ({ ...x.recipe, team_id: FAMILY, user_id: me.userId, author: me.memberName }));
+  if (!rows.length) return;
+  const out = await api('/rest/v1/recipes', { method: 'POST', headers: { Prefer: 'return=representation' }, body: rows });
+  data.recipes.push(...(out || []));
+  storage.set(APP, DKEY, data);
+  return (out || []).length;
+}
+
 function render() {
   const g = gate();
   const a = $('#app');
   if (g) a.innerHTML = navBar(hubLink()) + '<main>' + lt('Gerechten') + `<div class="card"><p>${g}</p></div></main>`;
-  else a.innerHTML = ui.view === 'detail' ? vDetail() : ui.view === 'edit' ? vEdit() : vList();
+  else a.innerHTML = ui.view === 'detail' ? vDetail() : ui.view === 'edit' ? vEdit() : ui.view === 'import' ? vImport() : vList();
   onScroll();
 }
 function go(view, extra) { Object.assign(ui, { view }, extra || {}); render(); window.scrollTo(0, 0); }
@@ -201,7 +266,12 @@ document.addEventListener('click', ev => {
   else if (a === 'sort') { ui.sort = el.dataset.v; storage.set(APP, 'sort', ui.sort); render(); }
   else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', steps: [{ text: '', min: '', par: false }] } });
   else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
-  else if (a === 'cancel') go(ui.id ? 'detail' : 'list');
+  else if (a === 'cancel') go(ui.view === 'import' ? 'list' : ui.id ? 'detail' : 'list');
+  else if (a === 'import') go('import', { imp: { text: '', items: null } });
+  else if (a === 'impread') { const t = ($('#impText') || {}).value || ''; ui.imp.text = t; if (!t.trim()) { toast('Kies bestanden of plak een recept.', 'err'); return; } ui.imp.items = markItems(readText(t)); render(); window.scrollTo(0, 0); }
+  else if (a === 'impagain') { ui.imp.items = null; render(); }
+  else if (a === 'imptoggle') { const x = ui.imp.items[+el.dataset.i]; x.on = !x.on; render(); }
+  else if (a === 'impsave') run(el, async () => { const n = await saveImport(); go('list', { imp: null }); toast(`${n} ${n === 1 ? 'gerecht' : 'gerechten'} geïmporteerd.`); });
   else if (a === 'addstep') { readDraft(); ui.draft.steps.push({ text: '', min: '', par: false }); render(); const t = document.querySelector(`[data-step="${ui.draft.steps.length - 1}"]`); if (t) t.focus(); }
   else if (a === 'delstep') { readDraft(); ui.draft.steps.splice(+el.dataset.i, 1); if (!ui.draft.steps.length) ui.draft.steps.push({ text: '', min: '', par: false }); render(); }
   else if (a === 'save') run(el, async () => { readDraft(); await saveRecipe(ui.draft); go('detail', { servings: null }); toast('Bewaard.'); });
@@ -213,9 +283,13 @@ document.addEventListener('input', ev => {
   if (ev.target.id === 'q') { ui.q = ev.target.value; const pos = ev.target.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
 });
 document.addEventListener('change', ev => {
+  if (ev.target.id === 'impFiles' && ev.target.files.length) {
+    run(null, async () => { ui.imp.items = markItems(await readFiles([...ev.target.files])); render(); window.scrollTo(0, 0); });
+    return;
+  }
   if (ev.target.id === 'eatAt' && ev.target.value) { ui.eatAt = ev.target.value; storage.set(APP, 'eatAt', ui.eatAt); render(); }
 });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.view !== 'edit') load(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.view !== 'edit' && ui.view !== 'import') load(); });
 addEventListener('online', () => load());
 
 render();

@@ -10,6 +10,13 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.7.0', date: '2026-11-22', title: 'Gerechten importeren',
+    notes: [
+      { app: 'recipes', text: 'Importeer gerechten uit Markdown, tekst of een opgeslagen pagina, bijvoorbeeld recepten die Claude voor je schreef. Meerdere bestanden en meerdere recepten tegelijk.', kb: 'gerechten-importeren' },
+      { app: 'recipes', text: 'De app herkent naam, personen, ingrediënten, bereiding en minuten per stap; je controleert alles voordat het erin gaat.', kb: 'gerechten-importeren' },
+    ],
+  },
+  {
     version: '3.6.0', date: '2026-11-22', title: 'Beheer voor de hoofdbeheerder',
     notes: [
       { app: 'hub', text: 'Nieuw scherm Beheer voor de hoofdbeheerder van de app: apps voor alle gezinnen aan of uit, gezinnen uitschakelen of verwijderen, en hoofdbeheerders en de Assistent aanwijzen.', kb: 'hoofdbeheer' },
