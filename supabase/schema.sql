@@ -511,3 +511,179 @@ drop policy if exists team_data on public.training_tracks;
 create policy team_data on public.training_tracks for all using (public.has_app(team_id, 'training')) with check (public.has_app(team_id, 'training'));
 revoke all on public.training_tracks from anon;
 grant select, insert, update, delete on public.training_tracks to authenticated;
+
+-- ---------- Hulp: FAQ, vragen en antwoorden (familie-app, v3.2) ----------
+-- platform_roles  rollen over alle gezinnen heen: 'admin' = hoofdbeheer van alle apps (FAQ beheren),
+--                 'runner' = de Assistent (een geplande Claude-routine) die open vragen beantwoordt.
+-- faq             veelgestelde vragen voor alle gezinnen (ook zonder login te lezen als gepubliceerd)
+-- questions       vragen van een gezinslid; alleen zichtbaar binnen het eigen gezin
+-- answers         antwoorden van gezinsleden of van de Assistent; de vrager of een gezinsbeheerder keurt goed
+-- De runner en de hoofdbeheerder krijgen GEEN leesrechten op de tabellen van gezinnen, alleen deze functies:
+--   runner_open_questions(), runner_answer()            alleen vraagtekst + app, geen namen of gezin
+--   faq_candidates(), faq_publish(), faq_decline()       alleen goedgekeurde antwoorden
+create table if not exists public.platform_roles (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null check (role in ('admin', 'runner')),
+  primary key (user_id, role)
+);
+alter table public.platform_roles enable row level security;
+drop policy if exists platform_roles_self on public.platform_roles;
+create policy platform_roles_self on public.platform_roles for select using (user_id = auth.uid());
+grant select on public.platform_roles to authenticated;
+revoke all on public.platform_roles from anon;
+create or replace function public.has_platform_role(r text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from platform_roles where user_id = auth.uid() and role = r);
+$$;
+
+create table if not exists public.faq (
+  id uuid primary key default gen_random_uuid(),
+  app text check (app is null or app ~ '^[a-z][a-z0-9-]{1,30}$'),
+  question text not null check (length(trim(question)) > 0),
+  answer text not null check (length(trim(answer)) > 0),
+  sort int not null default 100,
+  published boolean not null default true,
+  source_question uuid,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.faq enable row level security;
+drop policy if exists faq_read on public.faq;
+create policy faq_read on public.faq for select to authenticated using (published or public.has_platform_role('admin'));
+drop policy if exists faq_read_public on public.faq;
+create policy faq_read_public on public.faq for select to anon using (published);
+drop policy if exists faq_admin on public.faq;
+create policy faq_admin on public.faq for all to authenticated using (public.has_platform_role('admin')) with check (public.has_platform_role('admin'));
+grant select on public.faq to anon, authenticated;
+grant insert, update, delete on public.faq to authenticated;
+
+create table if not exists public.questions (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  name text not null default '',
+  app text check (app is null or app ~ '^[a-z][a-z0-9-]{1,30}$'),
+  text text not null check (length(trim(text)) between 3 and 2000),
+  status text not null default 'open' check (status in ('open', 'answered', 'closed')),
+  faq_status text check (faq_status in ('published', 'declined')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists questions_team on public.questions(team_id, created_at desc);
+create table if not exists public.answers (
+  id uuid primary key default gen_random_uuid(),
+  question_id uuid not null references public.questions(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  author text not null default 'member' check (author in ('member', 'runner')),
+  name text not null default '',
+  text text not null check (length(trim(text)) between 1 and 4000),
+  accepted boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists answers_question on public.answers(question_id, created_at);
+alter table public.questions enable row level security;
+alter table public.answers enable row level security;
+
+-- Vraag of antwoord hoort bij een gezin waar je lid van bent; nieuwe vraag/antwoord altijd op eigen naam.
+drop policy if exists questions_read on public.questions;
+create policy questions_read on public.questions for select using (public.is_member(team_id));
+drop policy if exists questions_insert on public.questions;
+create policy questions_insert on public.questions for insert with check (public.is_member(team_id) and user_id = auth.uid());
+drop policy if exists questions_update on public.questions;
+create policy questions_update on public.questions for update using (user_id = auth.uid() or public.is_admin(team_id)) with check (public.is_member(team_id));
+drop policy if exists questions_delete on public.questions;
+create policy questions_delete on public.questions for delete using (user_id = auth.uid() or public.is_admin(team_id));
+drop policy if exists answers_read on public.answers;
+create policy answers_read on public.answers for select using (public.is_member(team_id));
+drop policy if exists answers_insert on public.answers;
+create policy answers_insert on public.answers for insert with check (
+  public.is_member(team_id) and user_id = auth.uid() and author = 'member' and not accepted
+  and exists (select 1 from questions q where q.id = question_id and q.team_id = answers.team_id));
+drop policy if exists answers_delete on public.answers;
+create policy answers_delete on public.answers for delete using (user_id = auth.uid() or public.is_admin(team_id));
+-- Vragen bijwerken: alleen tekst en status (faq_status is voor de hoofdbeheerder, via faq_publish/faq_decline).
+revoke update on public.questions from authenticated;
+grant select, insert, delete on public.questions to authenticated;
+grant update (text, status, updated_at) on public.questions to authenticated;
+grant select, insert, delete on public.answers to authenticated;
+revoke all on public.questions, public.answers from anon;
+
+-- Een antwoord goedkeuren (of weer intrekken): de vrager of een gezinsbeheerder. De vraag heet dan "beantwoord".
+create or replace function public.accept_answer(p_answer uuid, p_accept boolean default true)
+returns void language plpgsql security definer set search_path = public as $$
+declare a answers; q questions;
+begin
+  select * into a from answers where id = p_answer;
+  select * into q from questions where id = a.question_id;
+  if q is null or not (q.user_id = auth.uid() or public.is_admin(q.team_id)) then raise exception 'Alleen de vrager of een beheerder kan dit'; end if;
+  update answers set accepted = p_accept where id = p_answer;
+  update questions set status = case when exists (select 1 from answers where question_id = q.id and accepted) then 'answered' else 'open' end,
+    updated_at = now() where id = q.id;
+end $$;
+
+-- De Assistent: open vragen zonder antwoord van de Assistent. Alleen tekst en app, geen namen of gezin.
+create or replace function public.runner_open_questions()
+returns table(id uuid, app text, text text, created_at timestamptz, member_answers int)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  return query select q.id, q.app, q.text, q.created_at, (select count(*)::int from answers a where a.question_id = q.id)
+    from questions q where q.status = 'open'
+      and not exists (select 1 from answers a where a.question_id = q.id and a.author = 'runner')
+    order by q.created_at;
+end $$;
+create or replace function public.runner_answer(p_question uuid, p_text text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare q questions; id uuid;
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  select * into q from questions where questions.id = p_question;
+  if q is null then raise exception 'Onbekende vraag'; end if;
+  insert into answers(question_id, team_id, user_id, author, name, text) values (q.id, q.team_id, null, 'runner', 'Assistent', trim(p_text)) returning answers.id into id;
+  update questions set updated_at = now() where questions.id = q.id;
+  return id;
+end $$;
+
+-- Hoofdbeheer: goedgekeurde antwoorden die nog niet in de FAQ staan (alle gezinnen, zonder namen of gezin).
+create or replace function public.faq_candidates()
+returns table(question_id uuid, app text, question text, answer text, answered_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  return query select q.id, q.app, q.text, (select string_agg(a.text, E'\n\n' order by a.created_at) from answers a where a.question_id = q.id and a.accepted), q.updated_at
+    from questions q where q.status = 'answered' and q.faq_status is null order by q.updated_at desc;
+end $$;
+create or replace function public.faq_publish(p_question uuid, p_app text, p_q text, p_a text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare id uuid;
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  insert into faq(app, question, answer, source_question) values (nullif(p_app, ''), trim(p_q), trim(p_a), p_question) returning faq.id into id;
+  update questions set faq_status = 'published' where questions.id = p_question;
+  return id;
+end $$;
+create or replace function public.faq_decline(p_question uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  update questions set faq_status = 'declined' where id = p_question;
+end $$;
+do $$
+declare f text;
+begin
+  foreach f in array array['has_platform_role(text)', 'accept_answer(uuid, boolean)', 'runner_open_questions()', 'runner_answer(uuid, text)', 'faq_candidates()', 'faq_publish(uuid, text, text, text)', 'faq_decline(uuid)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
+
+-- Eerste veelgestelde vragen (vaste id's: opnieuw draaien maakt geen dubbele).
+insert into public.faq (id, app, question, answer, sort) values
+  ('00000000-0000-4000-8000-000000000001', null, 'Hoe zet ik de app op mijn iPhone?', 'Open de link in Safari, tik op de deel-knop en kies "Zet op beginscherm". Gebruik daarna alleen dat icoon: het heeft een eigen opslag en werkt ook zonder internet.', 10),
+  ('00000000-0000-4000-8000-000000000002', null, 'Hoe nodig ik iemand uit voor ons gezin?', 'Een beheerder gaat naar Gezin → Iemand uitnodigen, kiest de rol en maakt een code. Deel die code; de ander logt in en kiest "Ik heb een code". Een code is 14 dagen geldig.', 20),
+  ('00000000-0000-4000-8000-000000000003', null, 'Waarom zie ik een app niet?', 'De app staat niet aan voor je gezin, of niet voor jou. Een beheerder regelt dat bij Gezin → Apps en per lid bij Gezin → tik op een lid.', 30),
+  ('00000000-0000-4000-8000-000000000004', 'training', 'Ik heb een trainingsdag gemist. Wat nu?', 'Niets aan de hand: de volgende les schuift op naar je eerstvolgende trainingsdag. Komt het een andere dag beter uit, doe dan een bonustraining.', 40),
+  ('00000000-0000-4000-8000-000000000005', 'eggs', 'Waarom is het besteladvies lager dan ik verwacht?', 'Het advies is bewust voorzichtig: het telt alleen verkochte eieren, afspraken en het vaste ritme van adressen, gecorrigeerd met hoeveel afspraken de laatste weken echt verkocht zijn. Nieuwe adressen en losse verkoop tellen niet mee.', 50)
+on conflict (id) do nothing;

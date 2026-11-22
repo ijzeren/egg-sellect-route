@@ -177,6 +177,20 @@ node scripts/prod-naar-lokaal.mjs
 
 ---
 
+## Van Egg-sellent 2.8 naar de familie-app 3.2 in één keer
+Alle stappen hieronder samen, in deze volgorde, **vóór** de push naar `main` (een push gaat direct naar alle telefoons):
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) één keer uit (het bevat alles t/m v3.2).
+2. **SQL Editor**: voer [`migrate-family-dongstra.sql`](migrate-family-dongstra.sql) één keer uit; controleer de laatste regel
+   (Familie Dongstra, member:Lynn, admin:Marien, eggs:walker, eggs + training, 145 adressen, 183 bezoeken).
+3. Maak het account voor de Assistent aan (zie v3.2.0, stap 2).
+4. **Redirect URLs**: `https://ijzeren.github.io/egg-sellect-route/**` (met `**`).
+5. Push naar `main`.
+
+Push je vóór stap 1–2, dan werken synchroniseren van Training en de rechten per app niet op de telefoons.
+De losse secties hieronder beschrijven per versie wat er veranderde.
+
+---
+
 ## Update naar de familie-app (v3.0.0)
 Egg-sellent staat nu onder `/eggs/`, met een hub op de root en de app Training ernaast.
 Doe dit **voordat** je de nieuwe versie naar GitHub pusht:
@@ -185,7 +199,8 @@ Doe dit **voordat** je de nieuwe versie naar GitHub pusht:
    (voortgang van trainingen per gezin); de bestaande tabellen blijven zoals ze zijn.
 2. **Authentication → URL Configuration → Redirect URLs**: controleer dat er
    `https://ijzeren.github.io/egg-sellect-route/**` staat (met `**`). De inloglink stuurt nu terug naar
-   `…/egg-sellect-route/eggs/`; zonder `**` werkt die link niet meer. (Inloggen met de code werkt altijd.)
+   `…/egg-sellect-route/eggs/`; zonder `**` werkt die link niet meer. (Inloggen met de code werkt pas als de eigen mailserver en het mailsjabloon
+   uit stap 3–4 zijn ingesteld; tot dan stuurt Supabase alleen een link.)
 3. Optioneel: deploy de push-functie opnieuw (`npx supabase functions deploy push`). Die stuurt dan
    direct naar `eggs/`. Niet verplicht: de app stuurt oude meldingslinks zelf door.
 
@@ -201,3 +216,18 @@ Doe dit **vóór** je v3.1.0 pusht (na de stappen van v3.0.0 hierboven):
 
 Getest op een lokale kopie van productie (22 nov 2026): migratie twee keer achter elkaar, 20 rechtencontroles
 (o.a. bezorger kan gezin en eierinstellingen niet wijzigen, app uit = geen toegang tot de gegevens).
+
+## Update naar Hulp: kennisbank, FAQ en vragen (v3.2.0)
+Doe dit vóór je v3.2.0 pusht. Push je 3.1.0 en 3.2.0 tegelijk, dan volstaat: `schema.sql` uitvoeren, daarna
+`migrate-family-dongstra.sql`, daarna stap 2 hieronder.
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit (nieuw: `platform_roles`, `faq`, `questions`, `answers`
+   en de functies voor de Assistent en de hoofdbeheerder; plus 5 eerste veelgestelde vragen).
+   Voer daarna [`migrate-family-dongstra.sql`](migrate-family-dongstra.sql) opnieuw uit: Marien wordt hoofdbeheerder
+   (FAQ beheren). Controle: `select count(*) from platform_roles;` → 1.
+2. **Account voor de Assistent** (de geplande Claude-routine die vragen beantwoordt):
+   1. **Authentication → Users → Add user → Create new user**: e-mailadres bijv. `assistent@<jouw domein>`, een sterk
+      wachtwoord, *Auto Confirm User* aan. Bewaar het wachtwoord in je wachtwoordmanager.
+   2. **SQL Editor**: `insert into platform_roles (user_id, role) select id, 'runner' from auth.users where email = 'assistent@…';`
+   3. Dit account kan alleen open vraagteksten lezen en antwoorden plaatsen (geen namen, gezinnen of gegevens).
+      Gebruik: `RUNNER_EMAIL=… RUNNER_PASSWORD=… node scripts/runner.mjs list` — zie [`docs/runner.md`](../docs/runner.md).

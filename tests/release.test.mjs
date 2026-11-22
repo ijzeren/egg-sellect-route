@@ -27,3 +27,11 @@ test('alle bestanden in de service worker bestaan', () => {
   const list = [...read('sw.js').match(/const ASSETS = \[([\s\S]*?)\];/)[1].matchAll(/'\.\/([^']*)'/g)].map(m => m[1]);
   for (const p of list) assert.ok(existsSync(new URL(p || 'index.html', root)), p);
 });
+
+test('kennisbank: unieke slugs, verwijzingen uit release notes bestaan', async () => {
+  const { KB } = await import('../shared/kb.js');
+  const slugs = KB.map(a => a.slug);
+  assert.equal(new Set(slugs).size, slugs.length, 'dubbele slug');
+  for (const a of KB) { assert.ok(a.title && a.body && a.app, a.slug); assert.match(a.updated, /^\d{4}-\d{2}-\d{2}$/, a.slug); }
+  for (const r of RELEASES) for (const n of r.notes) if (n.kb) assert.ok(slugs.includes(n.kb), `${r.version}: kennisbank '${n.kb}' bestaat niet`);
+});

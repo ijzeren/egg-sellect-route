@@ -72,3 +72,15 @@ a.cell:active,button.cell:active{background:var(--press)}
 #toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 20px);z-index:50;display:flex;justify-content:center;pointer-events:none}
 #toast .t{pointer-events:auto;max-width:520px;background:rgba(30,30,32,.94);color:#fff;border-radius:14px;padding:12px 16px;font-size:.94rem;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 #toast .t.err{background:var(--red)}
+/* tekstvelden, artikelen */
+.cell textarea,.ta{width:100%;border:0;background:none;resize:vertical;min-height:4.5rem;font-size:1rem;padding:0;line-height:1.35;color:inherit;font-family:inherit}
+.cell textarea:focus{outline:none}
+.article{background:var(--cell);border-radius:12px;padding:16px;line-height:1.5}
+.article p{margin:0 0 10px}.article ul,.article ol{padding-left:20px;margin:0 0 10px}.article li{margin:2px 0}
+.article>:last-child{margin-bottom:0}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--label2);margin-left:6px;vertical-align:1px}
+.pill.ok{background:var(--green-s);color:var(--green)}.pill.ai{background:var(--blue-s);color:var(--blue)}
+.qa summary{padding:12px 0;cursor:pointer;list-style:none;font-weight:500}
+.qa summary::-webkit-details-marker{display:none}
+.qa{background:var(--cell);border-radius:12px;margin:6px 0;padding:0 16px}
+.qa p{margin:0 0 12px;color:var(--label2);line-height:1.45}

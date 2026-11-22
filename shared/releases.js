@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.2.0', date: '2026-11-22', title: 'Hulp: kennisbank, veelgestelde vragen en vragen stellen',
+    notes: [
+      { app: 'hub', text: 'Kennisbank met handleidingen bij alle apps, onder Hulp op het startscherm.' },
+      { app: 'hub', text: 'Veelgestelde vragen voor alle gezinnen.' },
+      { app: 'hub', text: 'Stel een vraag aan je gezin. Iedereen in het gezin kan antwoorden, en de Assistent zoekt ook een antwoord. Goede antwoorden komen in de veelgestelde vragen.', kb: 'vragen-stellen' },
+      { app: 'hub', text: 'Wat is nieuw: na elke update zie je wat er veranderd is.' },
+    ],
+  },
+  {
     version: '3.1.0', date: '2026-11-22', title: 'Gezinnen, rollen en één keer inloggen',
     notes: [
       { app: 'hub', text: 'Inloggen gebeurt nu in het startscherm en geldt voor alle apps.', kb: 'inloggen' },

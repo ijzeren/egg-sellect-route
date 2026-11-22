@@ -4,6 +4,7 @@ import * as F from '../shared/family.js';
 import { APPS } from '../shared/apps.js';
 import { ymd } from '../training/program.js';
 import { RELEASES, VERSION, APP_NAMES } from '../shared/releases.js';
+import { KB, kbBySlug } from '../shared/kb.js';
 
 const { esc, storage, account, CLOUD, DEV_CODE, ROLE_LABEL } = F;
 F.applyTheme();
@@ -60,9 +61,10 @@ const hasAccess = (m, app) => !!(fam && fam.apps[app]) && (memberApp(m.user_id, 
 const appRole = (m, app) => memberApp(m.user_id, app).role || (m.role === 'admin' ? 'admin' : 'member');
 
 async function refresh() {
-  if (!account()) return;
+  if (!account()) { await loadFaq().catch(() => {}); return; }
   try { await F.refreshFamilies(); await loadFamily(); }
   catch (e) { if (!(e instanceof TypeError)) console.warn(e); }
+  await loadHelp();
   render();
 }
 
@@ -88,7 +90,12 @@ function vHome() {
   const seen = storage.get('hub', 'seenVersion');
   if (seen && seen !== VERSION) h += `<div class="banner blue" style="margin-top:16px"><div><b>Nieuw in versie ${VERSION}:</b> ${esc(RELEASES[0].title)}. <button class="link" data-a="go" data-v="news" style="min-height:0">Bekijk</button></div></div>`;
   else if (!seen) storage.set('hub', 'seenVersion', VERSION);
-  h += sec('Hulp', grp(`<button class="cell" data-a="go" data-v="news"><span class="tx"><span class="tt">Wat is nieuw</span></span><span class="tr">${VERSION}</span>${CHEV}</button>`));
+  const openQ = (help.questions || []).filter(q => q.status === 'open').length;
+  h += sec('Hulp', grp(`<button class="cell" data-a="go" data-v="kb"><span class="tx"><span class="tt">Kennisbank</span></span>${CHEV}</button>
+    <button class="cell" data-a="go" data-v="faq"><span class="tx"><span class="tt">Veelgestelde vragen</span></span>${CHEV}</button>
+    ${me && me.teamId ? `<button class="cell" data-a="go" data-v="questions"><span class="tx"><span class="tt">Vragen</span></span><span class="tr">${openQ ? `${openQ} open` : ''}</span>${CHEV}</button>` : ''}
+    <button class="cell" data-a="go" data-v="news"><span class="tx"><span class="tt">Wat is nieuw</span></span><span class="tr">${VERSION}</span>${CHEV}</button>
+    ${help.platformAdmin ? `<button class="cell" data-a="go" data-v="curate"><span class="tx"><span class="tt">FAQ beheren</span><span class="st">Hoofdbeheer van alle apps</span></span><span class="tr">${help.candidates ? help.candidates.length || '' : ''}</span>${CHEV}</button>` : ''}`));
   return h + '</main>';
 }
 
@@ -132,7 +139,7 @@ function vFamily() {
   if (!me.teamId) return vOnboard();
   const admin = isAdmin();
   let h = nav(back('home', 'Apps'), 'Gezin') + '<main>' + lt(esc(me.teamName), `Jij bent ${(ROLE_LABEL[me.role] || '').toLowerCase()}`);
-  if (!fam) return h + '<p class="sec-f">Laden…</p></main>';
+  if (!fam) return h + `<p class="sec-f">${navigator.onLine ? 'Laden…' : 'Geen internet. Gezin, leden en apps beheren kan alleen online.'}</p>` + vAccountSections(me) + '</main>';
   // leden
   h += sec('Leden', grp(fam.members.map(m => `<button class="cell" data-a="member" data-id="${esc(m.user_id)}" ${admin || m.user_id === me.userId ? '' : 'disabled'}><span class="tx"><span class="tt">${esc(m.name || '(geen naam)')}${m.user_id === me.userId ? ' (jij)' : ''}</span><span class="st">${ROLE_LABEL[m.role] || m.role}${APPS.filter(app => hasAccess(m, app.id)).map(app => ' · ' + esc(app.name)).join('')}</span></span>${admin || m.user_id === me.userId ? CHEV : ''}</button>`).join('')),
     admin ? 'Tik op een lid voor rol, apps en rechten.' : '');
@@ -192,6 +199,101 @@ function vPasskeys() {
   return h + '</main>';
 }
 
+/* ---------- hulp: kennisbank, FAQ, vragen ---------- */
+// help = gegevens voor de hulpschermen (FAQ, vragen van het gezin, voorstellen voor de FAQ)
+let help = { faq: storage.get('hub', 'faq', null), questions: null, platformAdmin: false, candidates: null };
+const appName = id => id ? (APP_NAMES[id] || id) : 'Algemeen';
+const appChoices = () => [['', 'Algemeen'], ...APPS.map(a => [a.id, a.name])];
+const fmtDate = iso => { const d = new Date(iso); return `${d.getDate()} ${MONL[d.getMonth()].slice(0, 3)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+async function loadFaq() {
+  const path = '/rest/v1/faq?published=eq.true&select=id,app,question,answer,sort&order=sort,created_at';
+  const rows = account() ? await F.api(path) : await (await fetch(F.CFG.supabaseUrl + path, { headers: { apikey: F.CFG.supabaseKey } })).json();
+  if (Array.isArray(rows)) { help.faq = rows; storage.set('hub', 'faq', rows); }
+}
+async function loadQuestions() {
+  const a = account(); if (!a || !a.teamId) { help.questions = null; return; }
+  help.questions = await F.api(`/rest/v1/questions?team_id=eq.${a.teamId}&select=id,user_id,name,app,text,status,created_at,answers(id,user_id,author,name,text,accepted,created_at)&order=created_at.desc&limit=100`);
+  for (const q of help.questions) q.answers.sort((x, y) => x.created_at < y.created_at ? -1 : 1);
+}
+async function loadPlatform() {
+  const a = account(); if (!a) { help.platformAdmin = false; return; }
+  const roles = await F.api(`/rest/v1/platform_roles?user_id=eq.${a.userId}&select=role`);
+  help.platformAdmin = (roles || []).some(r => r.role === 'admin');
+  if (help.platformAdmin) help.candidates = await F.api('/rest/v1/rpc/faq_candidates', { method: 'POST', body: {} });
+}
+async function loadHelp() {
+  await Promise.all([loadFaq().catch(() => {}), loadQuestions().catch(() => {}), loadPlatform().catch(() => {})]);
+}
+
+function vKb() {
+  let h = nav(back('home', 'Apps'), 'Kennisbank') + '<main>' + lt('Kennisbank', 'Handleidingen bij de apps');
+  for (const [id, name] of [['hub', 'Algemeen'], ...APPS.map(a => [a.id, a.name])]) {
+    const list = KB.filter(a => a.app === id && (id === 'hub' || F.canUse(id)));
+    if (list.length) h += sec(esc(name), grp(list.map(a => `<button class="cell" data-a="article" data-slug="${a.slug}"><span class="tx"><span class="tt">${esc(a.title)}</span></span>${CHEV}</button>`).join('')));
+  }
+  return h + `<p class="sec-f">Staat je antwoord er niet bij? Kijk bij de veelgestelde vragen of stel je vraag bij Hulp → Vragen.</p></main>`;
+}
+function vArticle() {
+  const a = kbBySlug(ui.slug); if (!a) return vKb();
+  const d = new Date(a.updated + 'T12:00:00');
+  return nav(back('kb', 'Kennisbank'), '') + '<main>' + lt(esc(a.title), `${esc(appName(a.app === 'hub' ? null : a.app))} · bijgewerkt ${d.getDate()} ${MONL[d.getMonth()]} ${d.getFullYear()}`)
+    + `<div class="article">${a.body}</div></main>`;
+}
+function vFaq() {
+  let h = nav(back('home', 'Apps'), 'Veelgestelde vragen') + '<main>' + lt('Veelgestelde vragen');
+  const rows = (help.faq || []).filter(f => !f.app || F.canUse(f.app));
+  if (!help.faq) return h + '<p class="sec-f">Laden… (zonder internet zijn de veelgestelde vragen er pas na de eerste keer)</p></main>';
+  for (const [id, name] of appChoices()) {
+    const list = rows.filter(f => (f.app || '') === id);
+    if (list.length) h += sec(esc(name), list.map(f => `<details class="qa"><summary>${esc(f.question)}</summary><p>${esc(f.answer)}</p></details>`).join(''));
+  }
+  return h + `<p class="sec-f">Geen antwoord gevonden? ${account() && account().teamId ? '<button class="link" data-a="go" data-v="ask" style="min-height:0">Stel je vraag</button>.' : 'Log in en stel je vraag bij Hulp → Vragen.'}</p></main>`;
+}
+function vQuestions() {
+  const me = account();
+  let h = nav(back('home', 'Apps'), 'Vragen', '<button class="nb" data-a="go" data-v="ask">Stel vraag</button>') + '<main>' + lt('Vragen', `Van ${esc(me.teamName)}`);
+  if (!help.questions) return h + '<p class="sec-f">Laden…</p></main>';
+  if (!help.questions.length) return h + `<div class="article"><p>Nog geen vragen. Iedereen in je gezin kan antwoorden, en de Assistent zoekt ook een antwoord.</p></div><div class="sec"><button class="btn big" data-a="go" data-v="ask">Stel een vraag</button></div></main>`;
+  h += sec('', grp(help.questions.map(q => `<button class="cell" data-a="question" data-id="${q.id}"><span class="tx"><span class="tt">${esc(q.text.length > 90 ? q.text.slice(0, 90) + '…' : q.text)}</span><span class="st">${esc(q.name || 'Gezinslid')} · ${esc(appName(q.app))} · ${q.answers.length} ${q.answers.length === 1 ? 'antwoord' : 'antwoorden'}</span></span>${q.status === 'answered' ? '<span class="pill ok">Opgelost</span>' : q.answers.length ? '' : '<span class="pill">Open</span>'}${CHEV}</button>`).join('')));
+  return h + '</main>';
+}
+function vAsk() {
+  let h = nav(back('questions', 'Vragen'), 'Nieuwe vraag') + '<main>' + lt('Stel een vraag');
+  h += sec('Over', grp(`<div class="cell stack">${seg(appChoices(), ui.askApp || '', 'askapp')}</div>`));
+  h += sec('Je vraag', grp(`<div class="cell"><textarea id="askText" placeholder="Wat wil je weten?" maxlength="2000">${esc(ui.askDraft || '')}</textarea></div>`),
+    'Je gezin ziet je vraag en kan antwoorden. De Assistent zoekt ook een antwoord in de kennisbank en de app. Andere gezinnen zien je vraag niet.');
+  return h + `<div class="sec"><button class="btn big" data-a="ask">Vraag stellen</button></div></main>`;
+}
+function vQuestion() {
+  const me = account(), q = (help.questions || []).find(x => x.id === ui.qid);
+  if (!q) return vQuestions();
+  const canAccept = q.user_id === me.userId || isAdmin();
+  let h = nav(back('questions', 'Vragen'), 'Vraag') + '<main>' + `<div class="article" style="margin-top:8px"><p style="font-weight:600;font-size:1.1rem">${esc(q.text)}</p><p class="muted small">${esc(q.name || 'Gezinslid')} · ${esc(appName(q.app))} · ${fmtDate(q.created_at)}</p></div>`;
+  h += sec('Antwoorden', grp(q.answers.length ? q.answers.map(a => `<div class="cell stack"><div><b>${esc(a.author === 'runner' ? 'Assistent' : a.name || 'Gezinslid')}</b>${a.author === 'runner' ? '<span class="pill ai">automatisch</span>' : ''}${a.accepted ? '<span class="pill ok">Helpt</span>' : ''}<span class="st" style="display:block;color:var(--label2);font-size:.8rem">${fmtDate(a.created_at)}</span></div><div style="white-space:pre-wrap;line-height:1.45">${esc(a.text)}</div>
+      ${canAccept ? `<div><button class="link" data-a="accept" data-id="${a.id}" data-v="${a.accepted ? '0' : '1'}">${a.accepted ? 'Toch niet' : 'Dit helpt'}</button>${a.user_id === me.userId || isAdmin() ? ` <button class="link" style="color:var(--red);margin-left:16px" data-a="delanswer" data-id="${a.id}">Verwijder</button>` : ''}</div>` : ''}</div>`).join('')
+    : '<div class="cell"><span class="st">Nog geen antwoord.</span></div>'),
+    canAccept ? 'Tik op "Dit helpt" bij het antwoord dat klopt. Goede antwoorden kunnen in de veelgestelde vragen komen, zonder namen.' : '');
+  h += sec('Jouw antwoord', grp(`<div class="cell"><textarea id="answerText" placeholder="Weet jij het?" maxlength="4000"></textarea></div>`));
+  h += `<div class="sec"><button class="btn big gray" data-a="answer">Antwoord plaatsen</button></div>`;
+  if (q.user_id === me.userId || isAdmin()) h += sec('', grp('<button class="cell red center" data-a="delquestion">Verwijder vraag</button>'));
+  return h + '</main>';
+}
+function vCurate() {
+  let h = nav(back('home', 'Apps'), 'FAQ beheren') + '<main>' + lt('FAQ beheren', 'Goedgekeurde antwoorden uit alle gezinnen');
+  const list = help.candidates || [];
+  if (!list.length) h += '<div class="article"><p>Geen nieuwe voorstellen. Een vraag verschijnt hier zodra een gezin een antwoord heeft goedgekeurd.</p></div>';
+  list.forEach((c, i) => {
+    h += sec(`Voorstel ${i + 1} · ${esc(appName(c.app))}`, grp(`<div class="cell stack"><span class="st" style="color:var(--label2);font-size:.8rem">Vraag (haal namen en persoonlijke details weg)</span><textarea id="cq${i}">${esc(c.question)}</textarea></div>
+      <div class="cell stack"><span class="st" style="color:var(--label2);font-size:.8rem">Antwoord</span><textarea id="ca${i}" style="min-height:7rem">${esc(c.answer)}</textarea></div>
+      <div class="cell stack">${seg(appChoices(), ui['capp' + i] ?? (c.app || ''), 'capp', `data-i="${i}"`)}</div>
+      <button class="cell tint center" data-a="publish" data-i="${i}">Opnemen in FAQ voor alle gezinnen</button>
+      <button class="cell red center" data-a="decline" data-i="${i}">Niet opnemen</button>`));
+  });
+  h += sec('Gepubliceerd', grp((help.faq || []).map(f => `<div class="cell"><span class="tx"><span class="tt">${esc(f.question)}</span><span class="st">${esc(appName(f.app))}</span></span><button class="link" style="color:var(--red)" data-a="unpublish" data-id="${f.id}">Verberg</button></div>`).join('') || '<div class="cell"><span class="st">Nog niets.</span></div>'));
+  return h + '</main>';
+}
+
 function vNews() {
   storage.set('hub', 'seenVersion', VERSION);
   let h = nav(back('home', 'Apps'), 'Wat is nieuw') + '<main>' + lt('Wat is nieuw', `Versie ${VERSION}`);
@@ -203,7 +305,7 @@ function vNews() {
   return h + '</main>';
 }
 
-const VIEWS = { news: vNews, home: vHome, login: vLogin, onboard: vOnboard, family: vFamily, member: vMember, passkeys: vPasskeys };
+const VIEWS = { kb: vKb, article: vArticle, faq: vFaq, questions: vQuestions, ask: vAsk, question: vQuestion, curate: vCurate, news: vNews, home: vHome, login: vLogin, onboard: vOnboard, family: vFamily, member: vMember, passkeys: vPasskeys };
 function render() {
   if (ui.view === 'login' && account()) ui.view = account().teamId ? 'home' : 'onboard';
   document.getElementById('app').innerHTML = (VIEWS[ui.view] || vHome)();
@@ -229,6 +331,7 @@ document.addEventListener('click', ev => {
     case 'go':
       go(el.dataset.v);
       if (el.dataset.v === 'family') run(null, async () => { await F.refreshFamilies(); await loadFamily(); render(); });
+      if (['faq', 'questions', 'curate'].includes(el.dataset.v)) loadHelp().then(render);
       if (el.dataset.v === 'passkeys') { ui.passkeys = null; F.passkeyList().then(l => { ui.passkeys = l; ui.passkeyErr = null; render(); }).catch(e => { ui.passkeys = []; ui.passkeyErr = F.passkeyError(e); render(); }); }
       break;
     case 'sendcode': run(el, async () => {
@@ -302,6 +405,31 @@ document.addEventListener('click', ev => {
       run(el, async () => { await F.api(`/rest/v1/team_members?team_id=eq.${fam.id}&user_id=eq.${m.user_id}`, { method: 'DELETE' }); await loadFamily(); go('family'); }); break;
     }
     case 'theme': F.setTheme(el.dataset.v); render(); break;
+    case 'article': ui.slug = el.dataset.slug; go('article'); break;
+    case 'question': ui.qid = el.dataset.id; go('question'); break;
+    case 'askapp': ui.askDraft = val('askText'); ui.askApp = el.dataset.v; render(); break;
+    case 'ask': run(el, async () => {
+      const text = val('askText'); if (text.length < 3) throw new Error('Schrijf je vraag op.');
+      await F.api('/rest/v1/questions', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: { team_id: me.teamId, user_id: me.userId, name: me.memberName, app: ui.askApp || null, text } });
+      ui.askDraft = ''; ui.askApp = ''; await loadQuestions(); go('questions'); toast('Vraag gesteld. Je gezin en de Assistent kunnen nu antwoorden.');
+    }); break;
+    case 'answer': run(el, async () => {
+      const text = val('answerText'); if (!text) throw new Error('Schrijf je antwoord op.');
+      const q = help.questions.find(x => x.id === ui.qid);
+      await F.api('/rest/v1/answers', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: { question_id: q.id, team_id: me.teamId, user_id: me.userId, name: me.memberName, text } });
+      await loadQuestions(); render();
+    }); break;
+    case 'accept': run(el, async () => { await F.api('/rest/v1/rpc/accept_answer', { method: 'POST', body: { p_answer: el.dataset.id, p_accept: el.dataset.v === '1' } }); await loadQuestions(); render(); }); break;
+    case 'delanswer': if (confirm('Dit antwoord verwijderen?')) run(el, async () => { await F.api(`/rest/v1/answers?id=eq.${el.dataset.id}`, { method: 'DELETE' }); await loadQuestions(); render(); }); break;
+    case 'delquestion': if (confirm('Deze vraag met alle antwoorden verwijderen?')) run(el, async () => { await F.api(`/rest/v1/questions?id=eq.${ui.qid}`, { method: 'DELETE' }); await loadQuestions(); go('questions'); }); break;
+    case 'capp': ui['capp' + el.dataset.i] = el.dataset.v; render(); break;
+    case 'publish': run(el, async () => {
+      const i = +el.dataset.i, c = help.candidates[i];
+      await F.api('/rest/v1/rpc/faq_publish', { method: 'POST', body: { p_question: c.question_id, p_app: ui['capp' + i] ?? (c.app || ''), p_q: val('cq' + i), p_a: val('ca' + i) } });
+      await loadPlatform(); await loadFaq(); render(); toast('Opgenomen in de veelgestelde vragen.');
+    }); break;
+    case 'decline': run(el, async () => { await F.api('/rest/v1/rpc/faq_decline', { method: 'POST', body: { p_question: help.candidates[+el.dataset.i].question_id } }); await loadPlatform(); render(); }); break;
+    case 'unpublish': if (confirm('Deze vraag uit de FAQ halen?')) run(el, async () => { await F.api(`/rest/v1/faq?id=eq.${el.dataset.id}`, { method: 'PATCH', body: { published: false } }); await loadFaq(); render(); }); break;
   }
 });
 // Namen opslaan zodra het veld verlaten wordt.

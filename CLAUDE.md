@@ -31,6 +31,12 @@ Backend: Supabase (zie `supabase/`). Overzicht van bestanden: `README.md`.
   blijven in de app.
 - Inloggen gebeurt alleen in de hub (`shared/family.js`); apps sturen naar `../?login` als er geen sessie is.
 
+## Hulp
+- Kennisbank: `shared/kb.js` (artikelen in gewone taal; ook de bron voor de Assistent).
+- FAQ, vragen en antwoorden: tabellen `faq`, `questions`, `answers`. Vragen blijven binnen het gezin; de hoofdbeheerder
+  (`platform_roles` = admin) ziet alleen goedgekeurde antwoorden en publiceert die (geanonimiseerd) in de FAQ.
+- De Assistent: geplande Claude-routine, werkwijze in `docs/runner.md`, script `scripts/runner.mjs`.
+
 ## Nieuwe app toevoegen
 1. Map met Engelse naam, eigen `index.html` die `../shared/theme.css`, `../shared/ui.css` en `../config.js` laadt.
 2. Item in `shared/apps.js` (id, naam, route, icoon, `about`, eventueel `roles`, `status()` voor de tegel).

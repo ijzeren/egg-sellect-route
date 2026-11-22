@@ -13,6 +13,9 @@ Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beh
 met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
 apps en weergave regel je in de hub; app-specifieke instellingen in de app. Werkafspraken: [CLAUDE.md](CLAUDE.md).
 
+**Hulp** (in de hub): kennisbank, veelgestelde vragen (voor alle gezinnen), vragen stellen binnen je gezin
+(iedereen kan antwoorden, en de Assistent), en "Wat is nieuw". De hoofdbeheerder neemt goedgekeurde antwoorden op in de FAQ.
+
 ## Op de iPhone zetten
 1. Open de link hierboven in **Safari**.
 2. Deel-knop → **Zet op beginscherm**.
@@ -33,6 +36,8 @@ Engels, schermteksten in het Nederlands.
 | `hub/app.js` | hub: inloggen, gezin (leden, rollen, apps), weergave, wat is nieuw |
 | `shared/apps.js` | lijst van apps voor de hub; **een app toevoegen = één item hier + een eigen map** |
 | `shared/releases.js` | versies en release notes (getoond bij "Wat is nieuw") |
+| `shared/kb.js` | kennisbank: handleidingen (Hulp → Kennisbank); bron voor de Assistent |
+| `scripts/runner.mjs`, `docs/runner.md` | de Assistent: geplande Claude-routine die open vragen beantwoordt |
 | `eggs/index.html` | Egg-sellent (schermen, logica, opslag, synchronisatie) |
 | `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `sports/pilates/` (oefeningen en lessen) |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |

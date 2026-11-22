@@ -4,7 +4,7 @@
 -- Er worden geen gegevens verplaatst: adressen, bezoeken, voorraad enz. hangen aan het team-id en dat blijft
 -- gelijk. Alleen de naam verandert, en de apps Egg-sellent en Training gaan aan.
 -- Rollen (al gedaan door schema.sql): Marien beheerder van het gezin en van Egg-sellent;
--- Lynn lid van het gezin en bezorger in Egg-sellent.
+-- Lynn lid van het gezin en bezorger in Egg-sellent. Marien wordt ook hoofdbeheerder van alle apps (FAQ).
 do $$
 declare t uuid := '377c50d1-466a-4328-b3c5-4e9cfe56bcf6';
 begin
@@ -15,6 +15,10 @@ begin
   update public.teams set name = 'Familie Dongstra' where id = t;
   insert into public.team_apps (team_id, app) values (t, 'eggs'), (t, 'training')
     on conflict (team_id, app) do update set enabled = true;
+  -- Hoofdbeheer van alle apps (FAQ beheren): de beheerder van het eerste gezin.
+  insert into public.platform_roles (user_id, role)
+    select user_id, 'admin' from public.team_members where team_id = t and role = 'admin' and name = 'Marien'
+    on conflict do nothing;
 end $$;
 
 -- Controle (moet 1 rij geven met de oude aantallen: 145 adressen, 183 bezoeken op 22 nov 2026):
