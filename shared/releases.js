@@ -1,4 +1,4 @@
-// Release notes van de familie-app: wat gebruikers zien bij "Wat is nieuw" in de hub.
+// Release notes van Thuis (de huis-gezinsapp, voorheen familie-app): wat gebruikers zien bij "Wat is nieuw" in de hub.
 //
 // Afspraken (zie ook CLAUDE.md):
 // - Elke wijziging die live gaat krijgt een nieuwe versie, bovenaan deze lijst. Semantische versies:
@@ -9,6 +9,13 @@
 // - Notities in gewone taal voor gebruikers, per app: 'hub' (algemeen), 'eggs', 'training', …
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
+  {
+    version: '3.14.0', date: '2026-11-22', title: 'Nieuwe naam: Thuis',
+    notes: [
+      { app: 'hub', text: 'De app heet nu Thuis en heeft een nieuw icoon: een huis met een hart. Alles werkt hetzelfde; je hoeft niets te doen.', kb: 'op-beginscherm' },
+      { app: 'hub', text: 'Op de iPhone blijft het oude icoon met de naam Familie staan tot je de app opnieuw op je beginscherm zet. Dat hoeft niet. Wil je het toch? Lees eerst het artikel: je moet daarna opnieuw inloggen.', kb: 'op-beginscherm' },
+    ],
+  },
   {
     version: '3.13.0', date: '2026-11-22', title: 'Eierronde, leveringen en trainingen in de agenda',
     notes: [

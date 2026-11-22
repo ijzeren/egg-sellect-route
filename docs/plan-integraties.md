@@ -1,6 +1,6 @@
-# Plan: integraties (familie-app 3.14 – 3.16)
+# Plan: integraties (Thuis 3.15 – 3.17)
 
-*Opgesteld 22 nov 2026. Status: plan, nog niet gebouwd. Open vragen staan onderaan. 3.11.0 is gebruikt voor Gerechten;
+*Opgesteld 22 nov 2026. Status: plan, nog niet gebouwd. Open vragen staan onderaan. 3.11.0 is gebruikt voor Gerechten, 3.14.0 voor de nieuwe naam Thuis;
 de versienummers hieronder zijn een richtlijn: neem bij het bouwen de eerstvolgende vrije versie (zie shared/releases.js).*
 
 ## Doel
@@ -16,7 +16,7 @@ Integraties zet je aan **per gezin** (beheerder) of **per gebruiker** (de gebrui
 De hoofdbeheerder kan een integratie voor alle gezinnen uitzetten, net als apps.
 
 ## Wat technisch kan (belangrijk)
-De familie-app is een webapp op het beginscherm (PWA). Op de iPhone betekent dat:
+Thuis is een webapp op het beginscherm (PWA). Op de iPhone betekent dat:
 - **Geen achtergrondwerk in de app.** Een service worker draait op iOS niet op de achtergrond of op een tijdschema.
   "Ophalen met een worker" gebeurt daarom op de **server**: een Supabase Edge Function die elk half uur draait (pg_cron,
   zoals de meldingen van Egg-sellent al doen). De app laat alleen de status zien en kan "Nu bijwerken" vragen.
@@ -76,10 +76,10 @@ De familie-app is een webapp op het beginscherm (PWA). Op de iPhone betekent dat
 ## Versies
 | Versie | Wat | Afhankelijk van |
 |---|---|---|
-| **3.14.0** | Fundament (tabellen, workers, schermen, beheer) + **Google Agenda via iCal-link** | iCal-adres van de gezinsagenda |
-| **3.15.0** | **Gezondheid** via Opdrachten: gewicht en stappen in Training | iPhone met Opdrachten |
-| **3.16.0** | **Schoolrooster** via iCal-link per persoon (lessen in Agenda) | school zet iCal-link aan |
-| later | Huiswerk uit de schoolapp; Google Agenda schrijven (OAuth); Android (Health Connect, vraagt een eigen app) | keuze na 3.16 |
+| **3.15.0** | Fundament (tabellen, workers, schermen, beheer) + **Google Agenda via iCal-link** | iCal-adres van de gezinsagenda |
+| **3.16.0** | **Gezondheid** via Opdrachten: gewicht en stappen in Training | iPhone met Opdrachten |
+| **3.17.0** | **Schoolrooster** via iCal-link per persoon (lessen in Agenda) | school zet iCal-link aan |
+| later | Huiswerk uit de schoolapp; Google Agenda schrijven (OAuth); Android (Health Connect, vraagt een eigen app) | keuze na 3.17 |
 
 Elke versie: release note, kennisbankartikel (instellen per integratie), tests voor het verwerken (iCal → afspraken,
 dubbel ophalen, verwijderd item, wintertijd/zomertijd), rechtentests zoals `scripts/test-platform.mjs`, en de
@@ -90,7 +90,7 @@ productiestappen in `supabase/README.md`.
 2. **Google Agenda**: welke agenda('s) van het gezin, en is alleen lezen genoeg?
 3. **Gezondheid**: welke gegevens (gewicht, stappen, slaap, hartslag, workouts?), voor wie, en mag het gezin ze zien of
    alleen de gebruiker zelf? Gebruikt iemand in het gezin Android?
-4. **Volgorde**: klopt 3.14 Google Agenda → 3.15 Gezondheid → 3.16 School, of eerst school?
+4. **Volgorde**: klopt 3.15 Google Agenda → 3.16 Gezondheid → 3.17 School, of eerst school?
 
 Bronnen: [Somtoday: agenda](https://somtoday-servicedesk.zendesk.com/hc/nl/articles/360007748997-Agenda),
 [Somtoday agenda-handleiding (school)](https://maken.wikiwijs.nl/bestanden/1055985/SOM%20Agenda%20gebruik.pdf),

@@ -77,6 +77,7 @@ a.cell:active,button.cell:active{background:var(--press)}
 .cell textarea:focus{outline:none}
 .article{background:var(--cell);border-radius:12px;padding:16px;line-height:1.5}
 .article p{margin:0 0 10px}.article ul,.article ol{padding-left:20px;margin:0 0 10px}.article li{margin:2px 0}
+.article h3{font-size:17px;font-weight:600;margin:16px 0 6px}
 .article>:last-child{margin-bottom:0}
 .pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--label2);margin-left:6px;vertical-align:1px}
 .pill.ok{background:var(--green-s);color:var(--green)}.pill.ai{background:var(--blue-s);color:var(--blue)}

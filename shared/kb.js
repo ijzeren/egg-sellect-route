@@ -1,4 +1,4 @@
-// Kennisbank van de familie-app: handleidingen bij functies die uitleg nodig hebben.
+// Kennisbank van Thuis (de huis-gezinsapp): handleidingen bij functies die uitleg nodig hebben.
 // Getoond in de hub (Hulp → Kennisbank). De runner die vragen beantwoordt, gebruikt deze artikelen als bron.
 //
 // Afspraken (zie CLAUDE.md): ingewikkelde functie = artikel hier + verwijzing vanuit de release note (kb: 'slug').
@@ -21,10 +21,18 @@ Er blijft altijd minstens één hoofdbeheerder.</li>
 <li><b>FAQ beheren</b>: goedgekeurde antwoorden uit gezinnen herschrijven (zonder namen) en opnemen in de veelgestelde vragen.</li></ul>`,
   },
   {
-    slug: 'op-beginscherm', app: 'hub', title: 'De app op je iPhone zetten', updated: '2026-11-22', version: '3.0.0',
+    slug: 'op-beginscherm', app: 'hub', title: 'De app op je iPhone zetten', updated: '2026-11-22', version: '3.14.0',
     body: `<ol><li>Open de link van de app in <b>Safari</b>.</li><li>Tik op de deel-knop en kies <b>Zet op beginscherm</b>.</li>
 <li>Gebruik daarna alleen het icoon op het beginscherm. Dat heeft een eigen opslag, los van Safari.</li></ol>
-<p>Eén icoon bevat alle apps van je gezin. Zo deel je één login en werkt alles ook zonder internet. Updates komen vanzelf binnen.</p>`,
+<p>Eén icoon bevat alle apps van je gezin. Zo deel je één login en werkt alles ook zonder internet. Updates komen vanzelf binnen.</p>
+<h3>Nieuw icoon: Thuis</h3>
+<p>Sinds versie 3.14 heet de app <b>Thuis</b>, met een huis met een hart als icoon. Op de iPhone verandert een icoon op het beginscherm niet vanzelf:
+staat er bij jou nog <b>Familie</b> met het ei, dan werkt dat gewoon door. Je hoeft niets te doen.</p>
+<p>Wil je toch het nieuwe icoon?</p>
+<ol><li>Open eerst het oude icoon met internet aan, zodat alles wat je hebt ingevoerd is verstuurd.</li>
+<li>Zet de app opnieuw op je beginscherm (stappen hierboven).</li>
+<li>Log in het nieuwe icoon in. Het nieuwe icoon heeft een eigen opslag, dus je moet één keer opnieuw inloggen.</li>
+<li>Werkt alles? Houd het oude icoon ingedrukt en kies <b>Verwijder app</b>.</li></ol>`,
   },
   {
     slug: 'inloggen', app: 'hub', title: 'Inloggen en passkeys', updated: '2026-11-22', version: '3.1.0',

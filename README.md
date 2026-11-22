@@ -1,5 +1,5 @@
-# Familie-app
-De apps van het gezin onder één icoon: een startscherm (hub) met daaronder losse apps.
+# Thuis
+De huis-gezinsapp (voorheen "familie-app"). De apps van het gezin onder één icoon: een startscherm (hub) met daaronder losse apps.
 
 **App:** https://ijzeren.github.io/egg-sellect-route/
 

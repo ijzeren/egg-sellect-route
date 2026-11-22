@@ -1,4 +1,4 @@
-# Familie-app — werkafspraken
+# Thuis — werkafspraken
 
 Eén PWA voor gezinnen: een hub op `/` met apps eronder (`/eggs/` Egg-sellent, `/training/` Training, `/recipes/` Gerechten,
 `/agenda/` Agenda).
