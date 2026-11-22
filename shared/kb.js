@@ -100,7 +100,7 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 <p><b>Veiligheid:</b> laat de toestellen de eerste keer instellen door een trainer. Stop bij pijn. Bij blessures, hartklachten of twijfel: overleg eerst met je huisarts.</p>`,
   },
   {
-    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.9.0',
+    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.10.0',
     body: `<p>In <b>Gerechten</b> verzamelt het gezin zijn favoriete recepten. Iedereen die de app mag gebruiken, kan gerechten toevoegen en sterren geven.</p>
 <ol><li>Tik rechtsboven op <b>+</b>. Vul de naam, de soort en voor hoeveel personen in.</li>
 <li>Zet de <b>ingrediënten</b> erin, één per regel, met de hoeveelheid vooraan (bijv. <i>500 g gehakt</i>). Dan kan de app omrekenen naar meer of minder personen.</li>
@@ -112,6 +112,11 @@ Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vin
 <p>Bij een gerecht kies je <b>Aan tafel om</b>, bijvoorbeeld 18:00. De app zet dan bij elke stap hoe laat je moet beginnen, ook als dat een of meer
 dagen van tevoren is (bijv. pekelen of sous vide). Bij een bereik plant de app met de kortste tijd; houd zelf wat ruimte aan.</p>
 <p><b>Sterren:</b> geef 1 tot 5 sterren. Tik nog een keer op dezelfde ster om ze weg te halen. In de lijst zie je het gemiddelde van het gezin; sorteer op <b>Lekkerst</b> of <b>Gezondst</b> om te kiezen wat je gaat eten.</p>
+<p><b>Filteren:</b> tik naast het zoekveld op <b>Filter</b>. Kies soort, bereiding (smoker, BBQ, oven, airfryer, sous vide, pan, frituur, koken
+of zonder koken), bereidingstijd, aantal personen, gezondheidsscore of sterren, en ingrediënten die er wel of juist niet in moeten
+(meerdere met een komma). Onder de knop staat hoeveel gerechten er overblijven. Actieve filters staan bovenaan de lijst; tik op ✕ om er één weg te halen.
+Je filters blijven bewaard tot je ze wist.</p>
+<p>De lijst toont eerst 25 gerechten; scrol naar beneden voor de rest.</p>
 <p><b>Wijzigen of verwijderen</b> kan wie het gerecht plaatste, en een beheerder van de app.</p>`,
   },
   {

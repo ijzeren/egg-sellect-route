@@ -161,3 +161,53 @@ export function clean(input) {
     tips,
   };
 }
+
+/* ---------- filters ---------- */
+// Bereidingswijze, herkend in titel, benodigdheden en stappen.
+export const METHODS = [
+  ['smoker', 'Smoker', /smoker|\broken\b|gerookt|rookhout/i], ['bbq', 'BBQ', /\bbbq\b|barbecue|\bgrill/i], ['oven', 'Oven', /\boven/i],
+  ['airfryer', 'Airfryer', /airfryer/i], ['sousvide', 'Sous vide', /sous[- ]?vide/i], ['pan', 'Pan of wok', /\bpan\b|koekenpan|\bwok|roerbak|braden|bakken in/i],
+  ['fry', 'Frituur', /frituur|frituren/i], ['cook', 'Koken', /\bkook|\bkoken|pruttel|sudder|aan de kook/i], ['cold', 'Zonder koken', null],
+];
+export function methodsOf(x) {
+  const text = [x.title, ...(x.tools || []), ...(x.steps || []).map(s => `${s.title || ''} ${s.text || ''} ${s.temp || ''}`)].join(' \n ');
+  const found = METHODS.filter(([, , re]) => re && re.test(text)).map(([id]) => id);
+  return found.length ? found : ['cold'];
+}
+// Keuzes voor tijd, personen, gezondheid en sterren: [id, naam, test].
+export const TIME_OPTS = [['30', 'Tot 30 min', n => n > 0 && n <= 30], ['60', 'Tot 1 uur', n => n > 0 && n <= 60], ['180', 'Tot 3 uur', n => n > 0 && n <= 180], ['long', 'Langer dan 3 uur', n => n > 180]];
+export const SERVING_OPTS = [['1-2', '1–2', n => n <= 2], ['3-4', '3–4', n => n >= 3 && n <= 4], ['5-8', '5–8', n => n >= 5 && n <= 8], ['9+', '9 of meer', n => n >= 9]];
+export const HEALTH_OPTS = [['7', 'Gezond (7+)', s => s != null && s >= 7], ['5', '5 of hoger', s => s != null && s >= 5], ['low', 'Af en toe (tot 4)', s => s != null && s <= 4]];
+export const STAR_OPTS = [['4', '★ 4 of meer', r => r.count && r.avg >= 4], ['3', '★ 3 of meer', r => r.count && r.avg >= 3], ['none', 'Nog geen sterren', r => !r.count]];
+export const emptyFilter = () => ({ cats: [], methods: [], time: '', servings: '', health: '', stars: '', withIng: '', withoutIng: '' });
+const words = s => String(s || '').toLowerCase().split(/[,;]+/).map(w => w.trim()).filter(Boolean);
+export function filterCount(f) {
+  f = { ...emptyFilter(), ...(f || {}) };
+  return f.cats.length + f.methods.length + [f.time, f.servings, f.health, f.stars].filter(Boolean).length + words(f.withIng).length + words(f.withoutIng).length;
+}
+// Gerecht past bij alle gekozen filters. Binnen soort en bereidingswijze: één van de gekozen is genoeg.
+export function passes(x, ratings, f) {
+  f = { ...emptyFilter(), ...(f || {}) };
+  const opt = (list, id) => (list.find(o => o[0] === id) || [])[2];
+  if (f.cats.length && !f.cats.includes(x.category)) return false;
+  if (f.methods.length && !methodsOf(x).some(m => f.methods.includes(m))) return false;
+  if (f.time && !opt(TIME_OPTS, f.time)(totalMinutes(x.steps))) return false;
+  if (f.servings && !opt(SERVING_OPTS, f.servings)(x.servings)) return false;
+  if (f.health && !opt(HEALTH_OPTS, f.health)(x.health_score)) return false;
+  if (f.stars && !opt(STAR_OPTS, f.stars)(ratingOf(ratings, x.id))) return false;
+  const ing = (x.ingredients || []).join('\n').toLowerCase();
+  if (words(f.withIng).some(w => !ing.includes(w))) return false;
+  if (words(f.withoutIng).some(w => ing.includes(w))) return false;
+  return true;
+}
+// Ingrediënten die vaak voorkomen (voor snelle keuzes): kale namen zonder hoeveelheid, meest gebruikt eerst.
+export function commonIngredients(list, n = 12) {
+  const count = new Map();
+  for (const x of list || []) for (const line of x.ingredients || []) {
+    if (/:$/.test(line)) continue;
+    const name = parseIngredient(line).rest.replace(/^(g|kg|ml|l|dl|cl|el|tl|stuks?|blik|blikjes?|zak|teentjes?|takjes?|vellen?|snuf|bosje|plakjes?)\s+/i, '')
+      .replace(/\(.*?\)|,.*$/g, '').trim().toLowerCase();
+    if (name.length >= 2 && name.length < 25) count.set(name, (count.get(name) || 0) + 1);
+  }
+  return [...count].filter(([, c]) => c > 1).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'nl')).slice(0, n).map(([w]) => w);
+}

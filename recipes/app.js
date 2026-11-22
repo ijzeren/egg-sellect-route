@@ -20,9 +20,21 @@ const ICON_CHEV = '<svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><p
 
 // data = { recipes: [...], ratings: [...], members: [{ user_id, name }], at }
 let data = (FAMILY && storage.get(APP, DKEY)) || { recipes: [], ratings: [], members: [], at: null };
-let ui = { view: 'list', q: '', sort: storage.get(APP, 'sort') || 'top', id: null, servings: null, eatAt: storage.get(APP, 'eatAt') || '18:00', draft: null };
+// Lijst: per keer 25 gerechten tonen, meer bij verder scrollen (lazy laden).
+const PAGE = 25, FETCH = 200;
+let ui = { view: 'list', q: '', sort: storage.get(APP, 'sort') || 'top', id: null, servings: null, eatAt: storage.get(APP, 'eatAt') || '18:00', draft: null,
+  filter: { ...R.emptyFilter(), ...(storage.get(APP, 'filter') || {}) }, shown: PAGE };
 let loading = false, offline = false;
 
+// Van de server per 200 ophalen (nooit afgekapt).
+async function fetchAll(path) {
+  const out = [];
+  for (let from = 0; ; from += FETCH) {
+    const rows = await api(`${path}&limit=${FETCH}&offset=${from}`);
+    out.push(...(rows || []));
+    if (!rows || rows.length < FETCH) return out;
+  }
+}
 const isAdmin = () => !!(me && me.apps && me.apps.recipes && me.apps.recipes.role === 'admin');
 const canEdit = r => r && me && (r.user_id === me.userId || isAdmin());
 // Alle kolommen behalve de originele upload (source): die is alleen voor de Assistent en kan groot zijn.
@@ -37,8 +49,8 @@ async function load() {
   loading = true;
   try {
     const [recipes, ratings, members] = await Promise.all([
-      api(`/rest/v1/recipes?team_id=eq.${FAMILY}&deleted=is.false&select=${COLS}&order=created_at`),
-      api(`/rest/v1/recipe_ratings?team_id=eq.${FAMILY}&select=recipe_id,user_id,stars`),
+      fetchAll(`/rest/v1/recipes?team_id=eq.${FAMILY}&deleted=is.false&select=${COLS}&order=created_at,id`),
+      fetchAll(`/rest/v1/recipe_ratings?team_id=eq.${FAMILY}&select=recipe_id,user_id,stars&order=recipe_id,user_id`),
       api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name&order=joined_at`).catch(() => data.members),
     ]);
     data = { recipes: recipes || [], ratings: ratings || [], members: members || [], at: new Date().toISOString() };
@@ -120,21 +132,62 @@ function gate() {
 function vList() {
   const plus = `<button class="nb" data-a="new" aria-label="Nieuw gerecht" style="font-size:1.6rem;font-weight:300">+</button>`;
   let h = navBar(hubLink(), '', plus) + '<main>' + lt('Gerechten', esc(me.teamName));
-  const all = data.recipes, list = R.sortRecipes(all.filter(x => R.matches(x, ui.q)), data.ratings, ui.sort);
+  const all = data.recipes, nf = R.filterCount(ui.filter);
+  const list = R.sortRecipes(all.filter(x => R.matches(x, ui.q) && R.passes(x, data.ratings, ui.filter)), data.ratings, ui.sort);
   if (!all.length) {
     h += `<div class="card"><h2>Nog geen gerechten</h2><p class="muted">Zet je favoriete gerechten erin, met ingrediënten en het bereidingsschema. Iedereen in het gezin kan sterren geven; zo zie je wat de familie het lekkerst vindt.</p><button class="btn" data-a="new" style="margin-top:12px">Eerste gerecht toevoegen</button><button class="btn plain" data-a="import" style="margin-top:4px">Gerechten importeren</button></div>`;
     return h + (offline ? '<p class="sec-f">Geen verbinding.</p>' : loading ? '<p class="sec-f">Laden…</p>' : '') + '</main>';
   }
-  h += `<label class="search"><span aria-hidden="true">🔍</span><input type="search" id="q" value="${esc(ui.q)}" placeholder="Zoek op gerecht of ingrediënt" aria-label="Zoeken"></label>`;
+  h += `<div class="searchrow"><label class="search"><span aria-hidden="true">🔍</span><input type="search" id="q" value="${esc(ui.q)}" placeholder="Zoek op gerecht of ingrediënt" aria-label="Zoeken"></label>
+    <button class="fbtn${nf ? ' on' : ''}" data-a="filters" aria-label="Filters${nf ? `, ${nf} actief` : ''}">Filter${nf ? ` · ${nf}` : ''}</button></div>`;
+  if (nf) h += `<div class="fchips">${activeFilters().map(([label, key, val]) => `<button data-a="unfilter" data-k="${key}" data-v="${esc(val)}">${esc(label)} ✕</button>`).join('')}<button class="clear" data-a="clearfilters">Wis alles</button></div>`;
   h += `<div class="segc" role="group">${[['top', 'Lekkerst'], ['health', 'Gezondst'], ['new', 'Nieuw'], ['az', 'A-Z']].map(([v, l]) => `<button data-a="sort" data-v="${v}" aria-pressed="${ui.sort === v}">${l}</button>`).join('')}</div>`;
-  h += sec('', `<div class="grp">${list.map(x => {
+  h += sec('', `<div class="grp">${list.slice(0, ui.shown).map(x => {
     const r = R.ratingOf(data.ratings, x.id), mins = R.totalMinutes(x.steps);
     const sub = [x.status === 'import' ? '<span class="imp">Wordt verrijkt</span>' : '', r.count ? `<span class="star">★</span> ${R.fmtStars(r.avg)} (${r.count})` : 'Nog geen sterren', mins ? R.fmtMinutes(mins) : '', esc(x.author || '')].filter(Boolean).join(' · ');
     return `<button class="cell" data-a="open" data-id="${esc(x.id)}"><span class="tx"><span class="tt">${esc(x.title)}</span><span class="st">${sub}</span></span>${hs(x.health_score)}${ICON_CHEV}</button>`;
-  }).join('') || '<div class="cell"><span class="tx muted">Niets gevonden.</span></div>'}</div>`,
-  `${all.length} ${all.length === 1 ? 'gerecht' : 'gerechten'}. Het getal is de gezondheidsscore (1-10); "…" = wordt nog bepaald.${offline ? ' Geen verbinding: je ziet de laatst opgehaalde gerechten.' : ''}`);
+  }).join('') || `<div class="cell"><span class="tx muted">Niets gevonden.${nf ? ' <button class="link" data-a="clearfilters" style="min-height:0">Wis de filters</button>' : ''}</span></div>`}</div>`
+    + (list.length > ui.shown ? `<button class="btn plain" id="more" data-a="more" style="margin-top:6px">Toon meer (${list.length - ui.shown})</button>` : ''),
+  `${list.length < all.length ? `${list.length} van ${all.length}` : all.length} ${all.length === 1 ? 'gerecht' : 'gerechten'}. Het getal is de gezondheidsscore (1-10); "…" = wordt nog bepaald.${offline ? ' Geen verbinding: je ziet de laatst opgehaalde gerechten.' : ''}`);
   h += `<div style="margin-top:8px"><button class="btn plain" data-a="import">Gerechten importeren</button></div>`;
   return h + '</main>';
+}
+
+// Actieve filters als chips: [label, sleutel, waarde].
+function activeFilters() {
+  const f = ui.filter, name = (list, id) => (list.find(o => o[0] === id) || [])[1] || id, out = [];
+  f.cats.forEach(c => out.push([R.categoryName(c), 'cats', c]));
+  f.methods.forEach(m => out.push([name(R.METHODS, m), 'methods', m]));
+  if (f.time) out.push([name(R.TIME_OPTS, f.time), 'time', f.time]);
+  if (f.servings) out.push([`${name(R.SERVING_OPTS, f.servings)} pers.`, 'servings', f.servings]);
+  if (f.health) out.push([name(R.HEALTH_OPTS, f.health), 'health', f.health]);
+  if (f.stars) out.push([name(R.STAR_OPTS, f.stars), 'stars', f.stars]);
+  f.withIng.split(',').map(w => w.trim()).filter(Boolean).forEach(w => out.push([`met ${w}`, 'withIng', w]));
+  f.withoutIng.split(',').map(w => w.trim()).filter(Boolean).forEach(w => out.push([`zonder ${w}`, 'withoutIng', w]));
+  return out;
+}
+function vFilter() {
+  const f = ui.filter, n = data.recipes.filter(x => R.matches(x, ui.q) && R.passes(x, data.ratings, f)).length;
+  const multi = (key, opts) => `<div class="chips2">${opts.map(([id, label]) => `<button data-a="fmulti" data-k="${key}" data-v="${id}" aria-pressed="${f[key].includes(id)}">${esc(label)}</button>`).join('')}</div>`;
+  const one = (key, opts) => `<div class="chips2">${opts.map(([id, label]) => `<button data-a="fone" data-k="${key}" data-v="${id}" aria-pressed="${f[key] === id}">${esc(label)}</button>`).join('')}</div>`;
+  const used = new Set(data.recipes.map(x => x.category)), usedM = new Set(data.recipes.flatMap(R.methodsOf));
+  const common = R.commonIngredients(data.recipes, 14);
+  const ingChips = key => common.length ? `<div class="chips2 small">${common.map(w => `<button data-a="fing" data-k="${key}" data-v="${esc(w)}" aria-pressed="${f[key].split(',').map(s => s.trim()).includes(w)}">${esc(w)}</button>`).join('')}</div>` : '';
+  let h = navBar(`<button class="nb" data-a="clearfilters">Wis</button>`, 'Filters', `<button class="nb" data-a="go" data-v="list" style="font-weight:600">Klaar</button>`) + '<main>';
+  h += sec('Soort', multi('cats', R.CATEGORIES.filter(([id]) => used.has(id) || f.cats.includes(id))));
+  h += sec('Bereiding', multi('methods', R.METHODS.filter(([id]) => usedM.has(id) || f.methods.includes(id))) + `<div style="height:8px"></div>` + one('time', R.TIME_OPTS));
+  h += sec('Aantal personen', one('servings', R.SERVING_OPTS));
+  h += sec('Gezondheidsscore', one('health', R.HEALTH_OPTS));
+  h += sec('Sterren van het gezin', one('stars', R.STAR_OPTS));
+  h += sec('Met ingrediënt', `<div class="grp"><label class="cell field"><span class="fl">Bevat</span><input type="text" id="f-with" value="${esc(f.withIng)}" placeholder="bijv. kip, ui"></label></div>${ingChips('withIng')}`, 'Meerdere met een komma: het gerecht moet ze allemaal bevatten.');
+  h += sec('Zonder ingrediënt', `<div class="grp"><label class="cell field"><span class="fl">Zonder</span><input type="text" id="f-without" value="${esc(f.withoutIng)}" placeholder="bijv. noten, varkensvlees"></label></div>${ingChips('withoutIng')}`);
+  h += `<div class="sec"><button class="btn" data-a="go" data-v="list">Toon ${n} ${n === 1 ? 'gerecht' : 'gerechten'}</button></div>`;
+  return h + '</main>';
+}
+function setFilter(fn) { fn(ui.filter); ui.shown = PAGE; storage.set(APP, 'filter', ui.filter); }
+function readIngFilter() {
+  const a = $('#f-with'), b = $('#f-without');
+  if (a) ui.filter.withIng = a.value; if (b) ui.filter.withoutIng = b.value;
 }
 
 function vDetail() {
@@ -274,8 +327,18 @@ function render() {
   const g = gate();
   const a = $('#app');
   if (g) a.innerHTML = navBar(hubLink()) + '<main>' + lt('Gerechten') + `<div class="card"><p>${g}</p></div></main>`;
-  else a.innerHTML = ui.view === 'detail' ? vDetail() : ui.view === 'edit' ? vEdit() : ui.view === 'import' ? vImport() : vList();
+  else a.innerHTML = ui.view === 'detail' ? vDetail() : ui.view === 'edit' ? vEdit() : ui.view === 'import' ? vImport() : ui.view === 'filter' ? vFilter() : vList();
+  watchMore();
   onScroll();
+}
+// Lazy laden: zodra "Toon meer" in beeld komt, de volgende 25 tonen.
+let moreObs = null;
+function watchMore() {
+  if (moreObs) moreObs.disconnect();
+  const el = document.getElementById('more');
+  if (!el || !('IntersectionObserver' in window)) return;
+  moreObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { ui.shown += PAGE; render(); } }, { rootMargin: '400px 0px' });
+  moreObs.observe(el);
 }
 function go(view, extra) { Object.assign(ui, { view }, extra || {}); render(); window.scrollTo(0, 0); }
 function onScroll() { const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
@@ -286,7 +349,21 @@ document.addEventListener('click', ev => {
   const a = el.dataset.a;
   if (a === 'go') go(el.dataset.v);
   else if (a === 'open') go('detail', { id: el.dataset.id, servings: null });
-  else if (a === 'sort') { ui.sort = el.dataset.v; storage.set(APP, 'sort', ui.sort); render(); }
+  else if (a === 'sort') { ui.sort = el.dataset.v; ui.shown = PAGE; storage.set(APP, 'sort', ui.sort); render(); }
+  else if (a === 'more') { ui.shown += PAGE; render(); }
+  else if (a === 'filters') go('filter');
+  else if (a === 'clearfilters') { setFilter(f => Object.assign(f, R.emptyFilter())); render(); }
+  else if (a === 'unfilter') { const k = el.dataset.k, v = el.dataset.v; setFilter(f => {
+    if (Array.isArray(f[k])) f[k] = f[k].filter(x => x !== v);
+    else if (k === 'withIng' || k === 'withoutIng') f[k] = f[k].split(',').map(w => w.trim()).filter(w => w && w !== v).join(', ');
+    else f[k] = '';
+  }); render(); }
+  else if (a === 'fmulti') { readIngFilter(); const k = el.dataset.k, v = el.dataset.v; setFilter(f => { f[k] = f[k].includes(v) ? f[k].filter(x => x !== v) : [...f[k], v]; }); render(); }
+  else if (a === 'fone') { readIngFilter(); const k = el.dataset.k, v = el.dataset.v; setFilter(f => { f[k] = f[k] === v ? '' : v; }); render(); }
+  else if (a === 'fing') { readIngFilter(); const k = el.dataset.k, v = el.dataset.v; setFilter(f => {
+    const list = f[k].split(',').map(w => w.trim()).filter(Boolean);
+    f[k] = (list.includes(v) ? list.filter(w => w !== v) : [...list, v]).join(', ');
+  }); render(); }
   else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', tools: '', tips: '', steps: [{ text: '', min: '', par: false }] } });
   else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), tools: (x.tools || []).join('\n'), tips: (x.tips || []).map(t => t.label ? `${t.label}: ${t.text}` : t.text).join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
   else if (a === 'cancel') go(ui.view === 'import' ? 'list' : ui.id ? 'detail' : 'list');
@@ -303,7 +380,8 @@ document.addEventListener('click', ev => {
   else if (a === 'srv') { const x = byId(ui.id); ui.servings = Math.min(30, Math.max(1, (ui.servings || x.servings) + +el.dataset.d)); render(); }
 });
 document.addEventListener('input', ev => {
-  if (ev.target.id === 'q') { ui.q = ev.target.value; const pos = ev.target.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
+  if (ev.target.id === 'f-with' || ev.target.id === 'f-without') { setFilter(() => readIngFilter()); const t = document.querySelector('.sec .btn[data-v=list]'); if (t) { const n = data.recipes.filter(x => R.matches(x, ui.q) && R.passes(x, data.ratings, ui.filter)).length; t.textContent = `Toon ${n} ${n === 1 ? 'gerecht' : 'gerechten'}`; } return; }
+  if (ev.target.id === 'q') { ui.shown = PAGE; ui.q = ev.target.value; const pos = ev.target.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
 });
 document.addEventListener('change', ev => {
   if (ev.target.id === 'impFiles' && ev.target.files.length) {

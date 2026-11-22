@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.10.0', date: '2026-11-22', title: 'Gerechten filteren',
+    notes: [
+      { app: 'recipes', text: 'Filter gerechten op soort, bereiding (smoker, oven, airfryer …), bereidingstijd, aantal personen, gezondheidsscore, sterren en ingrediënten (met of zonder).', kb: 'gerechten' },
+      { app: 'recipes', text: 'De lijst laadt verder als je naar beneden scrolt, ook bij heel veel gerechten.' },
+      { app: 'recipes', text: 'Alle gerechten hebben nu een gezondheidsscore.', kb: 'gezondheidsscore' },
+    ],
+  },
+  {
     version: '3.9.1', date: '2026-11-22', title: 'Training opent het juiste programma',
     notes: [
       { app: 'training', text: 'Training opent meteen het programma dat er nu toe doet: waar je vandaag nog moet trainen, anders de eerstvolgende training, anders het programma dat je het laatst gebruikte.', kb: 'trainingsdagen-bonus' },

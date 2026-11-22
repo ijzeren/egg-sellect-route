@@ -61,3 +61,16 @@ select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:
 .steprow input.stitle{font-weight:600}
 .steprow .opts input[type=text]{flex:1;min-width:0}
 .steprow .opts.wide input{font-size:.88rem}
+/* zoeken + filter */
+.searchrow{display:flex;gap:8px;align-items:center;margin:8px 0 10px}
+.searchrow .search{flex:1;margin:0}
+.fbtn{flex:none;min-height:38px;padding:0 14px;border-radius:10px;background:var(--fill);color:var(--tint);font-weight:600;font-size:.94rem}
+.fbtn.on{background:var(--tint);color:var(--on-tint)}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 10px}
+.fchips button{min-height:32px;padding:0 10px;border-radius:99px;background:var(--cell);font-size:.85rem;font-weight:500;color:var(--label)}
+.fchips .clear{background:none;color:var(--tint)}
+.chips2{display:flex;flex-wrap:wrap;gap:8px}
+.chips2 button{min-height:38px;padding:0 14px;border-radius:99px;background:var(--cell);font-weight:500;color:var(--label)}
+.chips2 button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.chips2.small{margin-top:10px}
+.chips2.small button{min-height:32px;padding:0 10px;font-size:.85rem}
