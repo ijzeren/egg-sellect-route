@@ -369,3 +369,11 @@ De geplande taak `egg-sellent-push` wacht nu 30 seconden op de functie `push` in
 Bij een koude start duurde de functie soms langer dan 5 seconden, en dan stond er een time-out in `net._http_response`.
 Controle: `select jobname, position('timeout_milliseconds := 30000' in command) > 0 from cron.job;` → `true` bij
 `egg-sellent-push`.
+
+## Gezondheid: datum per meting (v3.17.2)
+Geen databasewijziging. Wel de functie opnieuw uitrollen, **vóór** de push (de nieuwe uitleg stuurt `weight_date` mee):
+`npx supabase functions deploy integrations --remote=istqegonfkfrkyddfajd --no-verify-jwt`.
+
+De opdracht mag nu per soort een eigen datum meesturen (`weight_date`, `steps_date`, ook `gewicht_datum`/`weightDate`;
+ISO 8601 mag). Een leeg veld (geen meting in Gezondheid) is geen fout meer. Het antwoord noemt de datum per meting,
+en bij "Geen getal gevonden" ook wat er binnenkwam (alleen in het antwoord aan de telefoon, niet in de database).

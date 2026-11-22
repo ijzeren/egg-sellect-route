@@ -10,6 +10,13 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.17.2', date: '2026-11-23', title: 'Gezondheid: duidelijkere uitleg voor gewicht',
+    notes: [
+      { app: 'training', text: 'De uitleg voor de opdracht op je iPhone klopt nu met iOS 27: de actie heet "Zoek gezondheidswaarden". Er staat ook stap voor stap hoe je je gewicht ophaalt.', kb: 'gezondheid' },
+      { app: 'training', text: 'Een weging komt op de dag dat je echt woog, ook als je niet elke dag op de weegschaal staat. Zonder gewicht in Gezondheid krijg je geen foutmelding meer.', kb: 'gezondheid' },
+    ],
+  },
+  {
     version: '3.17.1', date: '2026-11-23', title: 'Meldingen betrouwbaarder',
     notes: [
       { app: 'eggs', text: 'Herinneringen voor de loopdag en het bestellen komen betrouwbaarder op tijd binnen. De server wacht nu langer als hij even moet opstarten.' },

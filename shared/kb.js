@@ -180,29 +180,50 @@ Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het
 <p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
   },
   {
-    slug: 'gezondheid', app: 'training', title: 'Gezondheid: gewicht en stappen van je iPhone', updated: '2026-11-22', version: '3.17.0',
+    slug: 'gezondheid', app: 'training', title: 'Gezondheid: gewicht en stappen van je iPhone', updated: '2026-11-23', version: '3.17.2',
     body: `<p>In <b>Training</b> kun je je <b>gewicht</b> en <b>aantal stappen</b> per dag bijhouden, uit de app Gezondheid van je iPhone. Een webapp mag niet zelf in Gezondheid kijken. Daarom stuurt een automatisering in de app <b>Opdrachten</b> de gegevens één keer per dag naar Thuis.</p>
+<p class="sec-f">Deze uitleg hoort bij <b>iOS 27.2</b> (november 2026), met de iPhone in het Nederlands. In iOS 26 en 27 is aan deze acties niets veranderd. Staat er op jouw iPhone iets anders? Zoek dan op het Engelse woord tussen haakjes.</p>
 <h3>Toestemming en privacy</h3>
 <ul><li>Het staat pas aan als jij toestemming geeft (Training → Gezondheid → <b>Aanzetten</b>).</li>
 <li>Thuis bewaart alleen het getal per dag: je gewicht en je stappen. Verder niets uit Gezondheid.</li>
 <li><b>Alleen jij</b> ziet je gegevens. Wil je dat het gezin ze ook ziet in Training? Zet dan <b>Delen met het gezin</b> aan. Ook de hoofdbeheerder van de app ziet ze niet.</li>
 <li><b>Kinderen</b>: eerst geeft een beheerder van het gezin toestemming bij <b>Gezin → (kind) → Gezondheid</b>. Intrekken wist alle metingen van het kind.</li>
 <li><b>Stoppen en alles wissen</b> haalt je toestemming, je link en alle metingen weg. Verlaat je het gezin, dan gebeurt dat ook.</li></ul>
-<h3>De opdracht maken (eenmalig, ongeveer 5 minuten)</h3>
+<h3>1. Link en automatisering</h3>
 <ol><li>Zet Gezondheid aan in Training en tik op <b>Kopieer link</b>. Deze link is persoonlijk en geheim.</li>
-<li>Open <b>Opdrachten</b> → tab <b>Automatisering</b> → <b>+</b> → <b>Tijdstip van de dag</b>. Kies bijvoorbeeld 21:30, <b>Dagelijks</b>, en <b>Voer direct uit</b>. Kies daarna <b>Nieuwe lege automatisering</b>.</li>
-<li>Voeg de actie <b>Zoek gezondheidsmonsters</b> toe (zoek op "gezondheid"). Kies type <b>Stappen</b>, met <b>Begindatum is vandaag</b>. Zie je <b>Groepeer per</b>, kies dan <b>Dag</b>.</li>
-<li>Voeg nog een <b>Zoek gezondheidsmonsters</b> toe met type <b>Gewicht</b>. Sorteer op <b>Begindatum</b>, <b>Nieuwste eerst</b>, en <b>Beperk</b> tot 1.</li>
-<li>Voeg <b>Haal inhoud op van URL</b> toe en plak je link. Tik op het pijltje voor meer opties: methode <b>POST</b>, hoofdtekst <b>JSON</b>.
-Voeg twee tekstvelden toe: <b>steps</b> met het resultaat van de stappen, en <b>weight</b> met het resultaat van het gewicht.</li>
-<li>Optioneel: voeg <b>Toon melding</b> toe met de inhoud van de URL. Dan zie je wat Thuis antwoordde.</li>
-<li>Tik op de afspeelknop om te testen. De eerste keer vraagt je iPhone of Opdrachten Gezondheid mag lezen: kies <b>Sta toe</b>.
-Thuis antwoordt bijvoorbeeld "Opgeslagen voor 2026-11-22: 8.123 stappen en 72,4 kg".</li></ol>
-<p>Geen weegschaal die met Gezondheid praat? Laat het gewicht dan weg; stappen alleen werkt ook. Getallen mogen met komma of punt (72,4 of 72.4).</p>
+<li>Open <b>Opdrachten</b> → tab <b>Automatisering</b> → <b>+</b> → <b>Tijdstip</b> (Time of Day). Kies bijvoorbeeld 21:30 en <b>Elke dag</b>.</li>
+<li>Kies <b>Voer onmiddellijk uit</b> (Run Immediately), tik op <b>Volgende</b> en begin met een <b>lege</b> automatisering.</li></ol>
+<h3>2. Gewicht ophalen</h3>
+<ol><li>Zoek bij de acties op <b>gezondheid</b> en kies <b>Zoek gezondheidswaarden</b> (Find Health Samples).</li>
+<li>Tik in de actie op <b>Type</b> en kies <b>Gewicht</b> (Weight). Je vindt het onder <b>Lichaamsmetingen</b>, of typ "gewicht" in het zoekveld.</li>
+<li>Zet <b>Sorteer op</b> op <b>Begindatum</b>, <b>Volgorde</b> op <b>Nieuwste eerst</b> en zet <b>Limiet</b> aan op <b>1</b>. Zo krijg je alleen je laatste weging.</li></ol>
+<h3>3. Stappen ophalen</h3>
+<ol><li>Voeg nog een <b>Zoek gezondheidswaarden</b> toe en kies type <b>Stappen</b> (Steps).</li>
+<li>Tik op <b>Voeg filter toe</b> en maak er <b>Begindatum is Vandaag</b> van.</li>
+<li>Zet <b>Groepeer op</b> op <b>Dag</b>. Dit is nodig: anders telt Thuis de stappen van je iPhone en je Apple Watch dubbel.</li></ol>
+<h3>4. Versturen naar Thuis</h3>
+<ol><li>Voeg <b>Haal inhoud van URL op</b> (Get Contents of URL) toe. Tik op <b>URL</b> en plak je link.</li>
+<li>Tik op het pijltje in de actie. Zet <b>Methode</b> op <b>POST</b> en <b>Vraag om hoofdtekst</b> op <b>JSON</b>.</li>
+<li>Voeg drie velden van het soort <b>Tekst</b> toe. Typ links de naam precies zo, en kies rechts de variabele:
+<ul><li><b>weight</b>: het resultaat van de eerste zoekactie (gewicht).</li>
+<li><b>weight_date</b>: weer het resultaat van de eerste zoekactie. Tik erop, kies <b>Begindatum</b> en zet de <b>Datumnotatie</b> op <b>ISO 8601</b>. Zo komt een weging van eergisteren ook op eergisteren.</li>
+<li><b>steps</b>: het resultaat van de tweede zoekactie (stappen).</li></ul>
+Beide resultaten heten <b>Gezondheidswaarden</b>. Kies via <b>Selecteer variabele</b> het resultaat onder de juiste actie.</li>
+<li>Voeg als laatste <b>Toon melding</b> toe met <b>Inhoud van URL</b>. Dan zie je wat Thuis antwoordt.</li></ol>
+<h3>5. Testen</h3>
+<ol><li>Tik op de afspeelknop. De eerste keer vraagt je iPhone of Opdrachten Gezondheid mag lezen. Zet <b>Gewicht</b> en <b>Stappen</b> aan.</li>
+<li>Thuis antwoordt bijvoorbeeld: "Opgeslagen: 8.123 stappen (2026-11-23) en 72,4 kg (2026-11-20)." In Training zie je de meting meteen.</li></ol>
+<p>Geen weegschaal die met Gezondheid praat? Je kunt je gewicht ook zelf invullen in Gezondheid: <b>Lichaamsmetingen → Gewicht → Voeg gegevens toe</b>. Alleen stappen kan ook: laat dan de gewichtvelden weg.</p>
 <h3>Werkt het niet?</h3>
-<ul><li>In Training staat bij Gezondheid wanneer de laatste meting binnenkwam, of een ⚠︎ met wat er misging.</li>
+<ul><li><b>Training zegt "Wacht op de eerste meting"</b>: Thuis heeft nog niets ontvangen. Kijk of de link goed is geplakt en of de methode op <b>POST</b> staat.</li>
+<li><b>"Geen meting gevonden in Gezondheid"</b>: er staat geen gewicht of stappen in Gezondheid, of Opdrachten mag het niet lezen. Open <b>Gezondheid</b> → je profielfoto → <b>Apps</b> → <b>Opdrachten</b> en zet Gewicht en Stappen aan.</li>
+<li><b>"Geen getal gevonden"</b>: rechts in het veld staat geen variabele, maar gewone tekst. Kies de variabele opnieuw.</li>
+<li>Bij Gezondheid in Training staat wanneer de laatste meting binnenkwam, of een ⚠︎ met wat er misging.</li>
 <li><b>Nieuwe telefoon of link kwijt?</b> Tik op <b>Nieuwe link maken</b> en zet die in je opdracht. De oude link werkt dan niet meer.</li>
-<li>Android werkt (nog) niet: daar is geen Opdrachten.</li></ul>`,
+<li>Android werkt (nog) niet: daar is geen Opdrachten.</li></ul>
+<h3>Versies van deze uitleg</h3>
+<ul><li><b>3.17.2</b> (iOS 27.2): namen van de acties verbeterd ("Zoek gezondheidswaarden", "Haal inhoud van URL op"). Gewicht krijgt de datum van de weging mee. Stappen groeperen per dag is nu nodig.</li>
+<li><b>3.17.0</b>: eerste versie.</li></ul>`,
   },
   {
     slug: 'agendalinks', app: 'agenda', title: 'Agendalinks: rooster uit Magister in de agenda', updated: '2026-11-22', version: '3.16.0',

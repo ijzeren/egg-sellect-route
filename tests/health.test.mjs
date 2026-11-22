@@ -22,9 +22,9 @@ test('getallen zoals de iPhone ze schrijft', () => {
 test('opdracht met stappen en gewicht; lijst van stappen wordt opgeteld, van gewicht telt de eerste', () => {
   const r = parseHealthBody({ steps: '3.000\n2.500\n100', weight: '72,4 kg\n73,0 kg' }, T);
   assert.equal(r.day, T);
-  assert.deepEqual(r.samples, [{ kind: 'steps', value: 5600, unit: 'stappen' }, { kind: 'weight', value: 72.4, unit: 'kg' }]);
+  assert.deepEqual(r.samples, [{ kind: 'steps', value: 5600, unit: 'stappen', day: T }, { kind: 'weight', value: 72.4, unit: 'kg', day: T }]);
   assert.deepEqual(r.problems, []);
-  assert.deepEqual(parseHealthBody({ Stappen: [1000, '2.000'] }, T).samples, [{ kind: 'steps', value: 3000, unit: 'stappen' }], 'Nederlandse veldnaam en een echte lijst');
+  assert.deepEqual(parseHealthBody({ Stappen: [1000, '2.000'] }, T).samples, [{ kind: 'steps', value: 3000, unit: 'stappen', day: T }], 'Nederlandse veldnaam en een echte lijst');
 });
 
 test('datum: optioneel, niet in de toekomst, niet ouder dan een maand', () => {
@@ -33,6 +33,29 @@ test('datum: optioneel, niet in de toekomst, niet ouder dan een maand', () => {
   assert.equal(fut.day, T); assert.equal(fut.problems.length, 1);
   const old = parseHealthBody({ steps: 10, date: '2026-09-01' }, T);
   assert.equal(old.samples.length, 0);
+});
+
+test('gewicht met eigen datum: een weging van eergisteren komt op eergisteren', () => {
+  const r = parseHealthBody({ steps: '8.123', weight: '72,4 kg', weight_date: '2026-11-20T07:12:00+01:00' }, T);
+  assert.deepEqual(r.samples.map(s => [s.kind, s.day]), [['steps', T], ['weight', '2026-11-20']]);
+  assert.deepEqual(r.ignored, []);
+  assert.equal(parseHealthBody({ gewicht: 70, gewicht_datum: '2026-11-21' }, T).samples[0].day, '2026-11-21', 'Nederlandse veldnamen');
+  assert.equal(parseHealthBody({ weight: 70, weightDate: '2026-11-21' }, T).samples[0].day, '2026-11-21');
+  const old = parseHealthBody({ steps: 10, weight: 70, weight_date: '2026-08-01' }, T);
+  assert.deepEqual(old.samples.map(s => s.kind), ['steps'], 'te oude weging niet, stappen wel');
+  assert.equal(old.problems.length, 1);
+});
+
+test('geen getal: de melding laat zien wat er binnenkwam', () => {
+  const r = parseHealthBody({ weight: 'Gezondheidswaarden' }, T);
+  assert.deepEqual(r.problems, ['Geen getal gevonden voor gewicht (ontvangen: "Gezondheidswaarden").']);
+  assert.match(parseHealthBody({ weight: { foo: 'bar' } }, T).problems[0], /ontvangen: /);
+});
+
+test('leeg veld (geen weegschaal) is geen fout', () => {
+  const r = parseHealthBody({ steps: '4000', weight: '' }, T);
+  assert.equal(r.samples.length, 1); assert.deepEqual(r.problems, []); assert.deepEqual(r.empty, ['weight']);
+  assert.deepEqual(parseHealthBody({ weight: '  ', weight_date: '' }, T).problems, []);
 });
 
 test('alleen toegestane soorten; onmogelijke waarden en onbekende velden worden overgeslagen', () => {

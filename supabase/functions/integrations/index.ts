@@ -158,17 +158,20 @@ async function ingest(token: string, body: any) {
   const today = localParts(Date.now()).date;
   const r = parseHealthBody(body, today, (it.config?.kinds as string[]) || ["weight", "steps"]);
   if (r.samples.length) {
-    const rows = r.samples.map((x: any) => ({ team_id: it.team_id, user_id: it.user_id, integration_id: it.id, kind: x.kind, day: r.day, value: x.value, unit: x.unit, updated_at: new Date().toISOString() }));
+    const rows = r.samples.map((x: any) => ({ team_id: it.team_id, user_id: it.user_id, integration_id: it.id, kind: x.kind, day: x.day || r.day, value: x.value, unit: x.unit, updated_at: new Date().toISOString() }));
     const { error } = await db.from("health_samples").upsert(rows, { onConflict: "integration_id,kind,day" });
     if (error) { console.error("health", error.code); return text("Opslaan lukte niet. Probeer het later opnieuw.", 500); }
   }
   const { count } = await db.from("health_samples").select("id", { count: "exact", head: true }).eq("integration_id", it.id);
   const ok = r.samples.length > 0;
-  if (!ok && !r.problems.length) r.problems.push(r.ignored.length ? `Onbekende gegevens (${r.ignored.slice(0, 3).join(", ")}): stuur steps en/of weight.` : "Geen gegevens ontvangen: stuur steps en/of weight.");
-  await db.from("integrations").update({ status: ok ? "ok" : "error", last_sync_at: new Date().toISOString(), last_error: ok ? "" : (r.problems[0] || "Geen gegevens ontvangen."), last_count: count ?? 0 }).eq("id", it.id);
-  await db.from("integration_runs").insert({ integration_id: it.id, team_id: it.team_id, ok, added: r.samples.length, skipped: r.ignored.length, error: ok ? "" : (r.problems[0] || "") });
-  const said = r.samples.map((x: any) => x.kind === "steps" ? `${Math.round(x.value).toLocaleString("nl-NL")} stappen` : `${String(x.value).replace(".", ",")} kg`);
-  return text(ok ? `Opgeslagen voor ${r.day}: ${said.join(" en ")}.${r.problems.length ? " " + r.problems.join(" ") : ""}` : `Niets opgeslagen. ${r.problems.join(" ")}`, ok ? 200 : 400);
+  if (!ok && !r.problems.length) r.problems.push(r.ignored.length ? `Onbekende gegevens (${r.ignored.slice(0, 3).join(", ")}): stuur steps en/of weight.` : r.empty.length ? `Geen meting gevonden in Gezondheid (${r.empty.map((k: string) => k === "steps" ? "stappen" : "gewicht").join(", ")}).` : "Geen gegevens ontvangen: stuur steps en/of weight.");
+  // Wat er binnenkwam ("ontvangen: …") staat alleen in het antwoord aan de telefoon, niet in de database (gedeeld = gezin leest mee).
+  const stored = (r.problems[0] || "").replace(/ \(ontvangen: [\s\S]*\)\.$/, ".");
+  await db.from("integrations").update({ status: ok ? "ok" : "error", last_sync_at: new Date().toISOString(), last_error: ok ? "" : (stored || "Geen gegevens ontvangen."), last_count: count ?? 0 }).eq("id", it.id);
+  await db.from("integration_runs").insert({ integration_id: it.id, team_id: it.team_id, ok, added: r.samples.length, skipped: r.ignored.length, error: ok ? "" : stored });
+  // "Opgeslagen: 8.123 stappen (2026-11-22) en 72,4 kg (2026-11-20)."
+  const said = r.samples.map((x: any) => (x.kind === "steps" ? `${Math.round(x.value).toLocaleString("nl-NL")} stappen` : `${String(x.value).replace(".", ",")} kg`) + ` (${x.day || r.day})`);
+  return text(ok ? `Opgeslagen: ${said.join(" en ")}.${r.problems.length ? " " + r.problems.join(" ") : ""}` : `Niets opgeslagen. ${r.problems.join(" ")}`, ok ? 200 : 400);
 }
 
 Deno.serve(async (req) => {
