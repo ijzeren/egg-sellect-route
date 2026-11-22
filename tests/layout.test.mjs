@@ -10,7 +10,9 @@ const read = p => readFileSync(join(root, p), 'utf8');
 
 test('vangnet tegen horizontaal scrollen staat in het gedeelde thema', () => {
   const css = read('shared/theme.css');
-  assert.match(css, /html,body\{overflow-x:clip\}/, 'overflow-x:clip op html en body');
+  assert.match(css, /main\{overflow-x:clip\}/, 'overflow-x:clip op de inhoud (main)');
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(plain, /(^|[},\s])(html|body)(,(html|body))?\{[^}]*overflow-x:clip/, 'geen overflow-x:clip op html/body: op iOS verdwijnen dan de vaste balken onderaan');
   assert.match(css, /body\{overflow-wrap:break-word/, 'lange woorden breken af');
   assert.match(css, /hyphens:auto/, 'afbreekstreepjes in koppen');
   assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ''), /(html|body)[^{]*\{[^}]*overflow-x:hidden/, 'geen overflow-x:hidden op html/body: dat breekt de vaste kopbalk');

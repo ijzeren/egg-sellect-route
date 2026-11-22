@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.11.3', date: '2026-11-22', title: 'Eieren: menu onderaan terug',
+    notes: [
+      { app: 'eggs', text: 'Op de iPhone zijn het menu onderaan en de knoppen bij een huis weer zichtbaar, en je kunt weer tot onderaan scrollen (laatste adres, "Niet vandaag").' },
+    ],
+  },
+  {
     version: '3.11.2', date: '2026-11-22', title: 'Eieren: NT en 0 in de ronde',
     notes: [
       { app: 'eggs', text: 'Ook in de lijst van de ronde staat nu een rode NT als iemand niet thuis was, en een grijze 0 als iemand geen eieren nam.' },

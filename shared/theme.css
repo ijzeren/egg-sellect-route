@@ -36,13 +36,15 @@ h1,h2,h3,p{margin:0}
 /* Nooit breder dan de telefoon (geen horizontaal scrollen):
    - lange woorden (Maatschappijwetenschappen, adressen, links) breken af, in koppen met afbreekstreepje
    - media en formuliervelden nooit breder dan hun vak
-   - vangnet: wat toch uitsteekt wordt afgeknipt. overflow-x:clip maakt (anders dan hidden) geen scrollvak,
-     dus de vaste kopbalk (position:sticky) blijft werken. */
+   - vangnet: wat in de inhoud (main) toch uitsteekt wordt afgeknipt. overflow-x:clip maakt (anders dan hidden)
+     geen scrollvak, dus de vaste kopbalk (position:sticky) blijft werken.
+     NIET op html/body: daar laat iOS Safari vaste balken onderaan (tabbalk, dock) onder de rand verdwijnen
+     en kun je niet meer tot onderaan scrollen (v3.11.3). */
 body{overflow-wrap:break-word;word-break:break-word}
 h1,h2,h3,.lt h1,.tt,.nm,.brand h1{overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto}
 img,svg,video,canvas,iframe,table{max-width:100%}
 input,select,textarea{max-width:100%;min-width:0}
-@supports (overflow-x:clip){html,body{overflow-x:clip}}
+main{overflow-x:clip}
 :focus{outline:none}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}
