@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.6.0', date: '2026-11-22', title: 'Beheer voor de hoofdbeheerder',
+    notes: [
+      { app: 'hub', text: 'Nieuw scherm Beheer voor de hoofdbeheerder van de app: apps voor alle gezinnen aan of uit, gezinnen uitschakelen of verwijderen, en hoofdbeheerders en de Assistent aanwijzen.', kb: 'hoofdbeheer' },
+      { app: 'hub', text: 'Is je gezin uitgeschakeld, dan zie je dat op het startscherm. Er wordt niets verwijderd.' },
+      { app: 'hub', text: 'Na het inloggen worden je gezin, hulp en beheer meteen geladen.' },
+    ],
+  },
+  {
     version: '3.5.0', date: '2026-11-22', title: 'Nieuwe app: Agenda',
     notes: [
       { app: 'agenda', text: 'Nieuw: Agenda. Schoolrooster, trainingen, wedstrijden en afspraken van de kinderen in één dag- en weekoverzicht.', kb: 'agenda' },

@@ -18,6 +18,9 @@ apps en weergave regel je in de hub; app-specifieke instellingen in de app. Werk
 **Hulp** (in de hub): kennisbank, veelgestelde vragen (voor alle gezinnen), vragen stellen binnen je gezin
 (iedereen kan antwoorden, en de Assistent), en "Wat is nieuw". De hoofdbeheerder neemt goedgekeurde antwoorden op in de FAQ.
 
+**Beheer** (alleen hoofdbeheerder): apps voor alle gezinnen aan/uit, gezinnen uitschakelen of verwijderen, hoofdbeheerders
+en de Assistent aanwijzen. Zonder inzage in de gegevens van gezinnen.
+
 ## Op de iPhone zetten
 1. Open de link hierboven in **Safari**.
 2. Deel-knop → **Zet op beginscherm**.

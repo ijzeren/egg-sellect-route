@@ -7,7 +7,19 @@
 //   title    vraagvorm of korte naam
 //   updated  datum van de laatste inhoudelijke wijziging (jjjj-mm-dd) + versie
 //   body     eenvoudige HTML (p, ul/ol/li, b, i); alleen door ons geschreven, nooit gebruikersinvoer
+//   platformOnly  alleen zichtbaar voor de hoofdbeheerder van de app
 export const KB = [
+  {
+    slug: 'hoofdbeheer', app: 'hub', platformOnly: true, title: 'Beheer (hoofdbeheerder)', updated: '2026-11-22', version: '3.6.0',
+    body: `<p>Het scherm <b>Beheer</b> is alleen voor de hoofdbeheerder van de app. Het gaat over alles buiten de gezinnen.
+Je ziet er bewust geen gegevens van gezinnen: alleen de naam van een gezin, het aantal leden en welke apps aan staan.</p>
+<ul><li><b>Apps voor alle gezinnen</b>: zet een app uit, dan verdwijnt hij bij alle gezinnen. Er wordt niets verwijderd; aanzetten maakt alles terug zichtbaar. Welke beschikbare apps een gezin gebruikt, kiest het gezin zelf.</li>
+<li><b>Gezinnen</b>: tik op een gezin om het uit te schakelen (leden kunnen dan niet bij hun gegevens, er wordt niets verwijderd) of te verwijderen.
+Verwijderen kan niet ongedaan worden: typ de naam van het gezin over ter bevestiging. Alle gegevens van dat gezin gaan weg; de accounts van de leden blijven.</li>
+<li><b>Hoofdbeheerders en Assistent</b>: geef iemand de rol hoofdbeheerder, of wijs het account van de Assistent aan. Het account moet al bestaan.
+Er blijft altijd minstens één hoofdbeheerder.</li>
+<li><b>FAQ beheren</b>: goedgekeurde antwoorden uit gezinnen herschrijven (zonder namen) en opnemen in de veelgestelde vragen.</li></ul>`,
+  },
   {
     slug: 'op-beginscherm', app: 'hub', title: 'De app op je iPhone zetten', updated: '2026-11-22', version: '3.0.0',
     body: `<ol><li>Open de link van de app in <b>Safari</b>.</li><li>Tik op de deel-knop en kies <b>Zet op beginscherm</b>.</li>

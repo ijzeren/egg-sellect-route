@@ -263,3 +263,9 @@ Doe dit **vóór** je v3.5.0 pusht:
    (alleen voor wie Agenda mag gebruiken in het gezin). Controle: `select count(*) from agenda_people;` → 0.
 2. Na de push: een beheerder zet **Agenda** aan bij Gezin → Apps, en voor een kind met eigen account bij
    Gezin → (kind) → Apps. Kinderen zonder account zet je gewoon als persoon in de agenda.
+
+## Update naar Beheer voor de hoofdbeheerder (v3.6.0)
+**SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `platform_apps` (apps voor alle gezinnen aan/uit),
+`teams.disabled_at` (gezin uitschakelen) en de functies `platform_*` voor het scherm Beheer. Er verandert niets voor
+gezinnen tot de hoofdbeheerder iets uitzet. Getest met `scripts/test-platform.mjs` (22 controles) op de lokale kopie.
+

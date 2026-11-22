@@ -76,6 +76,7 @@ function vHome() {
   let h = nav('', '', right) + `<main>${lt(hello, `${DAYS[now.getDay()]} ${now.getDate()} ${MONL[now.getMonth()]}${me && me.teamName ? ' · ' + esc(me.teamName) : ''}`)}`;
   if (CLOUD && F.sessionExpired()) h += `<div class="banner mb">Je sessie is verlopen. <button class="link" data-a="go" data-v="login" style="min-height:0">Log opnieuw in</button>; je gegevens op deze telefoon blijven bewaard.</div>`;
   else if (CLOUD && !me) h += `<div class="banner blue mb"><div><b>Log in</b> om je gezin te gebruiken: Egg-sellent, samen trainen en je voortgang op al je telefoons. <button class="link" data-a="go" data-v="login" style="min-height:0">Inloggen</button></div></div>`;
+  else if (me && me.disabled) h += `<div class="banner red mb"><div><b>${esc(me.teamName)} is uitgeschakeld</b> door de beheerder van de app. Er is niets verwijderd; zodra het gezin weer aan staat, is alles terug.</div></div>`;
   else if (me && !me.teamId) h += `<div class="banner blue mb"><div><b>Nog geen gezin.</b> Maak een gezin of sluit je aan met een code. <button class="link" data-a="go" data-v="onboard" style="min-height:0">Verder</button></div></div>`;
   const list = APPS.filter(app => F.canUse(app.id));
   h += '<div class="tiles">';
@@ -85,7 +86,7 @@ function vHome() {
     h += `<a class="tile${s.today ? ' now' : ''}" href="${app.route}"><span class="ic" aria-hidden="true">${app.icon}</span><span class="nm">${esc(app.name)}</span><span class="ln">${esc(s.line)}</span>${s.sub ? `<span class="sb">${esc(s.sub)}</span>` : ''}</a>`;
   }
   h += '</div>';
-  if (me && me.teamId && !list.length) h += `<p class="sec-f">Er staan nog geen apps aan voor dit gezin.${isAdmin() ? ' Zet ze aan bij Gezin → Apps.' : ' Vraag een beheerder om ze aan te zetten.'}</p>`;
+  if (me && me.teamId && !me.disabled && !list.length) h += `<p class="sec-f">Er staan nog geen apps aan voor dit gezin.${isAdmin() ? ' Zet ze aan bij Gezin → Apps.' : ' Vraag een beheerder om ze aan te zetten.'}</p>`;
   // Na een update: één keer melden wat er nieuw is.
   const seen = storage.get('hub', 'seenVersion');
   if (seen && seen !== VERSION) h += `<div class="banner blue" style="margin-top:16px"><div><b>Nieuw in versie ${VERSION}:</b> ${esc(RELEASES[0].title)}. <button class="link" data-a="go" data-v="news" style="min-height:0">Bekijk</button></div></div>`;
@@ -95,7 +96,8 @@ function vHome() {
     <button class="cell" data-a="go" data-v="faq"><span class="tx"><span class="tt">Veelgestelde vragen</span></span>${CHEV}</button>
     ${me && me.teamId ? `<button class="cell" data-a="go" data-v="questions"><span class="tx"><span class="tt">Vragen</span></span><span class="tr">${openQ ? `${openQ} open` : ''}</span>${CHEV}</button>` : ''}
     <button class="cell" data-a="go" data-v="news"><span class="tx"><span class="tt">Wat is nieuw</span></span><span class="tr">${VERSION}</span>${CHEV}</button>
-    ${help.platformAdmin ? `<button class="cell" data-a="go" data-v="curate"><span class="tx"><span class="tt">FAQ beheren</span><span class="st">Hoofdbeheer van alle apps</span></span><span class="tr">${help.candidates ? help.candidates.length || '' : ''}</span>${CHEV}</button>` : ''}`));
+  `));
+  if (help.platformAdmin) h += sec('Hoofdbeheer', grp(`<button class="cell" data-a="go" data-v="admin"><span class="tx"><span class="tt">Beheer</span><span class="st">Apps, gezinnen, beheerders en FAQ</span></span><span class="tr">${help.candidates && help.candidates.length ? help.candidates.length + ' FAQ' : ''}</span>${CHEV}</button>`));
   return h + '</main>';
 }
 
@@ -124,7 +126,7 @@ function vOnboard() {
   if (fams.length) h += sec('Jouw gezinnen', grp(fams.map(t => `<button class="cell" data-a="choose" data-id="${esc(t.team_id)}"><span class="tx"><span class="tt">${esc(t.team_name)}</span><span class="st">${ROLE_LABEL[t.role] || t.role}</span></span>${CHEV}</button>`).join('')));
   h += sec('Nieuw gezin', grp(`<label class="cell field"><span class="fl">Gezin</span><input type="text" id="famName" placeholder="bijv. Familie Jansen"></label>
     <label class="cell field"><span class="fl">Jouw naam</span><input type="text" id="memberName1" autocomplete="given-name"></label>
-    ${APPS.map(app => `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span><span class="st">${esc(app.about || '')}</span></span>${toggle((ui.newApps || []).includes(app.id), 'newapp', `data-app="${app.id}"`, app.name)}</div>`).join('')}`),
+    ${APPS.filter(app => !appOff(app.id)).map(app => `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span><span class="st">${esc(app.about || '')}</span></span>${toggle((ui.newApps || []).includes(app.id), 'newapp', `data-app="${app.id}"`, app.name)}</div>`).join('')}`),
     'Jij wordt beheerder. Apps kun je later altijd aan- of uitzetten.');
   h += `<div class="sec"><button class="btn big ${fams.length ? 'gray' : ''}" data-a="create">Maak gezin</button></div>`;
   h += sec('Ik heb een code', grp(`<label class="cell field"><span class="fl">Code</span><input type="text" id="joinCode" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;font-weight:600" placeholder="ABC123"></label>
@@ -150,7 +152,7 @@ function vFamily() {
       'De ander opent de app, logt in en kiest "Ik heb een code". Een code is 14 dagen geldig; een nieuwe code maakt de vorige ongeldig.');
   }
   // apps van het gezin
-  h += sec('Apps', grp(APPS.map(app => `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span><span class="st">${esc(app.about || '')}</span></span>${toggle(!!fam.apps[app.id], 'appon', `data-app="${app.id}"`, app.name, !admin)}</div>`).join('')),
+  h += sec('Apps', grp(APPS.map(app => `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span><span class="st">${appOff(app.id) ? 'Tijdelijk uitgezet door de beheerder van de app' : esc(app.about || '')}</span></span>${toggle(!!fam.apps[app.id] && !appOff(app.id), 'appon', `data-app="${app.id}"`, app.name, !admin || appOff(app.id))}</div>`).join('')),
     admin ? 'Een app die aan staat, kan ieder lid gebruiken (kinderen alleen als je het per kind aanzet). Uitzetten verwijdert niets; de gegevens blijven bewaard.' : 'Apps aan- of uitzetten doet een beheerder.');
   // gezinnen
   const others = F.families().filter(t => t.team_id !== me.teamId);
@@ -201,7 +203,9 @@ function vPasskeys() {
 
 /* ---------- hulp: kennisbank, FAQ, vragen ---------- */
 // help = gegevens voor de hulpschermen (FAQ, vragen van het gezin, voorstellen voor de FAQ)
-let help = { faq: storage.get('hub', 'faq', null), questions: null, platformAdmin: false, candidates: null };
+let help = { faq: storage.get('hub', 'faq', null), questions: null, platformAdmin: false, candidates: null, platformApps: storage.get('hub', 'platformApps', {}), admin: null };
+// Apps die de hoofdbeheerder voor alle gezinnen heeft uitgezet.
+const appOff = id => help.platformApps[id] === false;
 const appName = id => id ? (APP_NAMES[id] || id) : 'Algemeen';
 const appChoices = () => [['', 'Algemeen'], ...APPS.map(a => [a.id, a.name])];
 const fmtDate = iso => { const d = new Date(iso); return `${d.getDate()} ${MONL[d.getMonth()].slice(0, 3)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -222,14 +226,18 @@ async function loadPlatform() {
   help.platformAdmin = (roles || []).some(r => r.role === 'admin');
   if (help.platformAdmin) help.candidates = await F.api('/rest/v1/rpc/faq_candidates', { method: 'POST', body: {} });
 }
+async function loadPlatformApps() {
+  const rows = await (await fetch(F.CFG.supabaseUrl + '/rest/v1/platform_apps?select=app,enabled', { headers: { apikey: F.CFG.supabaseKey } })).json();
+  if (Array.isArray(rows)) { help.platformApps = Object.fromEntries(rows.map(r => [r.app, r.enabled])); storage.set('hub', 'platformApps', help.platformApps); }
+}
 async function loadHelp() {
-  await Promise.all([loadFaq().catch(() => {}), loadQuestions().catch(() => {}), loadPlatform().catch(() => {})]);
+  await Promise.all([loadFaq().catch(() => {}), loadQuestions().catch(() => {}), loadPlatform().catch(() => {}), loadPlatformApps().catch(() => {})]);
 }
 
 function vKb() {
   let h = nav(back('home', 'Apps'), 'Kennisbank') + '<main>' + lt('Kennisbank', 'Handleidingen bij de apps');
   for (const [id, name] of [['hub', 'Algemeen'], ...APPS.map(a => [a.id, a.name])]) {
-    const list = KB.filter(a => a.app === id && (id === 'hub' || F.canUse(id)));
+    const list = KB.filter(a => a.app === id && (id === 'hub' || F.canUse(id)) && (!a.platformOnly || help.platformAdmin));
     if (list.length) h += sec(esc(name), grp(list.map(a => `<button class="cell" data-a="article" data-slug="${a.slug}"><span class="tx"><span class="tt">${esc(a.title)}</span></span>${CHEV}</button>`).join('')));
   }
   return h + `<p class="sec-f">Staat je antwoord er niet bij? Kijk bij de veelgestelde vragen of stel je vraag bij Hulp → Vragen.</p></main>`;
@@ -280,7 +288,7 @@ function vQuestion() {
   return h + '</main>';
 }
 function vCurate() {
-  let h = nav(back('home', 'Apps'), 'FAQ beheren') + '<main>' + lt('FAQ beheren', 'Goedgekeurde antwoorden uit alle gezinnen');
+  let h = nav(back('admin', 'Beheer'), 'FAQ beheren') + '<main>' + lt('FAQ beheren', 'Goedgekeurde antwoorden uit alle gezinnen');
   const list = help.candidates || [];
   if (!list.length) h += '<div class="article"><p>Geen nieuwe voorstellen. Een vraag verschijnt hier zodra een gezin een antwoord heeft goedgekeurd.</p></div>';
   list.forEach((c, i) => {
@@ -291,6 +299,44 @@ function vCurate() {
       <button class="cell red center" data-a="decline" data-i="${i}">Niet opnemen</button>`));
   });
   h += sec('Gepubliceerd', grp((help.faq || []).map(f => `<div class="cell"><span class="tx"><span class="tt">${esc(f.question)}</span><span class="st">${esc(appName(f.app))}</span></span><button class="link" style="color:var(--red)" data-a="unpublish" data-id="${f.id}">Verberg</button></div>`).join('') || '<div class="cell"><span class="st">Nog niets.</span></div>'));
+  return h + '</main>';
+}
+
+/* ---------- hoofdbeheer: alles buiten de gezinnen ---------- */
+// Alleen voor de hoofdbeheerder (platform_roles = admin). Bewust geen inzage in gezinnen: alleen namen van
+// gezinnen, aantallen en welke apps aan staan; acties zijn aan/uit en verwijderen.
+async function loadAdmin() {
+  const [families, roles] = await Promise.all([F.api('/rest/v1/rpc/platform_families', { method: 'POST', body: {} }), F.api('/rest/v1/rpc/platform_role_list', { method: 'POST', body: {} })]);
+  help.admin = { families: families || [], roles: roles || [] };
+}
+const ROLE_PLATFORM = { admin: 'Hoofdbeheerder', runner: 'Assistent' };
+function vAdmin() {
+  if (!help.platformAdmin) return vHome();
+  let h = nav(back('home', 'Apps'), 'Beheer') + '<main>' + lt('Beheer', 'Alles buiten de gezinnen');
+  h += `<p class="sec-f" style="margin-top:4px">Je ziet hier geen gegevens van gezinnen: alleen de naam, het aantal leden en welke apps aan staan.</p>`;
+  h += sec('Apps voor alle gezinnen', grp(APPS.map(app => `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span><span class="st">${appOff(app.id) ? 'Uit voor iedereen' : 'Beschikbaar'}</span></span>${toggle(!appOff(app.id), 'platformapp', `data-app="${app.id}"`, app.name)}</div>`).join('')),
+    'Uitzetten verbergt de app voor alle gezinnen; er wordt niets verwijderd. Gezinnen zetten een beschikbare app zelf aan.');
+  h += sec('Veelgestelde vragen', grp(`<button class="cell" data-a="go" data-v="curate"><span class="tx"><span class="tt">FAQ beheren</span><span class="st">Goedgekeurde antwoorden uit gezinnen opnemen</span></span><span class="tr">${help.candidates && help.candidates.length ? help.candidates.length + ' nieuw' : ''}</span>${CHEV}</button>`));
+  if (!help.admin) return h + '<p class="sec-f">Laden…</p></main>';
+  const fams = help.admin.families;
+  h += sec(`Gezinnen (${fams.length})`, grp(fams.map(f => `<button class="cell" data-a="adminfamily" data-id="${esc(f.team_id)}"><span class="tx"><span class="tt">${esc(f.name)}${f.disabled_at ? '<span class="pill">Uit</span>' : ''}</span><span class="st">${f.members} ${f.members === 1 ? 'lid' : 'leden'} · ${f.apps.length ? f.apps.map(a => esc(appName(a))).join(', ') : 'geen apps'} · sinds ${fmtDate(f.created_at).replace(/ \d\d:\d\d$/, '')}</span></span>${CHEV}</button>`).join('') || '<div class="cell"><span class="st">Nog geen gezinnen.</span></div>'));
+  h += sec('Hoofdbeheerders en Assistent', grp(help.admin.roles.map(r => `<div class="cell"><span class="tx"><span class="tt">${esc(r.email)}</span><span class="st">${ROLE_PLATFORM[r.role] || r.role}</span></span><button class="link" style="color:var(--red)" data-a="roleremove" data-id="${esc(r.user_id)}" data-role="${r.role}">Verwijder</button></div>`).join('')
+    + `<label class="cell field"><span class="fl">E-mail</span><input type="email" id="roleEmail" autocapitalize="off" placeholder="naam@voorbeeld.nl"></label>
+    <div class="cell stack">${seg([['admin', 'Hoofdbeheerder'], ['runner', 'Assistent']], ui.roleKind || 'admin', 'rolekind')}</div>
+    <button class="cell tint center" data-a="roleadd">Rol geven</button>`),
+    'Het account moet al bestaan (één keer ingelogd, of voor de Assistent aangemaakt in Supabase). Er blijft altijd minstens één hoofdbeheerder.');
+  return h + '</main>';
+}
+function vAdminFamily() {
+  const f = help.admin && help.admin.families.find(x => x.team_id === ui.familyId);
+  if (!f) return vAdmin();
+  let h = nav(back('admin', 'Beheer'), '') + '<main>' + lt(esc(f.name), `${f.members} ${f.members === 1 ? 'lid' : 'leden'} · sinds ${fmtDate(f.created_at).replace(/ \d\d:\d\d$/, '')}`);
+  h += sec('Apps van dit gezin', grp(`<div class="cell"><span class="tx"><span class="tt">${f.apps.length ? f.apps.map(a => esc(appName(a))).join(', ') : 'Geen apps aan'}</span></span></div>`), 'Welke apps een gezin gebruikt, kiest het gezin zelf.');
+  h += sec('Gezin', grp(`<div class="cell"><span class="tx"><span class="tt">Gezin aan</span><span class="st">${f.disabled_at ? 'Uitgeschakeld sinds ' + fmtDate(f.disabled_at) : 'Leden kunnen de apps gebruiken'}</span></span>${toggle(!f.disabled_at, 'familyon', `data-id="${esc(f.team_id)}"`, 'Gezin aan')}</div>`),
+    'Uitschakelen: leden kunnen niet meer bij de gegevens, maar er wordt niets verwijderd. Weer aanzetten maakt alles terug zichtbaar.');
+  h += sec('Verwijderen', grp(`<label class="cell field"><span class="fl">Typ de naam</span><input type="text" id="delConfirm" autocomplete="off" placeholder="${esc(f.name)}"></label>
+    <button class="cell red center" data-a="familydelete" data-id="${esc(f.team_id)}">Gezin en alle gegevens verwijderen</button>`),
+    'Kan niet ongedaan worden gemaakt: leden, apps, adressen, bezoeken, trainingen, gerechten, agenda en vragen van dit gezin worden verwijderd. Accounts van de leden blijven bestaan.');
   return h + '</main>';
 }
 
@@ -305,7 +351,7 @@ function vNews() {
   return h + '</main>';
 }
 
-const VIEWS = { kb: vKb, article: vArticle, faq: vFaq, questions: vQuestions, ask: vAsk, question: vQuestion, curate: vCurate, news: vNews, home: vHome, login: vLogin, onboard: vOnboard, family: vFamily, member: vMember, passkeys: vPasskeys };
+const VIEWS = { admin: vAdmin, adminfamily: vAdminFamily, kb: vKb, article: vArticle, faq: vFaq, questions: vQuestions, ask: vAsk, question: vQuestion, curate: vCurate, news: vNews, home: vHome, login: vLogin, onboard: vOnboard, family: vFamily, member: vMember, passkeys: vPasskeys };
 function render() {
   if (ui.view === 'login' && account()) ui.view = account().teamId ? 'home' : 'onboard';
   document.getElementById('app').innerHTML = (VIEWS[ui.view] || vHome)();
@@ -332,6 +378,7 @@ document.addEventListener('click', ev => {
       go(el.dataset.v);
       if (el.dataset.v === 'family') run(null, async () => { await F.refreshFamilies(); await loadFamily(); render(); });
       if (['faq', 'questions', 'curate'].includes(el.dataset.v)) loadHelp().then(render);
+      if (el.dataset.v === 'admin') Promise.all([loadHelp(), loadAdmin()]).then(render).catch(e => toast(e.message, 'err'));
       if (el.dataset.v === 'passkeys') { ui.passkeys = null; F.passkeyList().then(l => { ui.passkeys = l; ui.passkeyErr = null; render(); }).catch(e => { ui.passkeys = []; ui.passkeyErr = F.passkeyError(e); render(); }); }
       break;
     case 'sendcode': run(el, async () => {
@@ -345,12 +392,12 @@ document.addEventListener('click', ev => {
       const code = val('loginCode').replace(/\s/g, '');
       if (!/^\d{6,10}$/.test(code)) throw new Error('Vul de code uit de mail in.');
       await F.verifyCode(ui.loginEmail, code); ui.loginSent = false;
-      go(account().teamId ? 'home' : 'onboard'); loadFamily().catch(() => {});
+      go(account().teamId ? 'home' : 'onboard'); refresh();
     }); break;
     case 'otheremail': ui.loginSent = false; render(); break;
     case 'pklogin': run(el, async () => {
       try { await F.passkeyLogin(); } catch (e) { const m = F.passkeyError(e); if (m) throw new Error(m); return; }
-      go(account().teamId ? 'home' : 'onboard');
+      go(account().teamId ? 'home' : 'onboard'); refresh();
     }); break;
     case 'pkadd': run(el, async () => {
       const name = /iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'Apparaat';
@@ -423,6 +470,37 @@ document.addEventListener('click', ev => {
     case 'delanswer': if (confirm('Dit antwoord verwijderen?')) run(el, async () => { await F.api(`/rest/v1/answers?id=eq.${el.dataset.id}`, { method: 'DELETE' }); await loadQuestions(); render(); }); break;
     case 'delquestion': if (confirm('Deze vraag met alle antwoorden verwijderen?')) run(el, async () => { await F.api(`/rest/v1/questions?id=eq.${ui.qid}`, { method: 'DELETE' }); await loadQuestions(); go('questions'); }); break;
     case 'capp': ui['capp' + el.dataset.i] = el.dataset.v; render(); break;
+    case 'platformapp': {
+      const app = el.dataset.app, on = appOff(app), a = APPS.find(x => x.id === app);
+      if (!on && !confirm(`${a.name} uitzetten voor alle gezinnen? Er wordt niets verwijderd.`)) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/platform_set_app', { method: 'POST', body: { p_app: app, p_enabled: on } }); await loadPlatformApps(); await F.refreshFamilies().catch(() => {}); render(); });
+      break;
+    }
+    case 'adminfamily': ui.familyId = el.dataset.id; go('adminfamily'); break;
+    case 'familyon': {
+      const f = help.admin.families.find(x => x.team_id === el.dataset.id), off = !f.disabled_at;
+      if (off && !confirm(`${f.name} uitschakelen? Leden kunnen dan niet meer bij hun gegevens; er wordt niets verwijderd.`)) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/platform_set_family_disabled', { method: 'POST', body: { p_team: f.team_id, p_disabled: off } }); await loadAdmin(); render(); });
+      break;
+    }
+    case 'familydelete': {
+      const f = help.admin.families.find(x => x.team_id === el.dataset.id), typed = val('delConfirm');
+      if (typed !== f.name) { toast('Typ de naam van het gezin precies over.', 'err'); return; }
+      if (!confirm(`${f.name} en ALLE gegevens definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/platform_delete_family', { method: 'POST', body: { p_team: f.team_id, p_confirm: typed } }); await loadAdmin(); go('admin'); toast(`${f.name} is verwijderd.`); });
+      break;
+    }
+    case 'rolekind': ui.roleKind = el.dataset.v; render(); break;
+    case 'roleadd': run(el, async () => {
+      const email = val('roleEmail'); if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Vul een geldig e-mailadres in.');
+      await F.api('/rest/v1/rpc/platform_role_add', { method: 'POST', body: { p_email: email, p_role: ui.roleKind || 'admin' } }); await loadAdmin(); render(); toast('Rol gegeven.');
+    }); break;
+    case 'roleremove': {
+      const r = help.admin.roles.find(x => x.user_id === el.dataset.id && x.role === el.dataset.role);
+      if (!confirm(`${r.email} is dan geen ${(ROLE_PLATFORM[r.role] || r.role).toLowerCase()} meer. Doorgaan?`)) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/platform_role_remove', { method: 'POST', body: { p_user: r.user_id, p_role: r.role } }); await loadAdmin(); render(); });
+      break;
+    }
     case 'publish': run(el, async () => {
       const i = +el.dataset.i, c = help.candidates[i];
       await F.api('/rest/v1/rpc/faq_publish', { method: 'POST', body: { p_question: c.question_id, p_app: ui['capp' + i] ?? (c.app || ''), p_q: val('cq' + i), p_a: val('ca' + i) } });

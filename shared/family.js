@@ -54,7 +54,7 @@ export function account() {
   return {
     userId: S.userId, email,
     teamId: S.team ? S.team.id : null, teamName: S.team ? S.team.name : '',
-    role: S.team ? S.team.role : null, apps: S.team ? S.team.apps || null : null,
+    role: S.team ? S.team.role : null, apps: S.team ? S.team.apps || null : null, disabled: !!(S.team && S.team.disabled),
     memberName: (S.team && S.team.memberName) || email.split('@')[0] || 'Ik',
   };
 }
@@ -187,7 +187,7 @@ async function afterLogin() {
 }
 
 /* ---------- gezinnen ---------- */
-const toTeam = t => ({ id: t.team_id, name: t.team_name, role: t.role, memberName: t.member_name, apps: t.apps || {} });
+const toTeam = t => ({ id: t.team_id, name: t.team_name, role: t.role, memberName: t.member_name, apps: t.apps || {}, disabled: !!t.disabled });
 export const families = () => readS().teams || [];
 // Gezinnen, rollen en apps opnieuw ophalen (bij openen van de hub).
 export async function refreshFamilies() {

@@ -26,6 +26,16 @@ create table if not exists public.teams (
   created_at timestamptz not null default now(),
   server_ts timestamptz not null default now()
 );
+-- Hoofdbeheer (v3.6): een gezin kan door de hoofdbeheerder worden uitgeschakeld. Er wordt niets verwijderd;
+-- leden kunnen dan niet meer bij de gegevens tot het weer aan staat.
+alter table public.teams add column if not exists disabled_at timestamptz;
+-- Hoofdbeheer (v3.6): apps voor alle gezinnen aan of uit. Geen rij = aan.
+create table if not exists public.platform_apps (
+  app text primary key check (app ~ '^[a-z][a-z0-9-]{1,30}$'),
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid() references auth.users(id) on delete set null
+);
 
 create table if not exists public.team_members (
   team_id uuid not null references public.teams(id) on delete cascade,
@@ -199,7 +209,8 @@ create trigger team_row before insert or update on public.teams for each row exe
 -- ---------- wie mag wat (row level security) ----------
 create or replace function public.is_member(t uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from team_members where team_id = t and user_id = auth.uid());
+  select exists (select 1 from team_members m join teams tt on tt.id = m.team_id and tt.disabled_at is null
+    where m.team_id = t and m.user_id = auth.uid());
 $$;
 create or replace function public.is_admin(t uuid) returns boolean
 language sql stable security definer set search_path = public as $$
@@ -245,6 +256,8 @@ create or replace function public.member_guard() returns trigger
 language plpgsql as $$
 begin
   if auth.uid() is null then return case when tg_op = 'DELETE' then old else new end; end if;
+  -- Het hele gezin wordt verwijderd (cascade vanuit teams): dan geldt de beheerdersregel niet.
+  if tg_op = 'DELETE' and not exists (select 1 from teams where id = old.team_id) then return old; end if;
   if tg_op = 'UPDATE' and new.role <> old.role and not public.is_admin(old.team_id) then
     raise exception 'Alleen een beheerder kan rollen wijzigen';
   end if;
@@ -396,9 +409,11 @@ create or replace function public.has_app(t uuid, a text) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (
     select 1 from team_apps ta
+    join teams tt on tt.id = ta.team_id and tt.disabled_at is null
     join team_members m on m.team_id = ta.team_id and m.user_id = auth.uid()
     left join team_member_apps x on x.team_id = m.team_id and x.user_id = m.user_id and x.app = ta.app
-    where ta.team_id = t and ta.app = a and ta.enabled and coalesce(x.access, m.role <> 'child'));
+    where ta.team_id = t and ta.app = a and ta.enabled and coalesce(x.access, m.role <> 'child')
+      and not exists (select 1 from platform_apps pa where pa.app = a and not pa.enabled));
 $$;
 -- Rol van de ingelogde gebruiker in deze app (null = geen toegang).
 create or replace function public.app_role(t uuid, a text) returns text
@@ -469,12 +484,14 @@ end $$;
 -- Mijn gezinnen, met mijn rol en de apps die ik daar mag gebruiken: { "eggs": { "role": "walker" }, … }.
 drop function if exists public.my_teams();
 create or replace function public.my_teams()
-returns table(team_id uuid, team_name text, role text, member_name text, apps jsonb)
+returns table(team_id uuid, team_name text, role text, member_name text, apps jsonb, disabled boolean)
 language sql stable security definer set search_path = public as $$
   select t.id, t.name, m.role, m.name,
     coalesce((select jsonb_object_agg(ta.app, jsonb_build_object('role', coalesce(x.role, case when m.role = 'admin' then 'admin' else 'member' end)))
       from team_apps ta left join team_member_apps x on x.team_id = ta.team_id and x.user_id = m.user_id and x.app = ta.app
-      where ta.team_id = t.id and ta.enabled and coalesce(x.access, m.role <> 'child')), '{}'::jsonb)
+      where ta.team_id = t.id and ta.enabled and t.disabled_at is null and coalesce(x.access, m.role <> 'child')
+        and not exists (select 1 from platform_apps pa where pa.app = ta.app and not pa.enabled)), '{}'::jsonb),
+    t.disabled_at is not null
   from team_members m join teams t on t.id = m.team_id
   where m.user_id = auth.uid() order by m.joined_at;
 $$;
@@ -891,3 +908,90 @@ begin
 end $$;
 drop trigger if exists agenda_tasks_guard on public.agenda_tasks;
 create trigger agenda_tasks_guard before insert or update on public.agenda_tasks for each row execute function public.agenda_tasks_guard();
+
+-- ---------- Hoofdbeheer: alles buiten de gezinnen (familie-app, v3.6) ----------
+-- Voor wie in platform_roles de rol 'admin' heeft (nu alleen de eigenaar van de app; uit te breiden via de hub).
+-- Bewust GEEN inzage in gezinnen: geen namen of e-mailadressen van leden, geen adressen, trainingen of vragen.
+-- Alleen: apps voor iedereen aan/uit, gezinnen uitschakelen/inschakelen/verwijderen (naam + aantallen),
+-- en wie hoofdbeheerder of Assistent is.
+alter table public.platform_roles add column if not exists created_at timestamptz not null default now();
+alter table public.platform_apps enable row level security;
+drop policy if exists platform_apps_read on public.platform_apps;
+create policy platform_apps_read on public.platform_apps for select to anon, authenticated using (true);
+grant select on public.platform_apps to anon, authenticated;
+revoke insert, update, delete on public.platform_apps from anon, authenticated;
+
+create or replace function public.platform_set_app(p_app text, p_enabled boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  insert into platform_apps(app, enabled, updated_at, updated_by) values (p_app, p_enabled, now(), auth.uid())
+    on conflict (app) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
+end $$;
+
+-- Gezinnen: naam, aanmaakdatum, aantal leden, apps die aan staan, uitgeschakeld sinds. Geen leden of gegevens.
+create or replace function public.platform_families()
+returns table(team_id uuid, name text, created_at timestamptz, members int, apps text[], disabled_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  return query select t.id, t.name, t.created_at,
+    (select count(*)::int from team_members m where m.team_id = t.id),
+    coalesce((select array_agg(a.app order by a.app) from team_apps a where a.team_id = t.id and a.enabled), '{}'),
+    t.disabled_at
+    from teams t order by t.created_at;
+end $$;
+create or replace function public.platform_set_family_disabled(p_team uuid, p_disabled boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  update teams set disabled_at = case when p_disabled then coalesce(disabled_at, now()) else null end where id = p_team;
+  if not found then raise exception 'Onbekend gezin'; end if;
+end $$;
+-- Verwijderen kan niet ongedaan worden: alle gegevens van het gezin gaan mee. p_confirm = de naam van het gezin.
+create or replace function public.platform_delete_family(p_team uuid, p_confirm text)
+returns void language plpgsql security definer set search_path = public as $$
+declare n text;
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  select name into n from teams where id = p_team;
+  if n is null then raise exception 'Onbekend gezin'; end if;
+  if trim(coalesce(p_confirm, '')) <> n then raise exception 'Typ de naam van het gezin precies over om te bevestigen'; end if;
+  delete from teams where id = p_team;
+end $$;
+
+-- Hoofdbeheerders en de Assistent: e-mailadres + rol (alleen van wie zo'n rol heeft).
+create or replace function public.platform_role_list()
+returns table(user_id uuid, email text, role text, created_at timestamptz)
+language plpgsql stable security definer set search_path = public, auth as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  return query select r.user_id, u.email::text, r.role, r.created_at from platform_roles r join auth.users u on u.id = r.user_id order by r.role, r.created_at;
+end $$;
+create or replace function public.platform_role_add(p_email text, p_role text)
+returns void language plpgsql security definer set search_path = public, auth as $$
+declare uid uuid;
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  if p_role not in ('admin', 'runner') then raise exception 'Onbekende rol'; end if;
+  select id into uid from auth.users where lower(email) = lower(trim(p_email));
+  if uid is null then raise exception 'Geen account met dit e-mailadres. Laat diegene eerst één keer inloggen (of maak het account aan in Supabase).'; end if;
+  insert into platform_roles(user_id, role) values (uid, p_role) on conflict do nothing;
+end $$;
+create or replace function public.platform_role_remove(p_user uuid, p_role text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  if p_role = 'admin' and not exists (select 1 from platform_roles where role = 'admin' and user_id <> p_user) then
+    raise exception 'Er moet minstens één hoofdbeheerder blijven';
+  end if;
+  delete from platform_roles where user_id = p_user and role = p_role;
+end $$;
+do $$
+declare f text;
+begin
+  foreach f in array array['platform_set_app(text, boolean)', 'platform_families()', 'platform_set_family_disabled(uuid, boolean)', 'platform_delete_family(uuid, text)', 'platform_role_list()', 'platform_role_add(text, text)', 'platform_role_remove(uuid, text)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;

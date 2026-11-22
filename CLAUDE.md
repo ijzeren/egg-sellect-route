@@ -32,6 +32,14 @@ Backend: Supabase (zie `supabase/`). Overzicht van bestanden: `README.md`.
   blijven in de app.
 - Inloggen gebeurt alleen in de hub (`shared/family.js`); apps sturen naar `../?login` als er geen sessie is.
 
+## Hoofdbeheer (alles buiten de gezinnen)
+- Rol `admin` in `platform_roles` (nu alleen de eigenaar van de app). Scherm Beheer in de hub.
+- Mag alleen aan/uit en verwijderen: apps voor alle gezinnen (`platform_apps`), gezinnen uitschakelen (`teams.disabled_at`)
+  of verwijderen, rollen hoofdbeheerder/Assistent. **Geen inzage in gezinnen**: functies `platform_*` geven alleen
+  naam, aantallen en apps; nooit leden, e-mailadressen van leden of gegevens. Houd dat zo bij uitbreidingen.
+- Een uitgeschakeld gezin of een platformbreed uitgezette app werkt via `is_member` / `has_app`; nieuwe apps krijgen dat
+  vanzelf als ze RLS met `has_app` gebruiken.
+
 ## Hulp
 - Kennisbank: `shared/kb.js` (artikelen in gewone taal; ook de bron voor de Assistent).
 - FAQ, vragen en antwoorden: tabellen `faq`, `questions`, `answers`. Vragen blijven binnen het gezin; de hoofdbeheerder
