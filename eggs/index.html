@@ -168,7 +168,7 @@ a.cell{text-decoration:none}
 .mt{border-radius:10px;background:var(--cell2);padding:6px 2px;text-align:center;min-height:56px;display:flex;flex-direction:column;justify-content:center}
 .mt .d{font-size:.647rem;color:var(--label2)}
 .mt .v{font:700 1.176rem/1.15 ui-rounded,-apple-system,sans-serif;font-variant-numeric:tabular-nums}
-.mt.sold .v{color:var(--green)} .mt.nh .v{color:var(--red)} .mt.blank{opacity:.45}
+.mt.sold .v{color:var(--green)} .mt.nh .v{color:var(--red)} .mt.none .v{color:var(--label2)} .mt.blank{opacity:.45}
 .absc{border-radius:12px;background:var(--cell);padding:14px;border:1.5px solid var(--red)}
 .absc .h{display:flex;gap:8px;align-items:flex-start;color:var(--red);font-weight:600;margin-bottom:10px}
 .wk{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px;margin-bottom:10px}
@@ -273,7 +273,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.11.0';
+const APP_VERSION = '3.11.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -1081,7 +1081,7 @@ function boxesExpected(sp){
 
 function statusPill(v, exp){
   if (!v) return `<span class="st open">${exp != null ? exp : 'open'}</span>`;
-  if (v.status === 'nothome') return '<span class="st nothome">✗ n.t.</span>';
+  if (v.status === 'nothome') return '<span class="st nothome">NT</span>';
   if (v.status === 'none') return '<span class="st none">0</span>';
   return `<span class="st sold">${v.eggs}</span>`;
 }
@@ -1302,8 +1302,8 @@ function vHouse(){
     for (let k = 0; k < 4; k++) {
       const x = last4[k];
       if (!x) { h += '<div class="mt blank"><span class="d">&nbsp;</span><span class="v">–</span></div>'; continue; }
-      const cls = x.status === 'nothome' ? 'nh' : x.status === 'sold' ? 'sold' : '';
-      h += `<div class="mt ${cls}"><span class="d">${esc(fmtShort(x.date))}</span><span class="v">${x.status === 'nothome' ? '✗' : x.eggs}</span></div>`;
+      const cls = x.status === 'nothome' ? 'nh' : x.status === 'sold' && x.eggs ? 'sold' : 'none';
+      h += `<div class="mt ${cls}"><span class="d">${esc(fmtShort(x.date))}</span><span class="v" ${x.status === 'nothome' ? 'aria-label="niet thuis"' : ''}>${x.status === 'nothome' ? 'NT' : x.eggs || 0}</span></div>`;
     }
     h += '</div>';
   }
