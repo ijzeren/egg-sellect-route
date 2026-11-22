@@ -164,14 +164,17 @@ node scripts/prod-naar-lokaal.mjs
 
 - Leest productie **alleen-lezen** via de Supabase CLI (je eigen `npx supabase login`; geen
   databasewachtwoord of geheime sleutel). Productie wordt nooit gewijzigd.
-- Zet teams, adressen, bezoeken (ook verwijderde), afwezigheid, bestellingen en voorraad in de
-  lokale database. Een eerdere kopie van dezelfde teams wordt eerst weggehaald; andere lokale
-  teams blijven staan. Opnieuw draaien geeft een verse kopie.
-- Teamleden worden op e-mailadres gekoppeld aan dezelfde lokale gebruiker. Bestaat die lokaal nog
-  niet: log lokaal één keer in met dat adres (code 123456) en draai het script opnieuw. Of geef een
-  lokaal adres mee dat beheerder wordt: `node scripts/prod-naar-lokaal.mjs jij@voorbeeld.nl`.
-- Daarna in de app: Instellingen → Team → Jouw teams → kies het team.
-- Niet gekopieerd: accounts, uitnodigingen en meldingen.
+- Zet het hele gezin in de lokale database: leden, apps per gezin en per lid, eieren (adressen,
+  bezoeken ook verwijderde, afwezigheid, voorraad, doosjes, stroopwafels), training, gerechten, agenda en
+  vragen; plus de FAQ en de apps voor alle gezinnen. Het script zoekt de tabellen zelf op (alles met
+  `team_id`), dus nieuwe tabellen gaan vanzelf mee. Een eerdere kopie van hetzelfde gezin gaat eerst weg;
+  andere lokale gezinnen blijven staan. Opnieuw draaien geeft een verse kopie.
+- Verwijzingen naar gebruikers worden op e-mailadres gekoppeld aan dezelfde lokale gebruiker. Bestaat
+  die lokaal nog niet: log lokaal één keer in met dat adres (code 123456) en draai het script opnieuw.
+  Of geef een lokaal adres mee dat beheerder wordt, met alle apps:
+  `node scripts/prod-naar-lokaal.mjs jij@voorbeeld.nl`.
+- Daarna: open de app lokaal en kies het gezin.
+- Niet gekopieerd: accounts, hoofdbeheerders, uitnodigingen en meldingen (`SKIP` in het script).
 - De kopie bevat echte namen, adressen en e-mailadressen; ze staat alleen in de lokale database.
   `npx supabase db reset` wist alles weer.
 
