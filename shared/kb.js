@@ -191,16 +191,16 @@ Niet thuis verandert de afspraak niet: het adres komt op de volgende loopdag ter
 <p><b>Afwezig?</b> Zet de dag bij Planning op afwezig. Klanten wiens vaste dag dan uitvalt, krijgen aan de deur het aanbod om voor 2 weken te nemen of een andere dag te kiezen.</p>`,
   },
   {
-    slug: 'eggs-besteladvies', app: 'eggs', title: 'Hoe werkt het besteladvies?', updated: '2026-11-22', version: '2.8.0',
-    body: `<p>Bij <b>Planning</b> staat per week hoeveel eieren je het beste kunt bestellen. Het advies is bewust voorzichtig: liever een paar te weinig dan veel over.</p>
-<p>Per adres telt mee:</p>
-<ul><li><b>Verkocht</b>: al bezocht in die week, het echte aantal.</li>
-<li><b>Afgesproken</b>: de laatste afspraak valt in die week.</li>
-<li><b>Vast ritme</b>: het ritme van het adres (elke week, om de 2 weken, …) doorgetrokken.</li>
-<li>Nieuwe of lang niet bezochte adressen tellen niet mee; die zie je alleen als aantal.</li></ul>
-<p><b>Advies = verkocht + (afgesproken + vast ritme) × realisatie</b>, afgerond op de eenheid uit Instellingen (bijv. 30 = een tray).
-Realisatie is hoeveel procent van de afspraken de afgelopen 8 weken echt verkocht is.</p>
-<p>Vul bij Planning in wat je echt besteld hebt. Dan toont de app ook wat er over is, en houdt het advies rekening met de marge uit Instellingen.</p>`,
+    slug: 'eggs-besteladvies', app: 'eggs', title: 'Hoe werkt de planning en het besteladvies?', updated: '2026-11-22', version: '3.12.1',
+    body: `<p><b>Planning</b> bestaat uit drie delen: wat er ligt, wat eraan komt en wat je moet bestellen.</p>
+<ul><li><b>Voorraad</b>: wat er nu ligt. Geleverd min kapot min verkocht (de verkoop komt vanzelf uit de ronde). De oudste eieren gaan eerst. Klopt het niet, tik op <b>Voorraad tellen</b>.</li>
+<li><b>Onderweg</b>: elke levering die nog niet binnen is, met datum, aantal en over hoeveel dagen. Tik erop om hem te wijzigen.
+Is hij binnen, tik dan op <b>Alles is binnen</b> en vul daarna de kapotte eieren in. Pas dan telt hij mee in de voorraad.</li>
+<li><b>Bestellen</b>: het advies voor de eerstvolgende levering waarvoor nog niets besteld is. Bestellen doe je op de besteldag (bijv. donderdag) voor de levering erna (bijv. woensdag).
+Tik op <b>Leg bestelling vast</b>; dan staat hij bij Onderweg en gaat het advies naar de week erna.</li></ul>
+<p><b>Advies</b> = verwachte verkoop van die levering tot de levering erna, plus de marge (Instellingen), min wat er bij de levering naar verwachting nog ligt (voorraad + onderweg − verkoop tot dan).
+De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeursdagen, de loopdagen en hoe vaak de klant echt thuis was. <b>Hoe berekend</b> laat elke stap zien.</p>
+<p>Staat er een levering twee keer op dezelfde dag, dan meldt de app <b>Dubbel ingevoerd?</b>. Verwijder er dan één; anders telt hij dubbel mee en valt het advies te laag uit.</p>`,
   },
   {
     slug: 'eggs-sumup', app: 'eggs', title: 'Afrekenen met SumUp', updated: '2026-11-22', version: '3.12.0',

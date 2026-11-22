@@ -273,7 +273,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.12.0';
+const APP_VERSION = '3.12.1';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -985,6 +985,10 @@ function expectedBetween(from, to){
   return { rows, total: Math.round(sum(rows, x => x.exp)), agreed: sum(rows, x => x.eggs), teamRatio };
 }
 const nextOnDow = (from, d, incl) => { for (let i = incl ? 0 : 1; i < 15; i++) { const x = addDays(from, i); if (dow(x) === d) return x; } return from; };
+// Leveringen die nog niet in de voorraad zitten: besteld (geleverd nog leeg), of geleverd met een datum na vandaag
+const incoming = T => stockEvents().filter(e => e.kind === 'delivery' && (e.delivered == null ? (e.ordered || 0) > 0 && e.date >= T : e.date > T)).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+const incomingQty = e => e.delivered != null ? Math.max(0, e.delivered - (e.broken || 0)) : (e.ordered || 0);
+const overdueDeliveries = T => stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && (e.ordered || 0) > 0 && e.date < T);
 const prevOnDow = (before, d) => { for (let i = 1; i < 8; i++) { const x = addDays(before, -i); if (dow(x) === d) return x; } return before; };
 // Besteladvies voor de eerstvolgende levering waarvoor nog niets is vastgelegd (besteld of geleverd).
 // Die levering moet de verkoop dekken tot de levering erop, plus de marge. Marge = wat er bij de volgende
@@ -997,8 +1001,9 @@ function supplyPlan(){
   if (hasDel(delivery)) delivery = addDays(delivery, 7);
   const orderDate = prevOnDow(delivery, s.orderDow ?? 5), nextDel = addDays(delivery, 7), overdue = orderDate < T;
   const st = stockAt(T), stock = st ? st.stock : 0;
-  const pendingList = stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && (e.ordered || 0) > 0 && e.date >= T && e.date < delivery);
-  const pending = sum(pendingList, e => e.ordered);
+  // onderweg: besteld en nog niet binnen, of al ingevuld met een datum in de toekomst
+  const pendingList = incoming(T).filter(e => e.date < delivery);
+  const pending = sum(pendingList, e => incomingQty(e));
   const before = expectedBetween(T, addDays(delivery, -1)), period = expectedBetween(delivery, addDays(nextDel, -1));
   const atDelivery = stock + pending - before.total, target = period.total * (1 + m), rnd = s.orderRound || 1;
   const advice = Math.max(0, Math.round(Math.max(0, target - atDelivery) / rnd) * rnd);
@@ -1522,14 +1527,24 @@ function supplySection(){
   } else {
     const left = st.batches.filter(b => b.left > 0), oldest = left[0];
     const due = stockEvents().filter(e => e.kind === 'delivery' && e.delivered == null && e.date <= sp.T).sort((a, b) => a.date < b.date ? -1 : 1)[0];
+    const onWay = incoming(sp.T).filter(e => !due || e.id !== due.id), late = overdueDeliveries(sp.T).filter(e => !due || e.id !== due.id);
+    const days = d => { const n = daysBetween(sp.T, d); return n === 0 ? 'vandaag' : n === 1 ? 'morgen' : `over ${n} dagen`; };
+    const wayRow = e => `<button class="cell" data-act="stockedit" data-id="${esc(e.id)}"><span class="ico" style="background:var(--blue)">${I('cal')}</span><span class="tx"><span class="tt">Onderweg: levering ${esc(fmtShort(e.date))}</span><span class="st">${e.delivered != null ? `${e.delivered} geleverd${e.broken ? `, ${e.broken} kapot` : ''} (vooruit ingevuld)` : `${e.ordered} besteld`} · ${days(e.date)}</span></span><span class="tr num">${incomingQty(e)}</span>${chev()}</button>`;
+    const lateRow = e => `<button class="cell" data-act="stockreceive" data-id="${esc(e.id)}"><span class="ico" style="background:var(--red)">${I('warn')}</span><span class="tx"><span class="tt">Levering ${esc(fmtShort(e.date))} nog niet ontvangen</span><span class="st">${e.ordered} besteld · vul in wat er kwam, of verwijder hem</span></span>${chev()}</button>`;
     h += sec('Voorraad', grp(`<div class="hero"><div class="lbl">Op voorraad</div><div class="big ${st.stock < 0 ? 'red' : ''}"><b class="num">${st.stock}</b><span>eieren</span></div>
       <div class="meta">${oldest ? `Eerst verkopen: <b style="color:var(--label)">${oldest.left}</b> van ${esc(fmtShort(oldest.date))} (${daysBetween(oldest.date, sp.T)} ${daysBetween(oldest.date, sp.T) === 1 ? 'dag' : 'dagen'} oud)` : st.stock < 0 ? 'Meer verkocht dan er was: voeg een levering of telling toe.' : 'Alles verkocht.'}</div></div>`
       + (left.length > 1 ? left.map((b, i) => `<div class="cell"><span class="tx"><span class="tt">${esc(fmtShort(b.date))}${b.extra ? ' · telling' : ''}</span><span class="st">${daysBetween(b.date, sp.T)} dagen oud${i === 0 ? ' · eerst verkopen' : ''}</span></span><span class="tr num">${b.left} van ${b.net}</span></div>`).join('') : '')
+      + late.map(lateRow).join('') + onWay.map(wayRow).join('')
       + (due ? `<button class="cell tint" data-act="stockreceive" data-id="${esc(due.id)}"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Levering van ${esc(fmtShort(due.date))} ontvangen</span><span class="st">${due.ordered || 0} besteld · vul in wat er kwam en wat kapot is</span></span>${chev()}</button>`
              : `<button class="cell" data-act="stocknew" data-kind="delivery"><span class="ico" style="background:var(--green)">${I('down')}</span><span class="tx"><span class="tt">Levering toevoegen</span></span>${chev()}</button>`)
       + `<button class="cell" data-act="stocknew" data-kind="count"><span class="ico" style="background:var(--gray)">${I('check')}</span><span class="tx"><span class="tt">Voorraad tellen</span><span class="st">Het verschil gaat van de oudste eieren af</span></span>${chev()}</button>`),
       `Sinds ${esc(fmtShort(st.start))}: ${st.sold} verkocht${st.broken ? ` · ${st.broken} kapot geleverd` : ''}${st.loss ? ` · ${st.loss} minder geteld` : ''}${st.found ? ` · ${st.found} meer geteld` : ''}.`);
   }
+  // dezelfde dag twee keer een levering die nog niet binnen is: waarschijnlijk dubbel ingevoerd
+  { const open = stockEvents().filter(e => e.kind === 'delivery' && (e.delivered == null || e.date > sp.T)), seen = {};
+    for (const e of open) (seen[e.date] ||= []).push(e);
+    for (const [d, list] of Object.entries(seen)) if (list.length > 1)
+      h += `<div class="banner red mt12">${I('warn')}<div><b>Dubbel ingevoerd?</b> ${list.length} leveringen op ${esc(fmtLong(d))} (${list.map(incomingQty).join(' + ')}). Ze tellen allebei mee. Tik er bij Voorraad één aan en kies Verwijder.</div></div>`; }
   // besteladvies voor de eerstvolgende besteldag
   const pctTxt = sp.pct == null ? '' : `${Math.round(sp.pct * 100)}%`;
   if (sp.atDelivery < 0) h += `<div class="banner red mt12">${I('warn')}<div><b>Tekort vóór de levering:</b> naar verwachting ${-sp.atDelivery} eieren te weinig tot ${esc(fmtShort(sp.delivery))}.</div></div>`;
@@ -1696,11 +1711,14 @@ function sheetStock(){
     h += sec('Geteld', grp(`<label class="cell field"><span class="fl">Werkelijk</span>${num('st_counted', e.counted, 'aantal')}</label>`),
       d ? `Berekend was ${d.have}; verschil ${d.diff > 0 ? '+' : ''}${d.diff}. ${d.diff < 0 ? 'Gaat van de oudste eieren af.' : d.diff > 0 ? 'Komt erbij als extra voorraad.' : ''}` : 'Tel aan het eind van de dag, na de ronde.');
   } else {
-    h += sec('Aantallen', grp(`<label class="cell field"><span class="fl">Besteld</span>${num('st_ordered', e.ordered, 'aantal')}</label>
-      <label class="cell field"><span class="fl">Geleverd</span>${num('st_delivered', e.delivered, 'nog niet')}</label>
+    const T = todayStr(), future = e.date > T, n = daysBetween(T, e.date);
+    h += sec('Besteld', grp(`<label class="cell field"><span class="fl">Besteld</span>${num('st_ordered', e.ordered, 'aantal')}</label>`),
+      e.delivered == null ? (future ? `Onderweg: komt ${n === 1 ? 'morgen' : `over ${n} dagen`}. Telt mee in het besteladvies.` : 'Nog niet ontvangen. Vul hieronder in wat er kwam.') : '');
+    h += sec('Ontvangen', grp(`<label class="cell field"><span class="fl">Geleverd</span>${num('st_delivered', e.delivered, 'nog niet')}</label>
       <label class="cell field"><span class="fl">Kapot</span>${num('st_broken', e.broken || '', '0')}</label>
-      ${e.delivered != null ? `<div class="cell"><span class="tx"><span class="tt">Netto erbij</span></span><span class="tr num"><b style="color:var(--label)">${Math.max(0, (e.delivered || 0) - (e.broken || 0))}</b></span></div>` : ''}`),
-      'Laat "Geleverd" leeg zolang de bestelling onderweg is. Kapotte eieren gaan van de levering af.');
+      ${e.delivered != null ? `<div class="cell"><span class="tx"><span class="tt">Netto erbij</span></span><span class="tr num"><b style="color:var(--label)">${Math.max(0, (e.delivered || 0) - (e.broken || 0))}</b></span></div>` : ''}
+      ${e.delivered == null && (e.ordered || 0) > 0 ? `<button class="cell tint" data-act="stockall"><span class="ico" style="background:var(--green)">${I('check')}</span><span class="tx"><span class="tt">Alles is binnen: ${e.ordered}</span><span class="st">Daarna kun je kapotte eieren invullen</span></span></button>` : ''}`),
+      future && e.delivered != null ? `Telt pas mee in de voorraad op ${esc(fmtLong(e.date))}; tot dan als onderweg.` : 'Vul in als de levering binnen is. Kapotte eieren gaan van de levering af.');
   }
   h += sec('Notitie', grp(`<div class="cell"><textarea class="ta" data-field="st_note" placeholder="optioneel">${esc(e.note || '')}</textarea></div>`));
   h += sec('', grp('<button class="cell red center" data-act="stockdel">Verwijder</button>'));
@@ -2145,6 +2163,18 @@ document.addEventListener('click', e => {
     }
     case 'stocknew': {
       const kind = el.dataset.kind, T = todayStr();
+      if (kind === 'delivery' && !el.dataset.force) {
+        const open = [...overdueDeliveries(T), ...incoming(T)];
+        if (open.length) {
+          actionSheet({ title: 'Er staat al een levering', message: open.map(e => `${fmtLong(e.date)}: ${incomingQty(e)} ${e.delivered != null ? 'geleverd' : 'besteld'}`).join(' · '),
+            actions: [...open.slice(0, 3).map(e => ({ label: `Open levering ${fmtShort(e.date)}`, value: e.id })), { label: 'Toch een nieuwe levering', value: 'new' }] }).then(r => {
+            if (!r) return;
+            if (r === 'new') { const b = document.createElement('button'); b.dataset.act = 'stocknew'; b.dataset.kind = 'delivery'; b.dataset.force = '1'; b.style.display = 'none'; document.body.appendChild(b); b.click(); b.remove(); return; }
+            ui.stockId = r; openSheet('stock');
+          });
+          break;
+        }
+      }
       const e = { id: uid(), date: T, kind, ordered: null, delivered: null, broken: 0, counted: null, box6: null, box10: null, note: '' };
       db.stock.push(e); save(true); ui.stockId = e.id; openSheet('stock');
       setTimeout(() => { const f = document.querySelector(isBoxEv(e) ? '[data-field=st_box6]' : (kind === 'count' || kind === 'wafelcount') ? '[data-field=st_counted]' : '[data-field=st_delivered]'); if (f) f.focus(); }, 400);
@@ -2165,6 +2195,12 @@ document.addEventListener('click', e => {
       break;
     }
     case 'stockedit': ui.stockId = el.dataset.id; openSheet('stock'); break;
+    case 'stockall': {
+      const e = stockEvents().find(x => x.id === ui.stockId); if (!e) break;
+      e.delivered = e.ordered; if (e.date > todayStr()) e.date = todayStr(); save(); renderSheet(); render();
+      setTimeout(() => { const f = document.querySelector('[data-field=st_broken]'); if (f) f.focus(); }, 300);
+      break;
+    }
     case 'stockdel': {
       const e = stockEvents().find(x => x.id === ui.stockId); if (!e) break;
       confirmSheet('Verwijderen?', isBoxEv(e) ? 'De doosjesvoorraad wordt opnieuw berekend.' : isWafelEv(e) ? 'De voorraad stroopwafels wordt opnieuw berekend.' : 'De voorraad en het advies worden opnieuw berekend.', 'Verwijder', true).then(ok => {

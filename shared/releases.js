@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.12.1', date: '2026-11-22', title: 'Eieren: leveringen onderweg in beeld',
+    notes: [
+      { app: 'eggs', text: 'Planning → Voorraad toont nu elke levering die nog onderweg is: datum, aantal en over hoeveel dagen. Tik erop om hem te wijzigen.', kb: 'eggs-besteladvies' },
+      { app: 'eggs', text: 'Bij een levering staan Besteld en Ontvangen apart. Met "Alles is binnen" vul je in één tik het geleverde aantal in; daarna de kapotte eieren.' },
+      { app: 'eggs', text: 'Staat er al een levering, dan vraagt "Levering toevoegen" eerst of je die bedoelt. Twee leveringen op dezelfde dag krijgen een waarschuwing "Dubbel ingevoerd?".' },
+    ],
+  },
+  {
     version: '3.12.0', date: '2026-11-22', title: 'Eieren: afrekenen met SumUp',
     notes: [
       { app: 'eggs', text: 'Kies je bij een huis een aantal eieren, dan kan de app vragen of je wilt afrekenen en de SumUp-app openen. Het bedrag kies je in SumUp. Zet dit aan bij Instellingen → Afrekenen met SumUp (alleen op je eigen telefoon), met een testknop.', kb: 'eggs-sumup' },
