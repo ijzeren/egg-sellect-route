@@ -264,8 +264,9 @@ function daysView() {
     const s = P.schedule(tmp, TOTAL), end = s.length ? s[s.length - 1].d : null;
     h += `<p class="muted small" style="margin-top:12px">${pick.length} ${pick.length === 1 ? 'dag' : 'dagen'} per week${end ? ` · klaar rond ${P.fmtShort(end)}` : ''}${s.length ? ` · eerste les ${P.fmtShort(s[0].d)}` : ''}.</p>`;
   } else h += `<p class="muted small" style="margin-top:12px">Kies minstens één dag.</p>`;
-  h += `<button class="btn" data-a="savedays" ${pick.length ? '' : 'disabled'}>${first ? 'Begin' : 'Bewaren'}</button></div>`;
-  h += `<p class="sec-f">Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd ${isCircuit() ? 'trainen' : 'een les doen'} als bonustraining.</p>`;
+  h += `<label class="field" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span>Starttijd <span class="muted small">(optioneel)</span></span><input type="time" id="dtime" value="${prog.settings.time || ''}" style="max-width:7rem;font:inherit;border:0;background:var(--fill);border-radius:8px;padding:6px 8px;color:inherit"></label>`;
+  h += `<button class="btn" data-a="savedays" ${pick.length ? '' : 'disabled'} style="margin-top:14px">${first ? 'Begin' : 'Bewaren'}</button></div>`;
+  h += `<p class="sec-f">Met een starttijd staat de training in de agenda van wie meedoet. Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd ${isCircuit() ? 'trainen' : 'een les doen'} als bonustraining.</p>`;
   return h + '</main>';
 }
 
@@ -507,7 +508,7 @@ document.addEventListener('click', ev => {
   else if (a === 'home') { view = 'home'; confirmBox = ''; render(); }
   else if (a === 'days') { pick = null; view = 'days'; render(); }
   else if (a === 'pick') { const d = +b.dataset.d; pick = pick.includes(d) ? pick.filter(x => x !== d) : [...pick, d]; render(); }
-  else if (a === 'savedays') { if (!pick.length) return; P.setDays(prog, pick); pick = null; save(); view = 'home'; render(); }
+  else if (a === 'savedays') { if (!pick.length) return; const tEl = document.getElementById('dtime'); P.setDays(prog, pick, tEl ? tEl.value : undefined); pick = null; save(); view = 'home'; render(); }
   else if (a === 'people') { view = 'people'; render(); scheduleSync(0); }
   else if (a === 'track') { switchTrack(b.dataset.id); pick = null; view = P.hasSchedule(prog) ? 'home' : 'days'; render(); }
   else if (a === 'member') {
@@ -539,6 +540,9 @@ document.addEventListener('click', ev => {
 // Openen: het meest relevante programma (P.pickProgram): vandaag een training die nog moet, anders de eerstvolgende,
 // anders het laatst gebruikte. Doe je nergens aan mee, dan de keuze uit de programma's.
 function startProgram() {
+  // uit de Agenda: ?program=pilates30 opent dat programma
+  const want = new URLSearchParams(location.search).get('program');
+  if (want && PROGRAMS.some(pg => pg.id === want)) { openProgram(want); view = P.hasSchedule(prog) ? 'home' : 'days'; history.replaceState(null, '', location.pathname); return; }
   const entries = PROGRAMS.map(pg => { const t = activeOf(pg.id); return t && !isEmpty(t) ? { id: pg.id, kind: pg.kind, total: pg.total || 0, data: t.data } : null; });
   const id = P.pickProgram(entries, storage.get(APP, PKEY));
   if (id) { openProgram(id); view = P.hasSchedule(prog) ? 'home' : 'days'; }

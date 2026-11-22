@@ -171,6 +171,15 @@ Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het
 <p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
   },
   {
+    slug: 'agenda-andere-apps', app: 'agenda', title: 'Eierronde, leveringen en trainingen in de agenda', updated: '2026-11-22', version: '3.13.0',
+    body: `<p>De agenda haalt ook afspraken uit de andere apps. Die zet je niet zelf in de agenda: ze komen vanzelf mee en kloppen altijd met de app waar ze vandaan komen. Tik erop om die app te openen.</p>
+<ul><li><b>🥚 Eierronde</b>: op elke loopdag van Egg-sellent, vanaf de starttijd tot 21:00. Valt een loopdag uit (afwezig), dan staat er "gaat niet door".
+Starttijd en lopers stel je in bij <b>Egg-sellent → Instellingen → Loopdagen</b> en <b>Lopers</b> (de gezinsbeheerder).</li>
+<li><b>📦 Levering eieren</b>: op de leverdatum, met het aantal besteld of geleverd. Ook in de agenda van de lopers.</li>
+<li><b>🧘 Trainingen</b>: op je trainingsdagen, in de agenda van iedereen die meedoet. Vul in Training bij <b>Trainingsdagen</b> een starttijd in; dan staat er ook hoe laat en tot wanneer.</li></ul>
+<p>Je ziet deze afspraken in je eigen agenda als je persoon in de Agenda gekoppeld is aan je account (Agenda → Personen). Wie Egg-sellent of Training niet mag gebruiken, ziet die afspraken niet.</p>`,
+  },
+  {
     slug: 'agenda-rooster-huiswerk', app: 'agenda', title: 'Schoolrooster en huiswerk', updated: '2026-11-22', version: '3.5.0',
     body: `<p><b>Schoolrooster invoeren:</b> Agenda → Schoolrooster invoeren. Kies voor wie en welke dag, en plak of typ de lessen, één per regel:</p>
 <p><i>8:30-9:20 Wiskunde, 1.12</i><br><i>9:20-10:10 Engels, 2.04</i></p>

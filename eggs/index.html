@@ -274,7 +274,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.12.3';
+const APP_VERSION = '3.13.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -633,6 +633,16 @@ async function pull(){
   if (!teams || !teams.length) { S.team = null; saveS(); toast('Je bent geen lid meer van dit gezin.'); render(); return; }
   const team = teams[0];
   S.team.name = team.name;
+  // instellingen van de app Egg-sellent voor het gezin (starttijden, lopers; gebruikt door de Agenda) en de leden
+  try {
+    const [ea, mem, ma] = await Promise.all([
+      api(`/rest/v1/team_apps?team_id=eq.${tid}&app=eq.eggs&select=settings,updated_at`),
+      api(`/rest/v1/team_members?team_id=eq.${tid}&select=user_id,name,role&order=joined_at`),
+      api(`/rest/v1/team_member_apps?team_id=eq.${tid}&app=eq.eggs&select=user_id,access`),
+    ]);
+    if (ea && ea[0] && !S.eggAppPending) { const before = JSON.stringify(S.eggApp || {}); S.eggApp = { settings: ea[0].settings || {}, u: ea[0].updated_at }; if (JSON.stringify(S.eggApp) !== before) changed = true; }
+    if (mem) S.members = mem.map(m => { const x = (ma || []).find(y => y.user_id === m.user_id); return { user_id: m.user_id, name: m.name || '', role: m.role, eggs: x && x.access != null ? x.access : m.role !== 'child' }; });
+  } catch (e) {}
   const pend = S.outbox['settings:team'];
   if ((!S.settingsU || tsMs(team.settings_updated_at) > tsMs(S.settingsU)) && !(pend && tsMs(pend.u) > tsMs(team.settings_updated_at))) {
     Object.assign(db.settings, { walkDays: team.walk_days || [], orderRound: team.order_round || 1, absenceScript: team.absence_script || '', marginPct: team.margin_pct ?? 10, orderDow: team.order_dow ?? 5, deliveryDow: team.delivery_dow ?? 3, stroopWeeks: (team.stroop_weeks || []).map(String).sort(), stroopLead: team.stroop_lead ?? 2 });
@@ -731,6 +741,23 @@ if (CLOUD) {
 
 /* ---------- afspraken ---------- */
 const DEC = v => v.status !== 'nothome';                 // koop / geen eieren = beslissend bezoek
+/* ---------- instellingen van de app Egg-sellent voor het gezin (team_apps.settings) ----------
+   walkStart: { dag: 'HH:MM' } starttijd van de ronde per loopdag; walkers: [user_id] wie loopt (leeg = iedereen met Egg-sellent).
+   De Agenda zet daarmee de ronde (tot 21:00) en de leveringen in de agenda van de lopers. Alleen de gezinsbeheerder mag wijzigen. */
+const eggApp = () => (S.eggApp && S.eggApp.settings) || {};
+const famAdmin = () => !CLOUD || !S.team || S.team.role === 'admin';
+const walkerIds = () => { const w = eggApp().walkers; return Array.isArray(w) && w.length ? w : (S.members || []).filter(m => m.eggs).map(m => m.user_id); };
+async function eggAppSave(patch){
+  if (!CLOUD || !S.team) return;
+  const before = eggApp(), next = { ...before, ...patch };
+  S.eggApp = { ...(S.eggApp || {}), settings: next }; S.eggAppPending = true; saveS(); render();
+  try {
+    await api(`/rest/v1/team_apps?team_id=eq.${S.team.id}&app=eq.eggs`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: { settings: next, updated_at: new Date().toISOString() } });
+  } catch (e) {
+    S.eggApp = { ...(S.eggApp || {}), settings: before }; render();
+    toast(navigator.onLine ? 'Opslaan mislukt: ' + e.message : 'Geen verbinding. Probeer het straks opnieuw.', null, null, 'err');
+  } finally { S.eggAppPending = false; saveS(); }
+}
 /* ---------- afrekenen met SumUp (persoonlijk, op deze telefoon) ---------- */
 // Egg-sellent opent alleen de SumUp-app; prijs en artikelen staan in SumUp zelf.
 const SUMUP_KEY = 'eggselent-sumup';
@@ -1887,8 +1914,16 @@ function vSettings(){
       (isAdmin() ? '' : 'Loopdagen en bestelinstellingen wijzigt de beheerder. ') + 'Account, leden, rollen, weergave en apps regel je bij Gezin in het startscherm.');
   }
   h += notifSection();
-  h += sec('Loopdagen', grp(`<div class="cell"><div class="daytog">${WEEK.map(d => chip(DSH[d], 'walkday', `data-d="${d}" ${ro} aria-label="${DAYS[d]}"`, wd.includes(d))).join('')}</div></div>`),
-    'Adressen verschijnen op hun afgesproken of voorkeursdag. Niet gelukt? Dan staan ze op de volgende loopdag. Afwezigheid stel je in bij Planning.');
+  const fa = famAdmin() ? '' : 'disabled', ws = eggApp().walkStart || {};
+  h += sec('Loopdagen', grp(`<div class="cell"><div class="daytog">${WEEK.map(d => chip(DSH[d], 'walkday', `data-d="${d}" ${ro} aria-label="${DAYS[d]}"`, wd.includes(d))).join('')}</div></div>`
+    + (CLOUD && S.team ? wd.slice().sort(byMon).map(d => `<label class="cell field"><span class="fl">Start ${DAYS[d]}</span><input type="time" data-field="walkstart" data-d="${d}" ${fa} value="${esc(ws[d] || '')}" style="max-width:7rem;text-align:right"></label>`).join('') : '')),
+    'Adressen verschijnen op hun afgesproken of voorkeursdag. Niet gelukt? Dan staan ze op de volgende loopdag. Afwezigheid stel je in bij Planning.'
+    + (CLOUD && S.team && wd.length ? ' Met een starttijd staat de ronde in de agenda, van de start tot 21:00.' : ''));
+  if (CLOUD && S.team && (S.members || []).some(m => m.eggs)) {
+    const w = walkerIds();
+    h += sec('Lopers', grp((S.members || []).filter(m => m.eggs).map(m => `<div class="cell"><span class="tx"><span class="tt">${esc(m.name || (m.user_id === S.userId ? 'Jij' : 'Lid zonder naam'))}${m.user_id === S.userId ? ' (jij)' : ''}</span></span>${toggleBtn(w.includes(m.user_id), 'walker', `data-u="${esc(m.user_id)}" ${fa}`, 'Loopt mee')}</div>`).join('')),
+      `Wie loopt, krijgt de ronde en de leveringen in de agenda.${famAdmin() ? '' : ' Dit stelt de gezinsbeheerder in.'}`);
+  }
   h += sec('Bestellen', grp(`<label class="cell field"><span class="fl">Marge</span><input type="number" inputmode="numeric" min="0" max="100" data-field="set_margin" ${ro} value="${db.settings.marginPct ?? 10}" style="max-width:5rem"><span style="color:var(--label2)">%</span></label>
     <label class="cell field"><span class="fl">Bestellen op</span><select data-field="set_orderdow" ${ro}>${WEEK.map(d => `<option value="${d}" ${(db.settings.orderDow ?? 5) === d ? 'selected' : ''}>${DAYS[d]}</option>`).join('')}</select></label>
     <label class="cell field"><span class="fl">Levering op</span><select data-field="set_deldow" ${ro}>${WEEK.map(d => `<option value="${d}" ${(db.settings.deliveryDow ?? 3) === d ? 'selected' : ''}>${DAYS[d]}</option>`).join('')}</select></label>
@@ -2368,6 +2403,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'walkday': { db.settings.walkDays = toggleIn(db.settings.walkDays, +el.dataset.d).sort(byMon); save(); render(); break; }
+    case 'walker': { if (!famAdmin()) break; eggAppSave({ walkers: toggleIn(walkerIds(), el.dataset.u) }); break; }
     case 'export': exportBackup(); break;
     case 'import': document.getElementById('importfile').click(); break;
     case 'csv': exportCsv(); break;
@@ -2463,6 +2499,12 @@ function onField(e){
     else { const n = el.value === '' ? null : Math.max(0, Math.round(+el.value)); se[k] = k === 'broken' ? (n || 0) : n; }
     save(); renderAfterTap();
     return;
+  }
+  if (f === 'walkstart') {
+    if (e.type !== 'change' || !famAdmin()) return;
+    const v = /^\d{2}:\d{2}$/.test(el.value) ? el.value : '', ws = { ...(eggApp().walkStart || {}) };
+    if (v) ws[el.dataset.d] = v; else delete ws[el.dataset.d];
+    eggAppSave({ walkStart: ws }); return;
   }
   if (f === 'sumuplink') { const c = sumupCfg(); c.link = el.value.trim(); sumupSave(c); return; }
   if (f === 'set_margin' || f === 'set_orderdow' || f === 'set_deldow') {

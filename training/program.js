@@ -2,7 +2,7 @@
 //
 // Voortgang per programma en per account:
 //   { v: 1,
-//     settings: { days: [1, 3, 5], u: '2026-11-22T10:00:00.000Z' },   // vaste trainingsdagen (0 = zondag … 6 = zaterdag)
+//     settings: { days: [1, 3, 5], time?: '07:15', u: '2026-11-22T10:00:00.000Z' },   // vaste trainingsdagen (0 = zondag … 6 = zaterdag), optioneel starttijd (voor de Agenda)
 //     resetAt: null | iso-tijd,                                         // alles van vóór dit moment telt niet meer
 //     log: [ { id, les, d: 'jjjj-mm-dd', bonus, manual?, at: iso-tijd } ] }
 //
@@ -39,6 +39,7 @@ export function normalize(p) {
   const days = Array.isArray(s.days) ? [...new Set(s.days.map(Number).filter(n => n >= 0 && n <= 6))].sort((a, b) => a - b) : [];
   const log = Array.isArray(p.log) ? p.log.filter(x => x && x.id && x.les >= 1 && /^\d{4}-\d{2}-\d{2}$/.test(x.d)) : [];
   const settings = { days, u: s.u || null };
+  if (/^\d{2}:\d{2}$/.test(s.time || '')) settings.time = s.time;
   // Circuit (Bio-circuit): eigen lijst toestellen in vaste volgorde.
   if (Array.isArray(s.stations)) settings.stations = s.stations.filter(x => x && x.id && x.n).map(x => ({ id: String(x.id), n: String(x.n) }));
   return { v: 1, settings, resetAt: p.resetAt || null, log: activeLog(log, p.resetAt) };
@@ -120,8 +121,11 @@ export function record(p, les, d = today(), manual = false) {
   return x;
 }
 
-export function setDays(p, days) {
-  p.settings = { ...p.settings, days: [...new Set(days)].sort((a, b) => a - b), u: new Date().toISOString() };
+// time: optioneel 'HH:MM' (leeg = geen vaste tijd); weglaten = tijd blijft zoals hij was
+export function setDays(p, days, time) {
+  const next = { ...p.settings, days: [...new Set(days)].sort((a, b) => a - b), u: new Date().toISOString() };
+  if (time !== undefined) { if (/^\d{2}:\d{2}$/.test(time || '')) next.time = time; else delete next.time; }
+  p.settings = next;
 }
 
 export function reset(p) { p.resetAt = new Date().toISOString(); p.log = []; }

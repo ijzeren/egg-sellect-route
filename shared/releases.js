@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.13.0', date: '2026-11-22', title: 'Eierronde, leveringen en trainingen in de agenda',
+    notes: [
+      { app: 'agenda', text: 'De agenda toont nu ook de eierronde op de loopdagen (vanaf de starttijd tot 21:00), de leveringen eieren en de trainingen. Ze komen vanzelf mee uit Egg-sellent en Training; tik erop om die app te openen.', kb: 'agenda-andere-apps' },
+      { app: 'eggs', text: 'Instellingen → Loopdagen: vul per loopdag de starttijd in. Bij Lopers kies je wie de ronde en de leveringen in de agenda krijgt.', kb: 'agenda-andere-apps' },
+      { app: 'training', text: 'Bij Trainingsdagen kun je nu een starttijd invullen. Dan staat de training in de agenda van iedereen die meedoet.', kb: 'agenda-andere-apps' },
+    ],
+  },
+  {
     version: '3.12.3', date: '2026-11-22', title: 'Eieren: melding "Dubbel ingevoerd?" klopt weer',
     notes: [
       { app: 'eggs', text: 'Een levering zonder aantal (niets besteld, niets geleverd) telt niet meer mee en verdwijnt vanzelf als je hem sluit. Daardoor bleef de melding "Dubbel ingevoerd?" soms staan terwijl er geen dubbele levering meer was.' },

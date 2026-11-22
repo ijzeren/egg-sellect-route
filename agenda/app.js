@@ -5,6 +5,7 @@
 //   - logica (wat is er op welke dag, rooster plakken): plan.js
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as A from './plan.js';
+import { PROGRAMS } from '../training/programs.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -25,7 +26,9 @@ const toRow = c => ({ kind: c.kind, title: c.title, place: c.place, notes: c.not
   on_date: c.date, days: c.days, valid_from: c.from, valid_until: c.until, weeks: c.weeks, skip: c.skip });
 
 // data = { people, items (plan-vorm), tasks, members, at }
-let data = (FAMILY && storage.get(APP, DKEY)) || { people: [], items: [], tasks: [], members: [], at: null };
+let data = (FAMILY && storage.get(APP, DKEY)) || { people: [], items: [], tasks: [], members: [], ext: [], at: null };
+// eigen afspraken + afgeleide afspraken uit Egg-sellent en Training (A.externalItems)
+const allItems = () => data.items.concat(data.ext || []);
 const mePerson = () => data.people.find(p => p.user_id && me && p.user_id === me.userId);
 let ui = { view: 'day', day: A.today(), pid: storage.get(APP, `${FAMILY}:pid`) ?? null, id: null, draft: null };
 if (ui.pid === null && mePerson()) ui.pid = mePerson().id;
@@ -40,14 +43,30 @@ async function load() {
   if (!FAMILY || loading) return;
   loading = true;
   try {
-    const [people, items, tasks, members] = await Promise.all([
+    const soft = p => p.catch(() => null); // geen toegang tot een andere app: die afspraken overslaan
+    const [people, items, tasks, members, team, apps, memberApps, absences, deliveries, tracks] = await Promise.all([
       api(`/rest/v1/agenda_people?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`),
       api(`/rest/v1/agenda_items?team_id=eq.${FAMILY}&deleted=is.false&select=*`),
       // open huiswerk, en afgevinkt huiswerk van de laatste twee weken
       api(`/rest/v1/agenda_tasks?team_id=eq.${FAMILY}&deleted=is.false&or=(done.is.false,done_at.gte.${new Date(Date.now() - 14 * 864e5).toISOString()})&select=*&order=due`),
-      api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name&order=joined_at`).catch(() => data.members),
+      api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name,role&order=joined_at`).catch(() => data.members),
+      soft(api(`/rest/v1/teams?id=eq.${FAMILY}&select=walk_days`)),
+      soft(api(`/rest/v1/team_apps?team_id=eq.${FAMILY}&select=app,enabled,settings`)),
+      soft(api(`/rest/v1/team_member_apps?team_id=eq.${FAMILY}&app=eq.eggs&select=user_id,access`)),
+      soft(api(`/rest/v1/absences?team_id=eq.${FAMILY}&deleted=is.false&select=date`)),
+      soft(api(`/rest/v1/stock_events?team_id=eq.${FAMILY}&kind=eq.delivery&deleted=is.false&select=id,kind,date,ordered,delivered,broken,deleted`)),
+      soft(api(`/rest/v1/training_tracks?team_id=eq.${FAMILY}&deleted=is.false&select=id,program,participants,data,deleted`)),
     ]);
-    data = { people: people || [], items: (items || []).map(fromRow), tasks: tasks || [], members: members || [], at: new Date().toISOString() };
+    const ppl = people || [], mem = members || [];
+    const eggApp = (apps || []).find(a => a.app === 'eggs'), es = (eggApp && eggApp.settings) || {};
+    // de ronde alleen als we ook de afwezigheid en de leveringen konden lezen (anders zou een afwezige dag als loopdag verschijnen)
+    const eggs = !!(eggApp && eggApp.enabled && team && team[0] && absences && deliveries);
+    // lopers: zoals ingesteld in Egg-sellent, anders iedereen met toegang tot Egg-sellent
+    const access = u => { const x = (memberApps || []).find(y => y.user_id === u.user_id); return x && x.access != null ? x.access : u.role !== 'child'; };
+    const walkers = Array.isArray(es.walkers) && es.walkers.length ? es.walkers : mem.filter(access).map(u => u.user_id);
+    const ext = A.externalItems({ eggs, walkDays: eggs ? team[0].walk_days || [] : [], walkStart: es.walkStart || {}, walkers,
+      absences: (absences || []).map(a => a.date), deliveries: deliveries || [], tracks: tracks || [], programs: PROGRAMS, people: ppl });
+    data = { people: ppl, items: (items || []).map(fromRow), tasks: tasks || [], members: mem, ext, at: new Date().toISOString() };
     if (ui.pid && !person(ui.pid)) ui.pid = '';
     if (ui.pid === null && mePerson()) ui.pid = mePerson().id;
     storage.set(APP, DKEY, data);
@@ -121,9 +140,11 @@ const chips = () => data.people.length > 1 ? `<div class="chips" role="group" ar
   `<button data-a="pid" data-id="${esc(id)}" aria-pressed="${(ui.pid || '') === id}">${c ? `<span class="dot" style="background:${esc(c)}"></span>` : ''}${esc(n)}</button>`).join('')}</div>` : '';
 
 function itemCell(it, d) {
-  const k = A.kindOf(it.kind), time = it.meet ? `<b>${it.meet}</b><span>verzamelen</span>` : it.start ? `<b>${it.start}</b>${it.end ? `<span>${it.end}</span>` : ''}` : '<b>–</b>';
+  const k = A.kindOf(it.kind), icon = it.icon || k[2], time = it.meet ? `<b>${it.meet}</b><span>verzamelen</span>` : it.start ? `<b>${it.start}</b>${it.end ? `<span>${it.end}</span>` : ''}` : '<b>–</b>';
   const skipped = !it.date && (it.skip || []).includes(d);
-  return `<button class="cell item${skipped ? ' skipped' : ''}" data-a="item" data-id="${esc(it.id)}" data-day="${d}"><span class="tm">${time}</span><span class="tx"><span class="tt">${k[2]} ${esc(it.title)}${skipped ? ' · gaat niet door' : ''}</span><span class="st">${dots(it.person_ids)} ${[it.meet && it.start ? `aftrap ${it.start}` : '', esc(it.place)].filter(Boolean).join(' · ')}</span></span>${ICON_CHEV}</button>`;
+  const inner = `<span class="tm">${time}</span><span class="tx"><span class="tt">${icon} ${esc(it.title)}${skipped ? ' · gaat niet door' : ''}</span><span class="st">${dots(it.person_ids)} ${[it.meet && it.start ? `aftrap ${it.start}` : '', esc(it.place), it.ext ? (it.ext.app === 'eggs' ? 'uit Egg-sellent' : 'uit Training') : ''].filter(Boolean).join(' · ')}</span></span>${ICON_CHEV}`;
+  if (it.ext) return `<a class="cell item${skipped ? ' skipped' : ''}" href="${esc(it.ext.href)}" style="text-decoration:none;color:inherit">${inner}</a>`;
+  return `<button class="cell item${skipped ? ' skipped' : ''}" data-a="item" data-id="${esc(it.id)}" data-day="${d}">${inner}</button>`;
 }
 function taskCell(t) {
   const p = person(t.person_id), lbl = A.dueLabel(t.due);
@@ -133,7 +154,7 @@ function taskCell(t) {
 }
 
 function vDay() {
-  const t = A.today(), d = ui.day, items = A.dayItems(data.items, d, ui.pid), plus = `<button class="nb" data-a="new" aria-label="Nieuwe afspraak" style="font-size:1.6rem;font-weight:300">+</button>`;
+  const t = A.today(), d = ui.day, items = A.dayItems(allItems(), d, ui.pid), plus = `<button class="nb" data-a="new" aria-label="Nieuwe afspraak" style="font-size:1.6rem;font-weight:300">+</button>`;
   let h = navBar(hubLink(), '', data.people.length ? plus : '') + '<main>' + lt('Agenda', esc(me.teamName));
   if (!data.people.length) {
     h += `<div class="card"><h2>Wie staan er in de agenda?</h2><p class="muted">Begin met de kinderen (of iedereen in het gezin). Een kind hoeft geen eigen account te hebben.</p><button class="btn" data-a="go" data-v="people" style="margin-top:12px">Personen toevoegen</button></div>`;
@@ -141,7 +162,7 @@ function vDay() {
   }
   h += chips();
   h += `<div class="pager"><button class="nb" data-a="day" data-d="-1" aria-label="Vorige dag">‹</button><button class="lbl" data-a="today"><b>${d === t ? 'Vandaag' : d === A.addDays(t, 1) ? 'Morgen' : d === A.addDays(t, -1) ? 'Gisteren' : A.DAYNAMES[A.dow(d)]}</b><span>${[t, A.addDays(t, 1), A.addDays(t, -1)].includes(d) ? longDate(d) : longDate(d).split(' ').slice(1).join(' ')}</span></button><button class="nb" data-a="day" data-d="1" aria-label="Volgende dag">›</button></div>`;
-  const shown = [...items, ...data.items.filter(it => !it.date && (it.skip || []).includes(d) && (!ui.pid || it.person_ids.includes(ui.pid)) && A.occursOn({ ...it, skip: [] }, d))].sort((a, b) => (a.meet || a.start || '').localeCompare(b.meet || b.start || ''));
+  const shown = [...items, ...allItems().filter(it => !it.date && (it.skip || []).includes(d) && (!ui.pid || it.person_ids.includes(ui.pid)) && A.occursOn({ ...it, skip: [] }, d))].sort((a, b) => (a.meet || a.start || '').localeCompare(b.meet || b.start || ''));
   h += `<div class="grp">${shown.length ? shown.map(it => itemCell(it, d)).join('') : '<div class="cell"><span class="tx muted">Niets gepland.</span></div>'}</div>`;
   const open = A.openTasks(data.tasks, ui.pid), soon = open.filter(x => !x.due || x.due <= A.addDays(t, 7)).slice(0, 8);
   h += sec('Huiswerk', `<div class="grp">${soon.map(taskCell).join('') || '<div class="cell"><span class="tx muted">Geen open huiswerk.</span></div>'}
@@ -160,7 +181,7 @@ function vWeek() {
   h += chips();
   h += `<div class="pager"><button class="nb" data-a="day" data-d="-7" aria-label="Vorige week">‹</button><button class="lbl" data-a="today"><b>Deze week</b></button><button class="nb" data-a="day" data-d="7" aria-label="Volgende week">›</button></div>`;
   for (let i = 0; i < 7; i++) {
-    const d = A.addDays(ws, i), items = A.dayItems(data.items, d, ui.pid), tasks = A.openTasks(data.tasks, ui.pid).filter(x => x.due === d);
+    const d = A.addDays(ws, i), items = A.dayItems(allItems(), d, ui.pid), tasks = A.openTasks(data.tasks, ui.pid).filter(x => x.due === d);
     h += `<h2 class="sec-h wk${d === t ? ' now' : ''}">${longDate(d)}</h2><div class="grp">${items.map(it => itemCell(it, d)).join('')}${tasks.map(taskCell).join('')}${!items.length && !tasks.length ? '<div class="cell"><span class="tx muted small">Niets</span></div>' : ''}</div>`;
   }
   return h + '</main>';

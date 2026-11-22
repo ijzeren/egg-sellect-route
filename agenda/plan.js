@@ -109,3 +109,42 @@ export function schoolYear(now = today()) {
   const y = +now.slice(0, 4), m = +now.slice(5, 7), start = m >= 8 ? y : y - 1;
   return { from: `${start}-08-01`, until: `${start + 1}-07-31` };
 }
+
+/* ---------- afspraken uit andere apps (alleen lezen, niet opgeslagen in de agenda) ----------
+   Eierronde: op elke loopdag van Egg-sellent, vanaf de starttijd tot WALK_END; afwezige dagen gaan niet door.
+   Leveringen eieren: op de leverdatum. Beide in de agenda van de lopers.
+   Trainingen: op de trainingsdagen van elk programma, in de agenda van de deelnemers (personen met hun account).
+   Een tik opent de app waar het vandaan komt (ext.href). */
+export const WALK_END = '21:00'; // de ronde loopt tot 21:00; pas dit aan zodra er een andere eindtijd nodig is
+const plusMin = (t, m) => { const [h, mm] = t.split(':').map(Number), x = h * 60 + mm + m; return x >= 24 * 60 ? '23:59' : `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
+const isTime = v => /^\d{2}:\d{2}$/.test(v || '');
+const base = { kind: 'other', place: '', notes: '', meet: '', date: null, days: [], from: null, until: null, weeks: '', skip: [], deleted: false };
+export function externalItems({ eggs = false, walkDays = [], walkStart = {}, walkers = [], absences = [], deliveries = [], tracks = [], programs = [], people = [] } = {}) {
+  const pidsOf = uids => people.filter(p => p.user_id && (uids || []).includes(p.user_id)).map(p => p.id);
+  const out = [];
+  if (eggs) {
+    const pids = pidsOf(walkers);
+    for (const d of walkDays) {
+      const start = isTime(walkStart[d]) ? walkStart[d] : '';
+      out.push({ ...base, id: `ext:eggs:walk:${d}`, ext: { app: 'eggs', href: '../eggs/' }, icon: '🥚', title: 'Eierronde', person_ids: pids,
+        start, end: start ? WALK_END : '', days: [d], skip: [...absences] });
+    }
+    for (const e of deliveries) {
+      if (!e || e.deleted || e.kind !== 'delivery' || !e.date) continue;
+      const got = e.delivered != null, n = got ? Math.max(0, e.delivered - (e.broken || 0)) : (e.ordered || 0);
+      if (!got && !(n > 0)) continue; // lege levering (niets besteld, niets geleverd)
+      out.push({ ...base, id: `ext:eggs:delivery:${e.id}`, ext: { app: 'eggs', href: '../eggs/?v=order' }, icon: '📦', title: `Levering eieren · ${n} ${got ? 'geleverd' : 'besteld'}`,
+        person_ids: pids, start: '', end: '', date: e.date });
+    }
+  }
+  for (const t of tracks) {
+    if (!t || t.deleted) continue;
+    const s = (t.data && t.data.settings) || {}, days = Array.isArray(s.days) ? s.days : [];
+    if (!days.length) continue;
+    const p = programs.find(x => x.id === t.program), start = isTime(s.time) ? s.time : '';
+    out.push({ ...base, id: `ext:training:${t.id}`, ext: { app: 'training', href: `../training/?program=${encodeURIComponent(t.program)}` }, kind: 'sport', icon: '🧘',
+      title: p ? p.name : 'Training', person_ids: pidsOf(t.participants), start, end: start && p && p.minutes ? plusMin(start, p.minutes) : '', days: [...days] });
+  }
+  return out;
+}
+

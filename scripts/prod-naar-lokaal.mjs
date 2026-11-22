@@ -105,10 +105,13 @@ if (!teamIds.length) fail('Geen gezinnen gevonden in productie.');
 const prodUsers = asJson(remote(ref, `select coalesce(json_agg(x), '[]'::json) as data from (select id, lower(email) as email from auth.users) x`)[0].data) || [];
 const prodEmail = new Map(prodUsers.map(u => [u.id, u.email]));
 const localId = new Map(rows(db, `select lower(email), id from auth.users where email is not null`));
+// ook gebruikers in lijsten en JSON (deelnemers van een training, lopers in de app-instellingen …)
+const idMap = new Map([...prodEmail].map(([id, em]) => [id, localId.get(em)]).filter(([, l]) => l));
+const deepMap = v => Array.isArray(v) ? v.map(deepMap) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deepMap(x)])) : typeof v === 'string' && idMap.has(v) ? idMap.get(v) : v;
 const dropped = {};
 for (const [t, list] of Object.entries(data)) {
-  const uc = userCols[t]; if (!uc) continue;
-  data[t] = list.filter(r => {
+  const uc = userCols[t] || [], fk = new Set(uc.map(c => c.col));
+  data[t] = list.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, fk.has(k) ? v : deepMap(v)]))).filter(r => {
     for (const { col, nullable } of uc) {
       if (r[col] == null) continue;
       const id = localId.get(prodEmail.get(r[col]));

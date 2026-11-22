@@ -111,3 +111,13 @@ test('Training opent het meest relevante programma', () => {
   assert.equal(P.pickProgram([pil([])], null, MA), 'pilates30');
   assert.equal(P.pickProgram([], 'pilates30', MA), null);
 });
+
+test('starttijd bij de trainingsdagen: bewaard, opgeschoond en weg te halen', () => {
+  const a = prog([1, 3]);
+  P.setDays(a, [1, 3], '07:15'); assert.equal(a.settings.time, '07:15');
+  assert.equal(P.normalize(a).settings.time, '07:15', 'blijft na normaliseren');
+  P.setDays(a, [2]); assert.equal(a.settings.time, '07:15', 'zonder tijd blijft de tijd');
+  P.setDays(a, [2], ''); assert.equal(a.settings.time, undefined, 'leeg haalt de tijd weg');
+  assert.equal(P.normalize({ settings: { days: [1], time: 'ochtend' } }).settings.time, undefined, 'ongeldige tijd valt weg');
+});
+
