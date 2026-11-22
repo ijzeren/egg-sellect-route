@@ -70,7 +70,7 @@ function viaCli() {
   const lit = s => { let tag = 'r' + randomBytes(4).toString('hex'); while (s.includes(`$${tag}$`)) tag += 'x'; return `$${tag}$${s}$${tag}$`; };
   return {
     list: async () => query(`select id, title, category, servings, ingredients, steps, updated_at from public.recipes
-      where health_score is null and not deleted order by created_at limit 50`, false)
+      where health_score is null and status = 'ready' and not deleted order by created_at limit 50`, false)
       .map(r => ({ ...r, ingredients: typeof r.ingredients === 'string' ? JSON.parse(r.ingredients) : r.ingredients, steps: typeof r.steps === 'string' ? JSON.parse(r.steps) : r.steps })),
     score: async (id, updatedAt, n, notes) => query(`update public.recipes set health_score = ${n}, health_notes = left(trim(${lit(notes)}), 1000), health_scored_at = now()
       where id = '${id}' and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${lit(updatedAt)}::timestamptz) and not deleted returning id`, true).length > 0,

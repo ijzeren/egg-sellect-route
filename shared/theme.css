@@ -33,6 +33,16 @@ button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0;margin:0;touch-action:manipulation}
 html,a,label,input,select,textarea{touch-action:manipulation}
 h1,h2,h3,p{margin:0}
+/* Nooit breder dan de telefoon (geen horizontaal scrollen):
+   - lange woorden (Maatschappijwetenschappen, adressen, links) breken af, in koppen met afbreekstreepje
+   - media en formuliervelden nooit breder dan hun vak
+   - vangnet: wat toch uitsteekt wordt afgeknipt. overflow-x:clip maakt (anders dan hidden) geen scrollvak,
+     dus de vaste kopbalk (position:sticky) blijft werken. */
+body{overflow-wrap:break-word;word-break:break-word}
+h1,h2,h3,.lt h1,.tt,.nm,.brand h1{overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto}
+img,svg,video,canvas,iframe,table{max-width:100%}
+input,select,textarea{max-width:100%;min-width:0}
+@supports (overflow-x:clip){html,body{overflow-x:clip}}
 :focus{outline:none}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}

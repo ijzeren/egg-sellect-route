@@ -10,6 +10,19 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.8.0', date: '2026-11-22', title: 'Geïmporteerde gerechten worden afgemaakt',
+    notes: [
+      { app: 'recipes', text: 'Een geïmporteerd gerecht wordt automatisch afgemaakt door de Assistent: duidelijke stappen, bereidingstijden en hoeveelheden, op basis van je originele bestand.', kb: 'gerechten-importeren' },
+      { app: 'recipes', text: 'Daarna wordt het originele bestand verwijderd en krijgt het gerecht zijn gezondheidsscore. Tot die tijd staat er "Wordt verrijkt".', kb: 'gerechten-importeren' },
+    ],
+  },
+  {
+    version: '3.7.1', date: '2026-11-22', title: 'Past altijd op je telefoon',
+    notes: [
+      { app: 'hub', text: 'Geen schermen meer die breder zijn dan je telefoon. Lange woorden, zoals vakken, adressen en namen van gerechten, breken netjes af.' },
+    ],
+  },
+  {
     version: '3.7.0', date: '2026-11-22', title: 'Gerechten importeren',
     notes: [
       { app: 'recipes', text: 'Importeer gerechten uit Markdown, tekst of een opgeslagen pagina, bijvoorbeeld recepten die Claude voor je schreef. Meerdere bestanden en meerdere recepten tegelijk.', kb: 'gerechten-importeren' },

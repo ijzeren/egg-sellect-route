@@ -36,3 +36,4 @@ textarea.ta:focus{outline:none}
 .steprow .opts label{display:flex;align-items:center;gap:6px}
 .steprow .opts .del{margin-left:auto;color:var(--red)}
 select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right}
+.imp{color:var(--blue);font-weight:600}

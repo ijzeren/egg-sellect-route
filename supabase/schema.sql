@@ -731,7 +731,18 @@ create table if not exists public.recipes (
   updated_at timestamptz not null default now()
 );
 create index if not exists recipes_team on public.recipes(team_id, updated_at desc);
+-- v3.8 Importeren met verrijken: een geïmporteerd gerecht heeft status 'import' en bewaart de originele upload (source).
+-- De Assistent verrijkt het (stappen, minuten, hoeveelheden), wist dan de upload en zet de status op 'ready' (klaar).
+-- Pas daarna bepaalt hij de gezondheidsscore. Gerechten die je zelf invoert zijn meteen 'ready'.
+alter table public.recipes add column if not exists status text not null default 'ready';
+alter table public.recipes add column if not exists source text;
+alter table public.recipes add column if not exists source_name text;
+alter table public.recipes drop constraint if exists recipes_status_check;
+alter table public.recipes add constraint recipes_status_check check (status in ('import', 'ready'));
+alter table public.recipes drop constraint if exists recipes_source_check;
+alter table public.recipes add constraint recipes_source_check check (source is null or length(source) <= 200000);
 create index if not exists recipes_unscored on public.recipes(created_at) where health_score is null and not deleted;
+create index if not exists recipes_import on public.recipes(created_at) where status = 'import' and not deleted;
 create table if not exists public.recipe_ratings (
   recipe_id uuid not null references public.recipes(id) on delete cascade,
   team_id uuid not null references public.teams(id) on delete cascade,
@@ -750,6 +761,8 @@ begin
     new.health_score := null; new.health_notes := null; new.health_scored_at := null;
   end if;
   if tg_op = 'UPDATE' then new.team_id := old.team_id; new.user_id := old.user_id; new.created_at := old.created_at; end if;
+  -- Een klaar gerecht heeft geen upload meer; zonder upload valt er niets te verrijken.
+  if new.status = 'ready' or new.source is null then new.status := 'ready'; new.source := null; new.source_name := null; end if;
   new.updated_at := now();
   return new;
 end $$;
@@ -772,7 +785,7 @@ create policy recipes_delete on public.recipes for delete
 -- Gezondheidsscore is alleen voor de Assistent: gezinsleden krijgen op die kolommen geen schrijfrecht.
 revoke all on public.recipes from anon, authenticated;
 grant select, delete on public.recipes to authenticated;
-grant insert (id, team_id, user_id, author, title, intro, category, servings, ingredients, steps) on public.recipes to authenticated;
+grant insert (id, team_id, user_id, author, title, intro, category, servings, ingredients, steps, status, source, source_name) on public.recipes to authenticated;
 grant update (author, title, intro, category, servings, ingredients, steps, deleted) on public.recipes to authenticated;
 
 drop policy if exists ratings_read on public.recipe_ratings;
@@ -793,7 +806,7 @@ language plpgsql stable security definer set search_path = public as $$
 begin
   if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
   return query select r.id, r.title, r.category, r.servings, r.ingredients, r.steps, r.updated_at
-    from recipes r where r.health_score is null and not r.deleted order by r.created_at limit 50;
+    from recipes r where r.health_score is null and r.status = 'ready' and not r.deleted order by r.created_at limit 50;
 end $$;
 create or replace function public.runner_score_recipe(p_recipe uuid, p_updated_at timestamptz, p_score int, p_notes text)
 returns boolean language plpgsql security definer set search_path = public as $$
@@ -804,6 +817,37 @@ begin
     where recipes.id = p_recipe and date_trunc('milliseconds', recipes.updated_at) = date_trunc('milliseconds', p_updated_at) and not recipes.deleted;
   return found;
 end $$;
+-- De Assistent: geïmporteerde gerechten verrijken. Ziet alleen het gerecht en de originele upload, geen namen of gezin.
+-- runner_enrich_recipe zet de verrijkte inhoud, wist de upload en zet de status op 'ready'. Gewijzigd sinds de lijst
+-- (p_updated_at klopt niet) → niets gedaan, volgende run opnieuw.
+create or replace function public.runner_import_recipes()
+returns table(id uuid, title text, intro text, category text, servings int, ingredients jsonb, steps jsonb, source text, source_name text, updated_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  return query select r.id, r.title, r.intro, r.category, r.servings, r.ingredients, r.steps, r.source, r.source_name, r.updated_at
+    from recipes r where r.status = 'import' and not r.deleted order by r.created_at limit 20;
+end $$;
+create or replace function public.runner_enrich_recipe(p_recipe uuid, p_updated_at timestamptz, p_title text, p_intro text,
+  p_category text, p_servings int, p_ingredients jsonb, p_steps jsonb)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('runner') then raise exception 'Alleen voor de Assistent'; end if;
+  if jsonb_typeof(p_ingredients) <> 'array' or jsonb_array_length(p_ingredients) = 0 then raise exception 'Ingrediënten ontbreken'; end if;
+  if jsonb_typeof(p_steps) <> 'array' or exists (select 1 from jsonb_array_elements(p_steps) e
+      where jsonb_typeof(e) <> 'object' or coalesce(trim(e->>'text'), '') = '' or coalesce(e->>'min', '0') !~ '^[0-9]{1,4}$') then
+    raise exception 'Stappen moeten {text, min, par} zijn';
+  end if;
+  update recipes set title = trim(p_title), intro = left(trim(coalesce(p_intro, '')), 1000), category = p_category, servings = p_servings,
+    ingredients = p_ingredients, steps = p_steps, status = 'ready', source = null, source_name = null
+    where recipes.id = p_recipe and recipes.status = 'import' and not recipes.deleted
+      and date_trunc('milliseconds', recipes.updated_at) = date_trunc('milliseconds', p_updated_at);
+  return found;
+end $$;
+revoke all on function public.runner_import_recipes() from public, anon;
+revoke all on function public.runner_enrich_recipe(uuid, timestamptz, text, text, text, int, jsonb, jsonb) from public, anon;
+grant execute on function public.runner_import_recipes() to authenticated;
+grant execute on function public.runner_enrich_recipe(uuid, timestamptz, text, text, text, int, jsonb, jsonb) to authenticated;
 revoke all on function public.runner_unscored_recipes() from public, anon;
 revoke all on function public.runner_score_recipe(uuid, timestamptz, int, text) from public, anon;
 grant execute on function public.runner_unscored_recipes() to authenticated;

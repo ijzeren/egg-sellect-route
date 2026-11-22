@@ -25,6 +25,8 @@ let loading = false, offline = false;
 
 const isAdmin = () => !!(me && me.apps && me.apps.recipes && me.apps.recipes.role === 'admin');
 const canEdit = r => r && me && (r.user_id === me.userId || isAdmin());
+// Alle kolommen behalve de originele upload (source): die is alleen voor de Assistent en kan groot zijn.
+const COLS = 'id,team_id,user_id,author,title,intro,category,servings,ingredients,steps,health_score,health_notes,health_scored_at,status,source_name,deleted,created_at,updated_at';
 const byId = id => data.recipes.find(r => r.id === id);
 const memberName = id => (id === (me && me.userId) ? me.memberName : (data.members.find(m => m.user_id === id) || {}).name) || 'Gezinslid';
 const myStars = id => (data.ratings.find(r => r.recipe_id === id && r.user_id === (me && me.userId)) || {}).stars || 0;
@@ -35,7 +37,7 @@ async function load() {
   loading = true;
   try {
     const [recipes, ratings, members] = await Promise.all([
-      api(`/rest/v1/recipes?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=created_at`),
+      api(`/rest/v1/recipes?team_id=eq.${FAMILY}&deleted=is.false&select=${COLS}&order=created_at`),
       api(`/rest/v1/recipe_ratings?team_id=eq.${FAMILY}&select=recipe_id,user_id,stars`),
       api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name&order=joined_at`).catch(() => data.members),
     ]);
@@ -56,11 +58,11 @@ async function saveRecipe(input) {
   if (!body.title) throw new Error('Geef het gerecht een naam.');
   if (!body.ingredients.length) throw new Error('Zet er minstens één ingrediënt in.');
   if (ui.id) {
-    const [row] = await api(`/rest/v1/recipes?id=eq.${ui.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body });
+    const [row] = await api(`/rest/v1/recipes?id=eq.${ui.id}&select=${COLS}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body });
     if (!row) throw new Error('Opslaan mocht niet. Alleen wie het gerecht plaatste of een beheerder kan het wijzigen.');
     data.recipes = data.recipes.map(r => (r.id === row.id ? row : r));
   } else {
-    const [row] = await api('/rest/v1/recipes', { method: 'POST', headers: { Prefer: 'return=representation' }, body: { ...body, team_id: FAMILY, user_id: me.userId, author: me.memberName } });
+    const [row] = await api(`/rest/v1/recipes?select=${COLS}`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: { ...body, team_id: FAMILY, user_id: me.userId, author: me.memberName } });
     data.recipes.push(row); ui.id = row.id;
   }
   storage.set(APP, DKEY, data);
@@ -127,7 +129,7 @@ function vList() {
   h += `<div class="segc" role="group">${[['top', 'Lekkerst'], ['health', 'Gezondst'], ['new', 'Nieuw'], ['az', 'A-Z']].map(([v, l]) => `<button data-a="sort" data-v="${v}" aria-pressed="${ui.sort === v}">${l}</button>`).join('')}</div>`;
   h += sec('', `<div class="grp">${list.map(x => {
     const r = R.ratingOf(data.ratings, x.id), mins = R.totalMinutes(x.steps);
-    const sub = [r.count ? `<span class="star">★</span> ${R.fmtStars(r.avg)} (${r.count})` : 'Nog geen sterren', mins ? R.fmtMinutes(mins) : '', esc(x.author || '')].filter(Boolean).join(' · ');
+    const sub = [x.status === 'import' ? '<span class="imp">Wordt verrijkt</span>' : '', r.count ? `<span class="star">★</span> ${R.fmtStars(r.avg)} (${r.count})` : 'Nog geen sterren', mins ? R.fmtMinutes(mins) : '', esc(x.author || '')].filter(Boolean).join(' · ');
     return `<button class="cell" data-a="open" data-id="${esc(x.id)}"><span class="tx"><span class="tt">${esc(x.title)}</span><span class="st">${sub}</span></span>${hs(x.health_score)}${ICON_CHEV}</button>`;
   }).join('') || '<div class="cell"><span class="tx muted">Niets gevonden.</span></div>'}</div>`,
   `${all.length} ${all.length === 1 ? 'gerecht' : 'gerechten'}. Het getal is de gezondheidsscore (1-10); "…" = wordt nog bepaald.${offline ? ' Geen verbinding: je ziet de laatst opgehaalde gerechten.' : ''}`);
@@ -142,6 +144,7 @@ function vDetail() {
   let h = navBar(backTo('list', 'Gerechten'), '', canEdit(x) ? '<button class="nb" data-a="edit">Wijzig</button>' : '') + '<main>';
   h += lt(esc(x.title), [R.categoryName(x.category), x.author ? `van ${esc(x.author)}` : '', p.total ? R.fmtMinutes(p.total) : ''].filter(Boolean).join(' · '));
   if (x.intro) h += `<p style="padding:0 20px;margin:0 0 8px;line-height:1.45">${esc(x.intro)}</p>`;
+  if (x.status === 'import') h += `<div class="card"><h2>Geïmporteerd · wordt verrijkt</h2><p class="muted small" style="line-height:1.45">De Assistent maakt dit gerecht af met de juiste stappen, bereidingstijden en hoeveelheden uit je originele bestand${x.source_name ? ` (${esc(x.source_name)})` : ''}. Daarna wordt het originele bestand verwijderd en volgt de gezondheidsscore. Meestal binnen een dag.</p></div>`;
   h += `<div class="card health">${hs(x.health_score)}<div><h2>${x.health_score == null ? 'Gezondheidsscore volgt' : `${l.text} · ${x.health_score} van 10`}</h2>
     <p>${x.health_score == null ? 'De Assistent beoordeelt nieuwe en gewijzigde gerechten automatisch, meestal binnen een dag.' : esc(x.health_notes || '')}</p></div></div>`;
   h += `<div class="card"><h2>Jouw sterren</h2><div class="stars" role="group" aria-label="Geef sterren">${[1, 2, 3, 4, 5].map(n => `<button data-a="rate" data-n="${n}" class="${n <= mine ? 'on' : ''}" aria-label="${n} ${n === 1 ? 'ster' : 'sterren'}" aria-pressed="${n === mine}">★</button>`).join('')}</div>
@@ -192,14 +195,14 @@ async function readFiles(files) {
     let text = await f.text();
     const name = f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
     if (/\.html?$/i.test(f.name) || isHtml(text)) text = htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html'));
-    for (const x of parseRecipes(text, name)) items.push({ ...x, source: f.name });
+    for (const x of parseRecipes(text, name)) items.push({ ...x, source: f.name, original: text });
     if (!items.some(x => x.source === f.name)) items.push({ recipe: null, warnings: ['Geen recept herkend'], source: f.name });
   }
   return items;
 }
 function readText(text) {
   const md = isHtml(text) ? htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html')) : text;
-  const out = parseRecipes(md).map(x => ({ ...x, source: 'geplakte tekst' }));
+  const out = parseRecipes(md).map(x => ({ ...x, source: 'geplakte tekst', original: md }));
   return out.length ? out : [{ recipe: null, warnings: ['Geen recept herkend'], source: 'geplakte tekst' }];
 }
 function markItems(items) {
@@ -232,16 +235,18 @@ function vImport() {
     const warn = [x.dup, ...x.warnings].filter(Boolean).join(' · ');
     return `<div class="cell"><span class="tx"><span class="tt">${esc(r.title || '(geen naam)')}</span><span class="st">${sub}</span>${warn ? `<span class="st" style="color:var(--orange)">${esc(warn)}</span>` : ''}</span>${toggleHtml(x.on, i, r.title)}</div>`;
   }).join('')}</div>`;
-  h += `<p class="sec-f">Wat oranje staat, kun je na het importeren aanvullen bij het gerecht (Wijzig). Bestaat een gerecht al, dan staat het standaard uit. De gezondheidsscore volgt vanzelf.</p>`;
+  h += `<p class="sec-f">Wat oranje staat, kun je na het importeren aanvullen bij het gerecht (Wijzig). Bestaat een gerecht al, dan staat het standaard uit. Daarna maakt de Assistent elk gerecht af: stappen, minuten en hoeveelheden, en daarna de gezondheidsscore.</p>`;
   h += `<div class="sec"><button class="btn" data-a="impsave" ${chosen ? '' : 'disabled'}>Importeer ${chosen} ${chosen === 1 ? 'gerecht' : 'gerechten'}</button><button class="btn plain" data-a="impagain" style="margin-top:6px">Andere bestanden</button></div>`;
   return h + '</main>';
 }
 const toggleHtml = (on, i, label) => `<button class="toggle" role="switch" aria-checked="${!!on}" aria-label="${esc(label || 'Gerecht')} importeren" data-a="imptoggle" data-i="${i}"></button>`;
 async function saveImport() {
   need();
-  const rows = ui.imp.items.filter(x => x.on && x.recipe).map(x => ({ ...x.recipe, team_id: FAMILY, user_id: me.userId, author: me.memberName }));
+  // Het origineel gaat mee: de Assistent verrijkt het gerecht later (stappen, minuten, hoeveelheden) en wist dan de upload.
+  const rows = ui.imp.items.filter(x => x.on && x.recipe).map(x => ({ ...x.recipe, team_id: FAMILY, user_id: me.userId, author: me.memberName,
+    status: 'import', source: String(x.original || '').slice(0, 200000), source_name: String(x.source || '').slice(0, 200) }));
   if (!rows.length) return;
-  const out = await api('/rest/v1/recipes', { method: 'POST', headers: { Prefer: 'return=representation' }, body: rows });
+  const out = await api(`/rest/v1/recipes?select=${COLS}`, { method: 'POST', headers: { Prefer: 'return=representation' }, body: rows });
   data.recipes.push(...(out || []));
   storage.set(APP, DKEY, data);
   return (out || []).length;

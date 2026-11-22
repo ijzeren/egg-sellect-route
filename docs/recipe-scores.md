@@ -7,6 +7,7 @@ De geplande taak "Gezondheidsscore gerechten" (Claude-app op de Mac, elke ochten
 
 ## Werkwijze
 1. `node scripts/recipe-scores.mjs list` → gerechten zonder score (id, titel, soort, porties, ingrediënten, stappen, updated_at).
+   Geïmporteerde gerechten komen er pas in als ze verrijkt en klaar zijn (zie [recipe-enrich.md](recipe-enrich.md)).
    Lege lijst? Klaar.
 2. Beoordeel elk gerecht met de maatstaf hieronder. Kijk naar de ingrediënten **per portie** (deel door `servings`)
    en naar de bereiding in de stappen (frituren, veel boter of room, lang bakken in olie).

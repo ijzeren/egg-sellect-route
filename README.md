@@ -47,6 +47,7 @@ Engels, schermteksten in het Nederlands.
 | `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `programs.js` (lijst), `sports/pilates/`, `sports/biocircuit/` |
 | `recipes/` | Gerechten: `app.js` (schermen, opslaan), `recipe.js` (omrekenen, bereidingsschema, sterren; testbaar) |
 | `scripts/recipe-scores.mjs`, `docs/recipe-scores.md` | de Assistent: geplande routine die gerechten een gezondheidsscore geeft |
+| `scripts/recipe-enrich.mjs`, `docs/recipe-enrich.md` | de Assistent: geplande routine die geïmporteerde gerechten afmaakt (stappen, tijden) |
 | `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |

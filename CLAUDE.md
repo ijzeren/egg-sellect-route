@@ -19,8 +19,10 @@ Backend: Supabase (zie `supabase/`). Overzicht van bestanden: `README.md`.
 3. **Ingewikkelde functie** (meerdere stappen, rollen/rechten, iets wat uitleg nodig heeft): ook een **kennisbankartikel**
    in `shared/kb.js` en verwijs ernaar vanuit de release note (`kb: 'slug'`).
 4. Nieuw bestand? Zet het in `ASSETS` in `sw.js` (anders werkt het niet offline).
-5. `npm test` moet slagen (controleert o.a. versies, release notes, kennisbankverwijzingen, Pilates-inhoud, planning).
-6. Databasewijziging: in `supabase/schema.sql`, **idempotent** (veilig om opnieuw te draaien op productie, geen gegevens
+5. **Nooit breder dan de telefoon**: geen horizontaal scrollen, ook niet met lange woorden of namen. Controleer nieuwe
+   schermen op 320 px breed (het vangnet staat in `shared/theme.css`; `tests/layout.test.mjs` bewaakt het).
+6. `npm test` moet slagen (controleert o.a. versies, release notes, kennisbankverwijzingen, Pilates-inhoud, planning).
+7. Databasewijziging: in `supabase/schema.sql`, **idempotent** (veilig om opnieuw te draaien op productie, geen gegevens
    kwijt). Eenmalige datamigraties in een apart bestand in `supabase/`. Test tegen een lokale kopie van productie
    (`scripts/prod-naar-lokaal.mjs`) en zet in `supabase/README.md` wat er in productie moet gebeuren vóór de push.
 

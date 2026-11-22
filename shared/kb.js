@@ -108,7 +108,7 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 <p><b>Wijzigen of verwijderen</b> kan wie het gerecht plaatste, en een beheerder van de app.</p>`,
   },
   {
-    slug: 'gerechten-importeren', app: 'recipes', title: 'Gerechten importeren', updated: '2026-11-22', version: '3.7.0',
+    slug: 'gerechten-importeren', app: 'recipes', title: 'Gerechten importeren', updated: '2026-11-22', version: '3.8.0',
     body: `<p>Heb je recepten al ergens staan, bijvoorbeeld door Claude geschreven? Dan hoef je ze niet over te typen.</p>
 <ol><li>Ga naar <b>Gerechten</b> en tik onderaan op <b>Gerechten importeren</b>.</li>
 <li>Tik op <b>Kies bestanden</b> en kies een of meer bestanden: Markdown (<i>.md</i>), tekst (<i>.txt</i>) of een opgeslagen pagina (<i>.html</i>, bijvoorbeeld een artifact).
@@ -120,7 +120,13 @@ Zet uit wat je niet wilt importeren; gerechten die al bestaan staan standaard ui
 en een kop <i>Bereiding</i> met de stappen. "Voor 4 personen" of "Personen: 4" geeft het aantal personen; "15 minuten" in een stap wordt de tijd van die stap,
 en een stap die begint met "Ondertussen" gaat tegelijk met de vorige. Meerdere recepten in één bestand kan: elk met een eigen kop.</p>
 <p>Tip: vraag Claude om je recepten "als Markdown, met kopjes Ingrediënten en Bereiding en minuten per stap". Dan gaat het importeren het best.</p>
-<p>Geïmporteerde gerechten krijgen vanzelf een gezondheidsscore, net als gerechten die je zelf invoert.</p>`,
+<p><b>Daarna maakt de Assistent het af.</b> Een geïmporteerd gerecht staat eerst op <b>Wordt verrijkt</b>. Je kunt het al gebruiken.
+De Assistent leest je originele bestand nog een keer en maakt het gerecht compleet: losse, duidelijke stappen met bereidingstijden,
+stappen die tegelijk kunnen, en hoeveelheden zoals de app ze kan omrekenen. Hij blijft trouw aan je recept en voegt geen eigen ingrediënten toe.
+Meestal gebeurt dat binnen een paar uur.</p>
+<p>Is het gerecht klaar, dan wordt het originele bestand verwijderd en krijgt het gerecht zijn gezondheidsscore.
+De Assistent ziet alleen het recept en het bestand, niet wie het plaatste of bij welk gezin het hoort.</p>
+<p>Wijzig je een gerecht terwijl het nog wordt verrijkt, dan wacht de Assistent tot de volgende ronde en gebruikt hij jouw versie.</p>`,
   },
   {
     slug: 'gezondheidsscore', app: 'recipes', title: 'Hoe werkt de gezondheidsscore?', updated: '2026-11-22', version: '3.4.0',

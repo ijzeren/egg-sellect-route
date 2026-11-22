@@ -269,3 +269,18 @@ Doe dit **vóór** je v3.5.0 pusht:
 `teams.disabled_at` (gezin uitschakelen) en de functies `platform_*` voor het scherm Beheer. Er verandert niets voor
 gezinnen tot de hoofdbeheerder iets uitzet. Getest met `scripts/test-platform.mjs` (22 controles) op de lokale kopie.
 
+## Update naar gerechten verrijken (v3.8.0)
+Doe dit **vóór** je v3.8.0 pusht, en vóór de volgende run van de geplande taak "Gezondheidsscore gerechten"
+(die vraagt nu naar de nieuwe kolom `status`):
+
+1. **SQL Editor** (of `npx supabase db query --remote -f supabase/schema.sql`): voer [`schema.sql`](schema.sql) opnieuw uit.
+   Nieuw op `recipes`: `status` ('import' of 'ready', bestaande gerechten worden 'ready'), `source` en `source_name`
+   (de originele upload, tot het verrijken), en de functies `runner_import_recipes()` en `runner_enrich_recipe()`.
+   `runner_unscored_recipes()` geeft voortaan alleen gerechten die klaar zijn. Gezinsleden kunnen status en upload niet
+   zelf wijzigen. Controle: `select status, count(*) from recipes group by status;` → alleen 'ready'.
+2. **Geplande taak "Gerechten verrijken"** (Claude-app op Mariens Mac): werkwijze in
+   [`docs/recipe-enrich.md`](../docs/recipe-enrich.md), script `scripts/recipe-enrich.mjs` (CLI-login of runner-account).
+
+Getest op de lokale database (22 nov 2026): schema twee keer; lid kan status en upload niet wijzigen; titel wijzigen
+houdt het gerecht op 'import'; import zonder upload is meteen klaar; runner-functies alleen voor de runner; lege stap en
+verouderde versie geweigerd; na verrijken upload weg, status klaar en pas dan in de lijst voor de gezondheidsscore.
