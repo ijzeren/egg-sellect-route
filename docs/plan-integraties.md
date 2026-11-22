@@ -1,4 +1,4 @@
-# Plan: integraties (familie-app 3.12 – 3.14)
+# Plan: integraties (familie-app 3.13 – 3.15)
 
 *Opgesteld 22 nov 2026. Status: plan, nog niet gebouwd. Open vragen staan onderaan. 3.11.0 is gebruikt voor Gerechten;
 de versienummers hieronder zijn een richtlijn: neem bij het bouwen de eerstvolgende vrije versie (zie shared/releases.js).*
@@ -76,10 +76,10 @@ De familie-app is een webapp op het beginscherm (PWA). Op de iPhone betekent dat
 ## Versies
 | Versie | Wat | Afhankelijk van |
 |---|---|---|
-| **3.12.0** | Fundament (tabellen, workers, schermen, beheer) + **Google Agenda via iCal-link** | iCal-adres van de gezinsagenda |
-| **3.13.0** | **Gezondheid** via Opdrachten: gewicht en stappen in Training | iPhone met Opdrachten |
-| **3.14.0** | **Schoolrooster** via iCal-link per persoon (lessen in Agenda) | school zet iCal-link aan |
-| later | Huiswerk uit de schoolapp; Google Agenda schrijven (OAuth); Android (Health Connect, vraagt een eigen app) | keuze na 3.14 |
+| **3.13.0** | Fundament (tabellen, workers, schermen, beheer) + **Google Agenda via iCal-link** | iCal-adres van de gezinsagenda |
+| **3.14.0** | **Gezondheid** via Opdrachten: gewicht en stappen in Training | iPhone met Opdrachten |
+| **3.15.0** | **Schoolrooster** via iCal-link per persoon (lessen in Agenda) | school zet iCal-link aan |
+| later | Huiswerk uit de schoolapp; Google Agenda schrijven (OAuth); Android (Health Connect, vraagt een eigen app) | keuze na 3.15 |
 
 Elke versie: release note, kennisbankartikel (instellen per integratie), tests voor het verwerken (iCal → afspraken,
 dubbel ophalen, verwijderd item, wintertijd/zomertijd), rechtentests zoals `scripts/test-platform.mjs`, en de
@@ -90,7 +90,7 @@ productiestappen in `supabase/README.md`.
 2. **Google Agenda**: welke agenda('s) van het gezin, en is alleen lezen genoeg?
 3. **Gezondheid**: welke gegevens (gewicht, stappen, slaap, hartslag, workouts?), voor wie, en mag het gezin ze zien of
    alleen de gebruiker zelf? Gebruikt iemand in het gezin Android?
-4. **Volgorde**: klopt 3.12 Google Agenda → 3.13 Gezondheid → 3.14 School, of eerst school?
+4. **Volgorde**: klopt 3.13 Google Agenda → 3.14 Gezondheid → 3.15 School, of eerst school?
 
 Bronnen: [Somtoday: agenda](https://somtoday-servicedesk.zendesk.com/hc/nl/articles/360007748997-Agenda),
 [Somtoday agenda-handleiding (school)](https://maken.wikiwijs.nl/bestanden/1055985/SOM%20Agenda%20gebruik.pdf),

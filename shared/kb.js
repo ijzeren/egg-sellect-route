@@ -202,6 +202,15 @@ Niet thuis verandert de afspraak niet: het adres komt op de volgende loopdag ter
 Realisatie is hoeveel procent van de afspraken de afgelopen 8 weken echt verkocht is.</p>
 <p>Vul bij Planning in wat je echt besteld hebt. Dan toont de app ook wat er over is, en houdt het advies rekening met de marge uit Instellingen.</p>`,
   },
+  {
+    slug: 'eggs-sumup', app: 'eggs', title: 'Afrekenen met SumUp', updated: '2026-11-22', version: '3.12.0',
+    body: `<p>Wie met SumUp afrekent, kan Egg-sellent na een verkoop meteen de SumUp-app laten openen. Dit is een <b>persoonlijke instelling</b>: alleen op jouw telefoon.</p>
+<ol><li>Zet de <b>SumUp-app</b> op je telefoon en log daarin in.</li>
+<li>Zet in Egg-sellent bij <b>Instellingen → Afrekenen met SumUp</b> de schakelaar aan.</li>
+<li>Tik op <b>Test: open SumUp</b>. Opent SumUp, dan werkt het.</li></ol>
+<p>Aan de deur: kies je een aantal eieren (of <b>Zoals afgesproken</b>), dan vraagt de app <b>Afrekenen in SumUp?</b> met het aantal en de doosjes (bijvoorbeeld 16 eieren: 1×10 + 1×6). Tik je op <b>Open SumUp</b>, dan opent SumUp. Het bedrag en de artikelen kies je in SumUp; daar staan de prijzen. Daarna ga je zelf terug naar Egg-sellent. Later afrekenen kan met de knop <b>Afrekenen in SumUp</b> bij het huis.</p>
+<p>Gaat SumUp niet open? Dan meldt de app dat. Controleer of de SumUp-app op de telefoon staat. Egg-sellent houdt niet bij of er betaald is; dat zie je in SumUp.</p>`,
+  },
 ];
 
 export const kbBySlug = slug => KB.find(a => a.slug === slug);

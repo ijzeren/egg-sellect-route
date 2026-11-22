@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.12.0', date: '2026-11-22', title: 'Eieren: afrekenen met SumUp',
+    notes: [
+      { app: 'eggs', text: 'Kies je bij een huis een aantal eieren, dan kan de app vragen of je wilt afrekenen en de SumUp-app openen. Het bedrag kies je in SumUp. Zet dit aan bij Instellingen → Afrekenen met SumUp (alleen op je eigen telefoon), met een testknop.', kb: 'eggs-sumup' },
+    ],
+  },
+  {
     version: '3.11.4', date: '2026-11-22', title: 'Eieren: voorkeursdag wijzigen past de ronde aan',
     notes: [
       { app: 'eggs', text: 'Wijzig je een voorkeursdag (of voeg je er een toe), dan schuift de volgende keer mee als de app die zelf had gekozen. Zo staat het adres meteen op de goede dag in de ronde. Een datum die je aan de deur anders hebt afgesproken, blijft staan.' },

@@ -273,7 +273,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.11.4';
+const APP_VERSION = '3.12.0';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -730,6 +730,36 @@ if (CLOUD) {
 
 /* ---------- afspraken ---------- */
 const DEC = v => v.status !== 'nothome';                 // koop / geen eieren = beslissend bezoek
+/* ---------- afrekenen met SumUp (persoonlijk, op deze telefoon) ---------- */
+// Egg-sellent opent alleen de SumUp-app; prijs en artikelen staan in SumUp zelf.
+const SUMUP_KEY = 'eggselent-sumup';
+const SUMUP_LINK = 'sumupmerchant://';
+const sumupCfg = () => { try { return Object.assign({ on: false, link: '' }, JSON.parse(localStorage.getItem(SUMUP_KEY)) || {}); } catch (e) { return { on: false, link: '' }; } };
+const sumupSave = c => { try { localStorage.setItem(SUMUP_KEY, JSON.stringify(c)); } catch (e) {} };
+const sumupReady = () => sumupCfg().on;
+function saleText(eggs, wafels){
+  const parts = []; if (eggs) parts.push(`${eggs} eieren${boxes(eggs) ? ` (${boxes(eggs)})` : ''}`); if (wafels) parts.push(plural(wafels, 'pakje', 'pakjes') + ' stroopwafels');
+  return parts.join(' + ');
+}
+// Open de SumUp-app. Merkt het als de app niet opengaat.
+function openSumUp(){
+  const url = (sumupCfg().link || '').trim() || SUMUP_LINK;
+  let left = false; const mark = () => { if (document.visibilityState === 'hidden') left = true; };
+  document.addEventListener('visibilitychange', mark); window.addEventListener('pagehide', mark); window.addEventListener('blur', mark);
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', mark); window.removeEventListener('pagehide', mark); window.removeEventListener('blur', mark);
+    if (!left) toast('SumUp ging niet open. Staat de SumUp-app op deze telefoon?', null, null, 'err');
+  }, 2500);
+  location.href = url;
+}
+// Na het kiezen van een aantal: vragen of we afrekenen in SumUp.
+async function askCheckout(a, eggs, wafels){
+  if (!sumupReady() || !(eggs > 0 || wafels > 0)) return false;
+  const r = await actionSheet({ title: 'Afrekenen in SumUp?', message: `${label(a)} · ${saleText(eggs, wafels)}`, actions: [{ label: 'Open SumUp', value: 'sumup' }], cancel: 'Niet nu' });
+  if (r !== 'sumup') return false;
+  openSumUp();
+  return true;
+}
 // Eieren gaan in doosjes van 6 en 10: alleen aantallen die daarmee kunnen (0, 6, 10, 12, 16, 18, 20, 22, …)
 // Zoveel mogelijk doosjes van 10, de rest in doosjes van 6. null = past niet in hele doosjes.
 function boxSplit(n){
@@ -1121,6 +1151,7 @@ function upcomingAbsences(from, days){
 
 /* ---------- iconen (in de stijl van SF Symbols) ---------- */
 const ICONS = {
+  card: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
   ronde: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1.2" class="fill"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/>',
   box: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9M7.8 5.3l8.5 4.5"/>',
   map: '<path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/>',
@@ -1321,6 +1352,8 @@ function vHouse(){
     }
     h += '</div>';
   }
+  if (sumupReady() && v && DEC(v) && (v.eggs || v.wafels))
+    h += `<button class="cell tint" data-act="sumup"><span class="ico" style="background:var(--blue)">${I('card')}</span><span class="tx"><span class="tt">Afrekenen in SumUp</span><span class="st">${esc(saleText(v.eggs || 0, v.wafels || 0))}</span></span>${chev()}</button>`;
   h += '</div>';
 
   // ander aantal
@@ -1842,6 +1875,11 @@ function vSettings(){
     'Marge = wat er bij de volgende levering nog mag liggen, als % van de verkoop in die periode. Het advies houdt daar rekening mee. 30 = een tray.');
   h += sec('Stroopwafels', grp(`<div class="cell stack"><span class="tt">Aankondigen vooraf</span><div class="segc" role="group">${[1, 2, 3, 4].map(n => `<button data-act="stroopLead" data-n="${n}" ${ro} aria-pressed="${(db.settings.stroopLead ?? 2) === n}">${n} ${n === 1 ? 'week' : 'weken'}</button>`).join('')}</div></div>`),
     'Zoveel weken voor een stroopwafelweek meldt de app het aan de deur. Klanten die minder vaak eieren krijgen, horen het bij hun bezoek daarvoor. De weken zelf plan je bij Planning.');
+  const su = sumupCfg();
+  h += sec('Afrekenen met SumUp', grp(`<div class="cell"><span class="ico" style="background:var(--blue)">${I('card')}</span><span class="tx"><span class="tt">Vragen om af te rekenen</span><span class="st">Na het kiezen van een aantal eieren</span></span>${toggleBtn(su.on, 'sumupon', '', 'Vragen om af te rekenen met SumUp')}</div>
+    <button class="cell tint" data-act="sumuptest"><span class="tx"><span class="tt">Test: open SumUp</span><span class="st">Opent de SumUp-app op deze telefoon</span></span>${chev()}</button>
+    ${su.on ? `<label class="cell field"><span class="fl">App-link</span><input type="text" data-field="sumuplink" value="${esc(su.link || '')}" placeholder="${SUMUP_LINK}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>` : ''}`),
+    su.on ? 'Alleen op deze telefoon. Na het kiezen van een aantal eieren vraagt de app of je wilt afrekenen en opent dan SumUp; het bedrag en de artikelen kies je in SumUp. Daarna ga je zelf terug naar Egg-sellent. App-link: alleen aanpassen als SumUp niet opengaat.' : 'Persoonlijk, alleen op deze telefoon. Zet aan als je met SumUp afrekent. Met de testknop zie je of SumUp opengaat.');
   h += sec('Tekst bij afwezigheid', grp(`<div class="cell"><textarea class="ta" data-field="absenceScript" ${ro} style="min-height:6rem">${esc(db.settings.absenceScript || DEFAULT_SCRIPT)}</textarea></div>`), 'Verschijnt bij een klant van wie de vaste dag de volgende keer uitvalt. {dag} wordt de dag.');
   h += sec('Gegevens', grp(`<button class="cell" data-act="export"><span class="ico" style="background:var(--green)">${I('share')}</span><span class="tx"><span class="tt">Backup maken</span>${needBackup() ? '<span class="st" style="color:var(--red)">Al even geen backup</span>' : ''}</span>${chev()}</button>
     ${isAdmin() ? `<button class="cell" data-act="import"><span class="ico" style="background:var(--orange)">${I('down')}</span><span class="tx"><span class="tt">Backup terugzetten</span></span>${chev()}</button>` : ''}
@@ -2137,18 +2175,36 @@ document.addEventListener('click', e => {
     case 'open': ui.sheet = null; go('house', { id: el.dataset.id }); break;
     case 'prev': step(-1); break;
     case 'next': step(1); break;
-    case 'samenext': { const n = agreedFor(ui.id); if (n) recordAndNext({ status: 'sold', eggs: n, ...wafelSame(ui.id) }); break; }
+    case 'samenext': {
+      const n = agreedFor(ui.id); if (!n) break;
+      const id = ui.id, patch = { status: 'sold', eggs: n, ...wafelSame(id) };
+      if (sumupReady()) askCheckout(byId(id), n, patch.wafels || 0).then(() => recordAndNext(patch));
+      else recordAndNext(patch);
+      break;
+    }
     case 'nhnext': recordAndNext({ status: 'nothome' }); break;
     case 'doublenext': {
       const a = byId(ui.id), imp = nextVisitImpact(a, D); if (!imp) break;
-      recordAndNext({ status: 'sold', eggs: 2 * imp.agreed, double: true, ...wafelSame(ui.id), nextDate: defaultNext(a, D, imp.k * 2), nextEggs: imp.agreed, nextManual: true });
+      const patch = { status: 'sold', eggs: 2 * imp.agreed, double: true, ...wafelSame(ui.id), nextDate: defaultNext(a, D, imp.k * 2), nextEggs: imp.agreed, nextManual: true };
+      if (sumupReady()) askCheckout(a, patch.eggs, patch.wafels || 0).then(() => recordAndNext(patch));
+      else recordAndNext(patch);
       break;
     }
-    case 'swsame': { const n = agreedFor(el.dataset.id); closeSwipe(true); if (n) recordFromList(el.dataset.id, { status: 'sold', eggs: n, ...wafelSame(el.dataset.id) }); break; }
+    case 'swsame': {
+      const id = el.dataset.id, n = agreedFor(id); closeSwipe(true); if (!n) break;
+      const patch = { status: 'sold', eggs: n, ...wafelSame(id) }; recordFromList(id, patch);
+      askCheckout(byId(id), n, patch.wafels || 0);
+      break;
+    }
     case 'swnh': closeSwipe(true); recordFromList(el.dataset.id, { status: 'nothome' }); break;
     case 'swnone': closeSwipe(true); recordFromList(el.dataset.id, { status: 'none', eggs: 0 }); break;
     case 'clearvisit': { const a = byId(ui.id), v = curVisit(); if (!v) break; const snap = { ...v }; restoreVisit(a.id, null); render(); toast('Invoer gewist', 'Ongedaan', () => { restoreVisit(a.id, snap); render(); }); break; }
-    case 'eggs': { const n = +el.dataset.n; setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 }); break; }
+    case 'eggs': {
+      const n = +el.dataset.n, v = setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 });
+      if (n) askCheckout(byId(ui.id), n, v.wafels || 0);
+      break;
+    }
+    case 'sumup': openSumUp(); break;
     case 'plus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); setVisit({ status: 'sold', eggs: stepEggs(base, 1) }); break; }
     case 'minus': { const v = curVisit(); const base = v && v.status !== 'nothome' ? v.eggs : agreedFor(ui.id); const n = stepEggs(base, -1); setVisit(n ? { status: 'sold', eggs: n } : { status: 'none', eggs: 0 }); break; }
     case 'negg': setVisit({ nextEggs: +el.dataset.n, nextManual: true }); break;
@@ -2174,6 +2230,11 @@ document.addEventListener('click', e => {
     }
     case 'round': db.settings.orderRound = +el.dataset.n; save(); render(); break;
     case 'stroopLead': db.settings.stroopLead = +el.dataset.n; save(); render(); break;
+    case 'sumupon': { const c = sumupCfg(); c.on = !c.on; sumupSave(c); render(); break; }
+    case 'sumuptest': {
+      const f = document.querySelector('[data-field=sumuplink]'); if (f) { const c = sumupCfg(); c.link = f.value.trim(); sumupSave(c); }
+      openSumUp(); break;
+    }
     case 'theme': setTheme(el.dataset.v); render(); break;
     case 'edit': go('edit', { id: el.dataset.id, from: ui.view }); break;
     case 'editback': ui.draft = null; if (ui.from === 'house' && byId(ui.id)) go('house'); else go('route'); break;
@@ -2364,6 +2425,7 @@ function onField(e){
     save(); renderAfterTap();
     return;
   }
+  if (f === 'sumuplink') { const c = sumupCfg(); c.link = el.value.trim(); sumupSave(c); return; }
   if (f === 'set_margin' || f === 'set_orderdow' || f === 'set_deldow') {
     if (e.type !== 'change') return;
     if (f === 'set_margin') db.settings.marginPct = Math.max(0, Math.min(100, Math.round(+el.value || 0)));
