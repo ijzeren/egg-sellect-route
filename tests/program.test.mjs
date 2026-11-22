@@ -112,12 +112,16 @@ test('Training opent het meest relevante programma', () => {
   assert.equal(P.pickProgram([], 'pilates30', MA), null);
 });
 
-test('starttijd bij de trainingsdagen: bewaard, opgeschoond en weg te halen', () => {
+test('starttijd per trainingsdag: bewaard, opgeschoond en weg te halen', () => {
   const a = prog([1, 3]);
-  P.setDays(a, [1, 3], '07:15'); assert.equal(a.settings.time, '07:15');
-  assert.equal(P.normalize(a).settings.time, '07:15', 'blijft na normaliseren');
-  P.setDays(a, [2]); assert.equal(a.settings.time, '07:15', 'zonder tijd blijft de tijd');
-  P.setDays(a, [2], ''); assert.equal(a.settings.time, undefined, 'leeg haalt de tijd weg');
-  assert.equal(P.normalize({ settings: { days: [1], time: 'ochtend' } }).settings.time, undefined, 'ongeldige tijd valt weg');
+  P.setDays(a, [1, 3], '07:15'); assert.deepEqual(a.settings.times, { 1: '07:15', 3: '07:15' }, 'één tijd voor alle dagen');
+  P.setDays(a, [1, 3], { 1: '07:15', 3: '19:30' });
+  assert.equal(P.timeOn(a, 1), '07:15'); assert.equal(P.timeOn(a, 3), '19:30');
+  assert.deepEqual(P.normalize(a).settings.times, { 1: '07:15', 3: '19:30' }, 'blijft na normaliseren');
+  P.setDays(a, [3, 5]); assert.deepEqual(a.settings.times, { 3: '19:30' }, 'zonder tijden: tijd van een dag die blijft, blijft');
+  P.setDays(a, [3], ''); assert.equal(a.settings.times, undefined, 'leeg haalt de tijden weg');
+  assert.equal(P.normalize({ settings: { days: [1], times: { 1: 'ochtend' } } }).settings.times, undefined, 'ongeldige tijd valt weg');
+  assert.deepEqual(P.normalize({ settings: { days: [1, 4], time: '07:00' } }).settings.times, { 1: '07:00', 4: '07:00' }, 'oude instelling: één tijd wordt per dag');
+  assert.deepEqual(P.normalize({ settings: { days: [1], times: { 1: '07:00', 2: '08:00' } } }).settings.times, { 1: '07:00' }, 'alleen tijden van trainingsdagen');
 });
 

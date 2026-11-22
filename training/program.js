@@ -2,7 +2,8 @@
 //
 // Voortgang per programma en per account:
 //   { v: 1,
-//     settings: { days: [1, 3, 5], time?: '07:15', u: '2026-11-22T10:00:00.000Z' },   // vaste trainingsdagen (0 = zondag … 6 = zaterdag), optioneel starttijd (voor de Agenda)
+//     settings: { days: [1, 3, 5], times?: { 1: '07:15', 5: '18:00' }, u: '2026-11-22T10:00:00.000Z' },   // vaste trainingsdagen (0 = zondag … 6 = zaterdag),
+//                                                                       // optioneel starttijd per dag (voor de Agenda); oud: time = één tijd voor alle dagen
 //     resetAt: null | iso-tijd,                                         // alles van vóór dit moment telt niet meer
 //     log: [ { id, les, d: 'jjjj-mm-dd', bonus, manual?, at: iso-tijd } ] }
 //
@@ -30,6 +31,7 @@ export const fmtShort = s => { const d = pd(s); return `${DSH[d.getDay()]} ${d.g
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 /* ---------- voortgang ---------- */
+const isTime = v => /^\d{2}:\d{2}$/.test(v || '');
 export function emptyProgress() { return { v: 1, settings: { days: [], u: null }, resetAt: null, log: [] }; }
 
 export function normalize(p) {
@@ -39,7 +41,13 @@ export function normalize(p) {
   const days = Array.isArray(s.days) ? [...new Set(s.days.map(Number).filter(n => n >= 0 && n <= 6))].sort((a, b) => a - b) : [];
   const log = Array.isArray(p.log) ? p.log.filter(x => x && x.id && x.les >= 1 && /^\d{4}-\d{2}-\d{2}$/.test(x.d)) : [];
   const settings = { days, u: s.u || null };
-  if (/^\d{2}:\d{2}$/.test(s.time || '')) settings.time = s.time;
+  // Starttijd per trainingsdag (versie 3.15). Oude instellingen hadden één tijd (time) voor alle dagen.
+  const times = {};
+  for (const d of days) {
+    const t = s.times && typeof s.times === 'object' ? s.times[d] : s.time;
+    if (isTime(t)) times[d] = t;
+  }
+  if (Object.keys(times).length) settings.times = times;
   // Circuit (Bio-circuit): eigen lijst toestellen in vaste volgorde.
   if (Array.isArray(s.stations)) settings.stations = s.stations.filter(x => x && x.id && x.n).map(x => ({ id: String(x.id), n: String(x.n) }));
   return { v: 1, settings, resetAt: p.resetAt || null, log: activeLog(log, p.resetAt) };
@@ -121,12 +129,20 @@ export function record(p, les, d = today(), manual = false) {
   return x;
 }
 
-// time: optioneel 'HH:MM' (leeg = geen vaste tijd); weglaten = tijd blijft zoals hij was
-export function setDays(p, days, time) {
-  const next = { ...p.settings, days: [...new Set(days)].sort((a, b) => a - b), u: new Date().toISOString() };
-  if (time !== undefined) { if (/^\d{2}:\d{2}$/.test(time || '')) next.time = time; else delete next.time; }
+// times: optioneel starttijd per dag: { 1: '07:15', 5: '18:00' }, of één 'HH:MM' voor alle dagen ('' = geen tijden);
+// weglaten = tijden blijven zoals ze waren (voor dagen die blijven).
+export function setDays(p, days, times) {
+  const ds = [...new Set(days)].sort((a, b) => a - b);
+  const next = { ...p.settings, days: ds, u: new Date().toISOString() };
+  delete next.time;
+  const src = times === undefined ? (p.settings.times || {}) : typeof times === 'string' ? Object.fromEntries(ds.map(d => [d, times])) : (times || {});
+  const out = {};
+  for (const d of ds) if (isTime(src[d])) out[d] = src[d];
+  if (Object.keys(out).length) next.times = out; else delete next.times;
   p.settings = next;
 }
+// Starttijd op een dag van de week ('' = geen vaste tijd).
+export const timeOn = (p, d) => ((p.settings && p.settings.times) || {})[d] || '';
 
 export function reset(p) { p.resetAt = new Date().toISOString(); p.log = []; }
 

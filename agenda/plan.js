@@ -5,7 +5,8 @@
 //   { id, person_ids: [..], kind: 'lesson'|'school'|'sport'|'match'|'other', title, place, notes,
 //     start: 'HH:MM', end: 'HH:MM' | '', meet: 'HH:MM' | '' (verzamelen, bij wedstrijden),
 //     date: 'jjjj-mm-dd' (één keer)  óf  days: [0-6] (elke week, 0 = zondag) met from/until (bijv. het schooljaar),
-//     weeks: '' | 'odd' | 'even' (alleen oneven/even weken), skip: ['jjjj-mm-dd', …] (gaat deze keer niet door) }
+//     weeks: '' | 'odd' | 'even' (alleen oneven/even weken), skip: ['jjjj-mm-dd', …] (gaat deze keer niet door),
+//     dayTimes: { 1: { start, end }, … } (elke week: andere tijd per dag; leeg = start/end gelden voor alle dagen) }
 // Huiswerk (agenda_tasks): { id, person_id, kind: 'homework'|'test', subject, text, due: 'jjjj-mm-dd', done }
 import { ymd, pd, addDays, dow, weekStart, today, DSH, DAYNAMES, WEEK_ORDER, fmtShort } from '../training/program.js';
 
@@ -33,10 +34,17 @@ export function occursOn(it, d) {
   return true;
 }
 const forPerson = (it, pid) => !pid || (it.person_ids || []).includes(pid);
+// Tijden op een dag: bij een afspraak die elke week is, kan elke dag een eigen begin- en eindtijd hebben.
+export function timesOn(it, d) {
+  const x = !it.date && it.dayTimes && it.dayTimes[dow(d)];
+  return x ? { start: x.start || '', end: x.end || '' } : { start: it.start || '', end: it.end || '' };
+}
+export const atDay = (it, d) => ({ ...it, ...timesOn(it, d) });
+export const hasDayTimes = it => !it.date && !!it.dayTimes && Object.keys(it.dayTimes).length > 0;
 const byTime = (a, b) => (a.meet || a.start || '99').localeCompare(b.meet || b.start || '99') || (a.start || '').localeCompare(b.start || '') || a.title.localeCompare(b.title, 'nl');
 
 // Afspraken op een dag (voor één persoon, of iedereen), op tijd.
-export const dayItems = (items, d, pid) => (items || []).filter(it => forPerson(it, pid) && occursOn(it, d)).sort(byTime);
+export const dayItems = (items, d, pid) => (items || []).filter(it => forPerson(it, pid) && occursOn(it, d)).map(it => atDay(it, d)).sort(byTime);
 // Volgende keer dat een afspraak (of een vak) plaatsvindt, vanaf `from` (inclusief), max. een half jaar vooruit.
 export function nextDate(items, from, pred) {
   for (let i = 0; i < 183; i++) { const d = addDays(from, i); if ((items || []).some(it => pred(it) && occursOn(it, d))) return d; }
@@ -95,13 +103,24 @@ export function cleanItem(x) {
     from: once ? null : date(x.from), until: once ? null : date(x.until),
     weeks: !once && ['odd', 'even'].includes(x.weeks) ? x.weeks : '',
     skip: once ? [] : [...new Set((x.skip || []).filter(date))].sort(),
+    dayTimes: once || !x.perDay ? {} : dayTimesFor(x),
   };
+}
+// Tijd per dag opschonen: alleen dagen van de afspraak, alleen geldige tijden.
+function dayTimesFor(x) {
+  const out = {};
+  for (const n of x.days || []) {
+    const t = (x.dayTimes || {})[n] || {}, start = time(t.start), end = time(t.end);
+    if (start || end) out[n] = { start, end };
+  }
+  return out;
 }
 export function validItem(c) {
   if (!c.title) return 'Geef de afspraak een naam.';
   if (!c.person_ids.length) return 'Kies voor wie het is.';
   if (!c.date && !c.days.length) return 'Kies een datum of de dagen waarop het elke week is.';
   if (c.end && c.start && c.end < c.start) return 'De eindtijd ligt voor de begintijd.';
+  for (const [n, t] of Object.entries(c.dayTimes || {})) if (t.end && t.start && t.end < t.start) return `Op ${DAYNAMES[n]} ligt de eindtijd voor de begintijd.`;
   return '';
 }
 // Schooljaar waar een datum in valt: 1 aug t/m 31 jul (zomervakantie verschilt per regio; aan te passen per afspraak).
@@ -113,7 +132,7 @@ export function schoolYear(now = today()) {
 /* ---------- afspraken uit andere apps (alleen lezen, niet opgeslagen in de agenda) ----------
    Eierronde: op elke loopdag van Egg-sellent, vanaf de starttijd tot WALK_END; afwezige dagen gaan niet door.
    Leveringen eieren: op de leverdatum. Beide in de agenda van de lopers.
-   Trainingen: op de trainingsdagen van elk programma, in de agenda van de deelnemers (personen met hun account).
+   Trainingen: op de trainingsdagen van elk programma (met de starttijd van die dag), in de agenda van de deelnemers (personen met hun account).
    Een tik opent de app waar het vandaan komt (ext.href). */
 export const WALK_END = '21:00'; // de ronde loopt tot 21:00; pas dit aan zodra er een andere eindtijd nodig is
 const plusMin = (t, m) => { const [h, mm] = t.split(':').map(Number), x = h * 60 + mm + m; return x >= 24 * 60 ? '23:59' : `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
@@ -141,9 +160,13 @@ export function externalItems({ eggs = false, walkDays = [], walkStart = {}, wal
     if (!t || t.deleted) continue;
     const s = (t.data && t.data.settings) || {}, days = Array.isArray(s.days) ? s.days : [];
     if (!days.length) continue;
-    const p = programs.find(x => x.id === t.program), start = isTime(s.time) ? s.time : '';
-    out.push({ ...base, id: `ext:training:${t.id}`, ext: { app: 'training', href: `../training/?program=${encodeURIComponent(t.program)}` }, kind: 'sport', icon: '🧘',
-      title: p ? p.name : 'Training', person_ids: pidsOf(t.participants), start, end: start && p && p.minutes ? plusMin(start, p.minutes) : '', days: [...days] });
+    const p = programs.find(x => x.id === t.program), pids = pidsOf(t.participants);
+    // starttijd per trainingsdag (settings.times); oude instellingen: één tijd (settings.time) voor alle dagen
+    for (const d of days) {
+      const t0 = s.times && typeof s.times === 'object' ? s.times[d] : s.time, start = isTime(t0) ? t0 : '';
+      out.push({ ...base, id: `ext:training:${t.id}:${d}`, ext: { app: 'training', href: `../training/?program=${encodeURIComponent(t.program)}` }, kind: 'sport', icon: '🧘',
+        title: p ? p.name : 'Training', person_ids: pids, start, end: start && p && p.minutes ? plusMin(start, p.minutes) : '', days: [d] });
+    }
   }
   return out;
 }

@@ -82,3 +82,18 @@ test('afspraak opschonen en controleren', () => {
   assert.deepEqual(A.schoolYear('2026-11-22'), { from: '2026-08-01', until: '2027-07-31' });
   assert.deepEqual(A.schoolYear('2027-03-01'), { from: '2026-08-01', until: '2027-07-31' });
 });
+
+test('elke week, maar met een andere tijd per dag', async () => {
+  const A = await import('../agenda/plan.js');
+  const c = A.cleanItem({ kind: 'sport', title: 'Zwemmen', person_ids: ['p1'], days: [1, 3], start: '16:00', end: '17:00', perDay: true,
+    dayTimes: { 1: { start: '16:00', end: '17:00' }, 3: { start: '18:30', end: '19:15' }, 5: { start: '09:00' } } });
+  assert.deepEqual(c.dayTimes, { 1: { start: '16:00', end: '17:00' }, 3: { start: '18:30', end: '19:15' } }, 'alleen dagen van de afspraak');
+  assert.equal(A.validItem(c), '');
+  const ma = A.dayItems([{ ...c, id: 'x' }], '2026-11-23'), wo = A.dayItems([{ ...c, id: 'x' }], '2026-11-25');
+  assert.equal(ma[0].start, '16:00'); assert.equal(wo[0].start, '18:30'); assert.equal(wo[0].end, '19:15');
+  assert.deepEqual(A.cleanItem({ ...c, perDay: false }).dayTimes, {}, 'zelfde tijd: geen tijden per dag');
+  assert.deepEqual(A.cleanItem({ ...c, date: '2026-11-23', perDay: true }).dayTimes, {}, 'één keer: geen tijden per dag');
+  const bad = A.cleanItem({ ...c, perDay: true, dayTimes: { 3: { start: '19:00', end: '18:00' } } });
+  assert.match(A.validItem(bad), /woensdag/);
+  assert.equal(A.timesOn({ days: [1], start: '08:00', end: '', dayTimes: {} }, '2026-11-23').start, '08:00', 'zonder tijd per dag: algemene tijd');
+});

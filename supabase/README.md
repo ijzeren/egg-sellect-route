@@ -307,3 +307,17 @@ rechten om die kolom te vullen. De soort `sauce` (Saus en dip) past binnen de be
 Staat al in productie (22 nov 2026), geen schemawijziging. Wilhelminasingel 25, 31 en 33 kregen woensdag als extra
 voorkeursdag nadat de app hun volgende keer al op do 26 nov had gezet; [`fix-2026-11-22-next-date.sql`](fix-2026-11-22-next-date.sql)
 zet die op wo 25 nov (veilig om opnieuw te draaien). Vanaf 3.11.4 schuift de app zo'n zelfgekozen datum zelf mee.
+
+## Update naar starttijd per dag (v3.15.0)
+Doe dit **vóór** je v3.15.0 pusht (de Agenda bewaart anders geen afspraken meer):
+
+```sql
+alter table public.agenda_items add column if not exists day_times jsonb not null default '{}'::jsonb;
+alter table public.agenda_items drop constraint if exists agenda_items_day_times_object;
+alter table public.agenda_items add constraint agenda_items_day_times_object check (jsonb_typeof(day_times) = 'object');
+```
+
+Dit staat ook in [`schema.sql`](schema.sql) (opnieuw uitvoeren mag ook). Bestaande afspraken krijgen `{}`: dezelfde tijd
+op elke dag, zoals voorheen. De starttijd per trainingsdag zit in de voortgang van Training (`settings.times`, geen
+schemawijziging); een oude enkele tijd wordt vanzelf de tijd van elke trainingsdag.
+Controle: `select count(*) from agenda_items where day_times <> '{}';` → 0.

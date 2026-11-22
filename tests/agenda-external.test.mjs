@@ -51,3 +51,12 @@ test('trainingen op de trainingsdagen, in de agenda van de deelnemers, met eindt
   assert.equal(dayItems(ext, '2026-11-24', 'p-lynn').length, 0, 'verwijderd programma niet');
   assert.ok(ext.every(x => x.ext && x.ext.href), 'elke afspraak verwijst naar de app');
 });
+
+test('training: starttijd per dag', () => {
+  const tracks = [{ id: 't1', program: 'pilates30', participants: ['u-lynn'], data: { settings: { days: [1, 3, 5], times: { 1: '07:15', 3: '19:30' } } } }];
+  const ext = externalItems({ tracks, programs, people });
+  assert.equal(dayItems(ext, '2026-11-23', 'p-lynn')[0].start, '07:15', 'maandag');
+  assert.equal(dayItems(ext, '2026-11-25', 'p-lynn')[0].start, '19:30', 'woensdag');
+  assert.equal(dayItems(ext, '2026-11-25', 'p-lynn')[0].end, '20:00');
+  assert.equal(dayItems(ext, '2026-11-27', 'p-lynn')[0].start, '', 'vrijdag zonder tijd');
+});

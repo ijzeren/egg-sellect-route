@@ -10,6 +10,13 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.15.0', date: '2026-11-22', title: 'Starttijd per dag',
+    notes: [
+      { app: 'training', text: 'Bij Trainingsdagen vul je nu per dag een starttijd in. Train je op maandag om 7:15 en op zaterdag om 9:30? Dan staat dat zo in de agenda. Had je al één tijd? Die staat nu bij al je trainingsdagen.', kb: 'agenda-andere-apps' },
+      { app: 'agenda', text: 'Een afspraak die elke week terugkomt, kan nu op elke dag een andere tijd hebben. Kies de dagen en tik op Tijd per dag.', kb: 'agenda' },
+    ],
+  },
+  {
     version: '3.14.1', date: '2026-11-22', title: 'Eieren: starttijden rustig invullen',
     notes: [
       { app: 'eggs', text: 'Het tijdwiel bij de starttijd van een loopdag sluit niet meer halverwege het invullen. De tijd wordt opgeslagen zodra je klaar bent.' },

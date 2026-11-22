@@ -76,3 +76,9 @@ details p{margin:0 0 12px;color:var(--label2);font-size:.94rem;line-height:1.45}
 .cell.prog{align-items:center;padding-top:14px;padding-bottom:14px}
 .cell.prog .pic{font-size:2rem;line-height:1;flex:none}
 .cell.prog.now .tt b::after{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:8px;vertical-align:middle}
+/* starttijd per trainingsdag */
+.dtimes{margin-top:14px;display:grid;gap:6px}
+.dtimes>div span{font-weight:400}
+.dtime{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.dtime span{min-width:0;overflow-wrap:anywhere}
+.dtime input{max-width:7rem;font:inherit;border:0;background:var(--fill);border-radius:8px;padding:6px 8px;color:inherit}

@@ -41,3 +41,7 @@ textarea.ta{width:100%;min-height:5rem;border:0;background:none;font:inherit;lin
 textarea.ta:focus{outline:none}
 select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right;max-width:60%}
 .segc{flex-wrap:wrap}
+/* tijd per dag: dag, begin – einde op één regel (ook op 320 px) */
+.cell.field.dayrow{gap:6px}
+.cell.field.dayrow .fl{width:auto;flex:1;min-width:0;overflow-wrap:anywhere}
+.cell.field.dayrow input{flex:none;width:5.6rem;text-align:center}

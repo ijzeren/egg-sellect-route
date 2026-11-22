@@ -141,7 +141,7 @@ function syncText() {
 
 /* ---------- scherm ---------- */
 const $ = s => document.querySelector(s);
-let view = 'programs', cur = 1, S = null, timer = null, AC = null, muted = false, confirmBox = '', pick = null, lastDone = null;
+let view = 'programs', cur = 1, S = null, timer = null, AC = null, muted = false, confirmBox = '', pick = null, pickTimes = {}, lastDone = null;
 
 const navBar = (left, title = '') => `<header class="nav" id="nav"><div class="nav-l">${left || ''}</div><div class="nav-t">${title}</div><div class="nav-r"></div></header>`;
 const hubLink = () => `<a class="nb back" href="../" aria-label="Naar alle apps">${ICON_BACK}<span>Apps</span></a>`;
@@ -251,7 +251,7 @@ function home() {
 }
 
 function daysView() {
-  if (!pick) pick = prog.settings.days.slice();
+  if (!pick) { pick = prog.settings.days.slice(); pickTimes = { ...(prog.settings.times || {}) }; }
   const first = !P.hasSchedule(prog);
   let h = navBar(first && mine().length <= 1 ? backTo('programs', 'Training') : backTo('home', 'Overzicht'), first ? '' : 'Trainingsdagen') + '<main>';
   h += lt(first ? PROGRAM.name : 'Trainingsdagen', first ? 'Op welke dagen train je meestal?' : 'Op welke dagen train je meestal?');
@@ -264,11 +264,21 @@ function daysView() {
     const s = P.schedule(tmp, TOTAL), end = s.length ? s[s.length - 1].d : null;
     h += `<p class="muted small" style="margin-top:12px">${pick.length} ${pick.length === 1 ? 'dag' : 'dagen'} per week${end ? ` · klaar rond ${P.fmtShort(end)}` : ''}${s.length ? ` · eerste les ${P.fmtShort(s[0].d)}` : ''}.</p>`;
   } else h += `<p class="muted small" style="margin-top:12px">Kies minstens één dag.</p>`;
-  h += `<label class="field" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span>Starttijd <span class="muted small">(optioneel)</span></span><input type="time" id="dtime" value="${prog.settings.time || ''}" style="max-width:7rem;font:inherit;border:0;background:var(--fill);border-radius:8px;padding:6px 8px;color:inherit"></label>`;
+  if (pick.length) h += `<div class="dtimes"><div class="muted small">Starttijd <span>(optioneel, per dag)</span></div>${P.WEEK_ORDER.filter(d => pick.includes(d)).map(d =>
+    `<label class="dtime"><span>${P.DAYNAMES[d]}</span><input type="time" id="dt-${d}" data-day="${d}" value="${pickTimes[d] || ''}"></label>`).join('')}</div>`;
   h += `<button class="btn" data-a="savedays" ${pick.length ? '' : 'disabled'} style="margin-top:14px">${first ? 'Begin' : 'Bewaren'}</button></div>`;
-  h += `<p class="sec-f">Met een starttijd staat de training in de agenda van wie meedoet. Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd ${isCircuit() ? 'trainen' : 'een les doen'} als bonustraining.</p>`;
+  h += `<p class="sec-f">Met een starttijd staat de training in de agenda van wie meedoet; elke dag kan een andere tijd hebben. De eerste tijd die je invult, komt ook bij de dagen die nog leeg zijn. Dit stel je één keer in en pas je alleen aan als je week verandert. Op andere dagen kun je altijd ${isCircuit() ? 'trainen' : 'een les doen'} als bonustraining.</p>`;
   return h + '</main>';
 }
+
+// Starttijden uit het scherm Trainingsdagen lezen (vóór elke render, zodat getypte tijden blijven staan).
+function readDayTimes() { document.querySelectorAll('.dtime input').forEach(el => { pickTimes[el.dataset.day] = el.value; }); }
+// Eerste tijd invullen → ook bij de gekozen dagen die nog leeg zijn.
+document.addEventListener('change', ev => {
+  const el = ev.target; if (!el.matches || !el.matches('.dtime input') || !el.value) return;
+  readDayTimes();
+  document.querySelectorAll('.dtime input').forEach(x => { if (!x.value) { x.value = el.value; pickTimes[x.dataset.day] = el.value; } });
+});
 
 function peopleView() {
   let h = navBar(backTo('home', 'Overzicht'), 'Wie doen er mee?') + '<main>' + lt('Wie doen er mee?', 'Samen trainen of ieder apart');
@@ -507,8 +517,8 @@ document.addEventListener('click', ev => {
   else if (a === 'open') { cur = +b.dataset.n || 0; view = 'day'; render(); }
   else if (a === 'home') { view = 'home'; confirmBox = ''; render(); }
   else if (a === 'days') { pick = null; view = 'days'; render(); }
-  else if (a === 'pick') { const d = +b.dataset.d; pick = pick.includes(d) ? pick.filter(x => x !== d) : [...pick, d]; render(); }
-  else if (a === 'savedays') { if (!pick.length) return; const tEl = document.getElementById('dtime'); P.setDays(prog, pick, tEl ? tEl.value : undefined); pick = null; save(); view = 'home'; render(); }
+  else if (a === 'pick') { readDayTimes(); const d = +b.dataset.d; pick = pick.includes(d) ? pick.filter(x => x !== d) : [...pick, d]; render(); }
+  else if (a === 'savedays') { if (!pick.length) return; readDayTimes(); P.setDays(prog, pick, pickTimes); pick = null; save(); view = 'home'; render(); }
   else if (a === 'people') { view = 'people'; render(); scheduleSync(0); }
   else if (a === 'track') { switchTrack(b.dataset.id); pick = null; view = P.hasSchedule(prog) ? 'home' : 'days'; render(); }
   else if (a === 'member') {

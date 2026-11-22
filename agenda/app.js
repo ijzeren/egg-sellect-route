@@ -21,9 +21,9 @@ const MONL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'a
 const longDate = d => { const x = A.pd(d); return `${A.DAYNAMES[x.getDay()]} ${x.getDate()} ${MONL[x.getMonth()]}`; };
 
 // Database ↔ plan.js (in de database heten tijden en datums anders: end/from zijn SQL-woorden).
-const fromRow = r => ({ ...r, start: r.start_time, end: r.end_time, meet: r.meet_time, date: r.on_date, from: r.valid_from, until: r.valid_until, days: r.days || [], skip: r.skip || [] });
+const fromRow = r => ({ ...r, start: r.start_time, end: r.end_time, meet: r.meet_time, date: r.on_date, from: r.valid_from, until: r.valid_until, days: r.days || [], skip: r.skip || [], dayTimes: r.day_times || {} });
 const toRow = c => ({ kind: c.kind, title: c.title, place: c.place, notes: c.notes, person_ids: c.person_ids, start_time: c.start, end_time: c.end, meet_time: c.meet,
-  on_date: c.date, days: c.days, valid_from: c.from, valid_until: c.until, weeks: c.weeks, skip: c.skip });
+  on_date: c.date, days: c.days, valid_from: c.from, valid_until: c.until, weeks: c.weeks, skip: c.skip, day_times: c.dayTimes || {} });
 
 // data = { people, items (plan-vorm), tasks, members, at }
 let data = (FAMILY && storage.get(APP, DKEY)) || { people: [], items: [], tasks: [], members: [], ext: [], at: null };
@@ -162,7 +162,7 @@ function vDay() {
   }
   h += chips();
   h += `<div class="pager"><button class="nb" data-a="day" data-d="-1" aria-label="Vorige dag">‹</button><button class="lbl" data-a="today"><b>${d === t ? 'Vandaag' : d === A.addDays(t, 1) ? 'Morgen' : d === A.addDays(t, -1) ? 'Gisteren' : A.DAYNAMES[A.dow(d)]}</b><span>${[t, A.addDays(t, 1), A.addDays(t, -1)].includes(d) ? longDate(d) : longDate(d).split(' ').slice(1).join(' ')}</span></button><button class="nb" data-a="day" data-d="1" aria-label="Volgende dag">›</button></div>`;
-  const shown = [...items, ...allItems().filter(it => !it.date && (it.skip || []).includes(d) && (!ui.pid || it.person_ids.includes(ui.pid)) && A.occursOn({ ...it, skip: [] }, d))].sort((a, b) => (a.meet || a.start || '').localeCompare(b.meet || b.start || ''));
+  const shown = [...items, ...allItems().filter(it => !it.date && (it.skip || []).includes(d) && (!ui.pid || it.person_ids.includes(ui.pid)) && A.occursOn({ ...it, skip: [] }, d)).map(it => A.atDay(it, d))].sort((a, b) => (a.meet || a.start || '').localeCompare(b.meet || b.start || ''));
   h += `<div class="grp">${shown.length ? shown.map(it => itemCell(it, d)).join('') : '<div class="cell"><span class="tx muted">Niets gepland.</span></div>'}</div>`;
   const open = A.openTasks(data.tasks, ui.pid), soon = open.filter(x => !x.due || x.due <= A.addDays(t, 7)).slice(0, 8);
   h += sec('Huiswerk', `<div class="grp">${soon.map(taskCell).join('') || '<div class="cell"><span class="tx muted">Geen open huiswerk.</span></div>'}
@@ -189,11 +189,12 @@ function vWeek() {
 
 function vItem() {
   const it = data.items.find(x => x.id === ui.id); if (!it) return vDay();
-  const k = A.kindOf(it.kind), d = ui.itemDay, skipped = (it.skip || []).includes(d);
+  const k = A.kindOf(it.kind), d = ui.itemDay, skipped = (it.skip || []).includes(d), tt = A.timesOn(it, d || A.today());
   const when = it.date ? longDate(it.date) : `Elke ${A.WEEK_ORDER.filter(n => it.days.includes(n)).map(n => A.DAYNAMES[n]).join(', ')}${it.weeks ? ` (${it.weeks === 'odd' ? 'oneven' : 'even'} weken)` : ''}${it.from || it.until ? ` · ${it.from ? 'vanaf ' + A.fmtShort(it.from) : ''}${it.until ? ' t/m ' + A.fmtShort(it.until) : ''}` : ''}`;
   let h = navBar(backTo(ui.from || 'day', ui.from === 'week' ? 'Week' : 'Agenda'), '', '<button class="nb" data-a="edit">Wijzig</button>') + '<main>' + lt(`${k[2]} ${esc(it.title)}`, k[1]);
   h += `<div class="grp">
-    <div class="cell"><span class="tx"><span class="tt">${esc(when)}</span><span class="st">${[it.meet ? `verzamelen ${it.meet}` : '', it.start ? `${it.kind === 'match' ? 'aftrap ' : ''}${it.start}${it.end ? ' – ' + it.end : ''}` : ''].filter(Boolean).join(' · ') || 'Hele dag'}</span></span></div>
+    <div class="cell"><span class="tx"><span class="tt">${esc(when)}</span><span class="st">${[it.meet ? `verzamelen ${it.meet}` : '', tt.start ? `${it.kind === 'match' ? 'aftrap ' : ''}${tt.start}${tt.end ? ' – ' + tt.end : ''}` : ''].filter(Boolean).join(' · ') || 'Hele dag'}</span></span></div>
+    ${A.hasDayTimes(it) ? `<div class="cell"><span class="tx"><span class="tt">Tijd per dag</span><span class="st">${A.WEEK_ORDER.filter(n => it.days.includes(n)).map(n => { const x = A.timesOn(it, A.addDays(A.weekStart(A.today()), (n + 6) % 7)); return `${A.DSH[n]} ${x.start || '–'}${x.end ? '–' + x.end : ''}`; }).join(' · ')}</span></span></div>` : ''}
     <div class="cell"><span class="tx"><span class="tt">${dots(it.person_ids)} ${names(it.person_ids)}</span></span></div>
     ${it.place ? `<a class="cell" href="https://maps.apple.com/?q=${encodeURIComponent(it.place)}" target="_blank" rel="noopener"><span class="tx"><span class="tt">${esc(it.place)}</span><span class="st">Open in Kaarten</span></span>${ICON_CHEV}</a>` : ''}
     ${it.notes ? `<div class="cell"><span class="tx"><span class="tt" style="white-space:pre-wrap">${esc(it.notes)}</span></span></div>` : ''}</div>`;
@@ -216,9 +217,11 @@ function vEdit() {
     <label class="cell field"><span class="fl">Vanaf</span><input type="date" id="f-from" value="${esc(d.from || '')}"></label>
     <label class="cell field"><span class="fl">Tot en met</span><input type="date" id="f-until" value="${esc(d.until || '')}"></label>`}
     ${d.kind === 'match' ? `<label class="cell field"><span class="fl">Verzamelen</span><input type="time" id="f-meet" value="${esc(d.meet)}"></label>` : ''}
-    <label class="cell field"><span class="fl">${d.kind === 'match' ? 'Aftrap' : 'Begin'}</span><input type="time" id="f-start" value="${esc(d.start)}"></label>
-    <label class="cell field"><span class="fl">Einde</span><input type="time" id="f-end" value="${esc(d.end)}"></label></div>`,
-    once ? '' : `Deze week is week ${A.isoWeek(A.today())} (${A.isoWeek(A.today()) % 2 ? 'oneven' : 'even'}). Vanaf en tot en met mag leeg; bij een schoolrooster bijvoorbeeld het schooljaar.`);
+    ${!once && d.days.length > 1 ? `<div class="cell stack">${seg([['same', 'Zelfde tijd'], ['perday', 'Tijd per dag']], d.perDay ? 'perday' : 'same', 'perday')}</div>` : ''}
+    ${!once && d.perDay && d.days.length > 1 ? A.WEEK_ORDER.filter(n => d.days.includes(n)).map(n => { const x = (d.dayTimes || {})[n] || {}; return `<div class="cell field dayrow"><span class="fl">${A.DSH[n]}</span><input type="time" id="f-ds-${n}" aria-label="Begin op ${A.DAYNAMES[n]}" value="${esc(x.start || '')}"><span class="muted">–</span><input type="time" id="f-de-${n}" aria-label="Einde op ${A.DAYNAMES[n]}" value="${esc(x.end || '')}"></div>`; }).join('')
+      : `<label class="cell field"><span class="fl">${d.kind === 'match' ? 'Aftrap' : 'Begin'}</span><input type="time" id="f-start" value="${esc(d.start)}"></label>
+    <label class="cell field"><span class="fl">Einde</span><input type="time" id="f-end" value="${esc(d.end)}"></label>`}</div>`,
+    once ? '' : `${d.perDay && d.days.length > 1 ? 'Elke dag zijn eigen begin- en eindtijd. ' : ''}Deze week is week ${A.isoWeek(A.today())} (${A.isoWeek(A.today()) % 2 ? 'oneven' : 'even'}). Vanaf en tot en met mag leeg; bij een schoolrooster bijvoorbeeld het schooljaar.`);
   h += sec('Notitie', `<div class="grp"><div class="cell"><textarea class="ta" id="f-notes" placeholder="${d.kind === 'match' ? 'bijv. tenue, wie rijdt, wie wast' : 'bijv. sporttas mee'}">${esc(d.notes)}</textarea></div></div>`);
   return h + '</main>';
 }
@@ -226,6 +229,8 @@ function readItemDraft() {
   const v = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
   const d = ui.draft;
   for (const [k, id] of [['title', 'f-title'], ['place', 'f-place'], ['date', 'f-date'], ['from', 'f-from'], ['until', 'f-until'], ['meet', 'f-meet'], ['start', 'f-start'], ['end', 'f-end'], ['notes', 'f-notes']]) { const x = v(id); if (x !== undefined) d[k] = x; }
+  d.dayTimes = { ...(d.dayTimes || {}) };
+  for (let n = 0; n < 7; n++) { const a = v(`f-ds-${n}`), b = v(`f-de-${n}`); if (a !== undefined) d.dayTimes[n] = { start: a, end: b || '' }; }
 }
 
 function vTasks() {
@@ -296,7 +301,7 @@ function go(view, extra) { Object.assign(ui, { view }, extra || {}); render(); w
 function onScroll() { const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
 addEventListener('scroll', onScroll, { passive: true });
 
-const newItem = () => ({ mode: 'weekly', kind: 'sport', title: '', place: '', notes: '', person_ids: ui.pid ? [ui.pid] : data.people.length === 1 ? [data.people[0].id] : [], start: '', end: '', meet: '', date: ui.day, days: [A.dow(ui.day)], weeks: '', from: '', until: '', skip: [] });
+const newItem = () => ({ perDay: false, dayTimes: {}, mode: 'weekly', kind: 'sport', title: '', place: '', notes: '', person_ids: ui.pid ? [ui.pid] : data.people.length === 1 ? [data.people[0].id] : [], start: '', end: '', meet: '', date: ui.day, days: [A.dow(ui.day)], weeks: '', from: '', until: '', skip: [] });
 const toggle = (list, v) => list.includes(v) ? list.filter(x => x !== v) : [...list, v];
 
 document.addEventListener('click', ev => {
@@ -310,13 +315,19 @@ document.addEventListener('click', ev => {
     case 'today': ui.day = A.today(); render(); break;
     case 'item': go('item', { id: el.dataset.id, itemDay: el.dataset.day, from: v }); break;
     case 'new': go('edit', { id: null, draft: newItem(), back: v }); break;
-    case 'edit': { const it = data.items.find(x => x.id === ui.id); go('edit', { draft: { ...it, mode: it.date ? 'once' : 'weekly', date: it.date || ui.itemDay, days: it.days.length ? it.days : [A.dow(ui.itemDay || A.today())], from: it.from || '', until: it.until || '' }, back: 'item' }); break; }
+    case 'edit': { const it = data.items.find(x => x.id === ui.id); go('edit', { draft: { ...it, mode: it.date ? 'once' : 'weekly', date: it.date || ui.itemDay, days: it.days.length ? it.days : [A.dow(ui.itemDay || A.today())], from: it.from || '', until: it.until || '', perDay: A.hasDayTimes(it), dayTimes: { ...(it.dayTimes || {}) } }, back: 'item' }); break; }
     case 'cancel': go(v === 'task' ? (ui.back || 'day') : v === 'edit' ? (ui.back || 'day') : 'day', { draft: null }); break;
     case 'kind': ui.draft.kind = el.dataset.v; if (el.dataset.v === 'match' && ui.back !== 'item') ui.draft.mode = 'once'; render(); break;
     case 'mode': ui.draft.mode = el.dataset.v; render(); break;
     case 'who': ui.draft.person_ids = toggle(ui.draft.person_ids, el.dataset.id); render(); break;
     case 'wday': ui.draft.days = toggle(ui.draft.days, +el.dataset.d); render(); break;
     case 'weeks': ui.draft.weeks = el.dataset.v; render(); break;
+    case 'perday': {
+      const d = ui.draft; d.perDay = el.dataset.v === 'perday';
+      if (d.perDay) for (const n of d.days) { const x = (d.dayTimes || {})[n]; if (!x || (!x.start && !x.end)) d.dayTimes = { ...d.dayTimes, [n]: { start: d.start || '', end: d.end || '' } }; }
+      else { const f = A.WEEK_ORDER.find(n => d.days.includes(n) && (d.dayTimes || {})[n]); if (f !== undefined && !d.start) { d.start = d.dayTimes[f].start; d.end = d.dayTimes[f].end; } }
+      render(); break;
+    }
     case 'saveitem': run(el, async () => {
       const d = ui.draft, c = A.cleanItem({ ...d, date: d.mode === 'once' ? d.date : null, days: d.mode === 'once' ? [] : d.days });
       const id = await saveItem(c, ui.id && ui.back === 'item' ? ui.id : null);

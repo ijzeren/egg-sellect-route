@@ -168,23 +168,24 @@ De Assistent ziet alleen het recept en het bestand, niet wie het plaatste of bij
 De Assistent ziet alleen het recept, niet wie het plaatste of bij welk gezin het hoort.</p>`,
   },
   {
-    slug: 'agenda', app: 'agenda', title: 'De agenda van het gezin', updated: '2026-11-22', version: '3.5.0',
+    slug: 'agenda', app: 'agenda', title: 'De agenda van het gezin', updated: '2026-11-22', version: '3.15.0',
     body: `<p>In <b>Agenda</b> staat wat de kinderen (en wie je er verder in zet) per dag doen: school, trainingen, wedstrijden en andere afspraken.</p>
 <ol><li>Zet eerst de <b>personen</b> erin: Agenda → Personen. Geef iedereen een eigen kleur.
 Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het gezin, koppel dat dan: de agenda opent voor hem of haar meteen op de eigen planning.</li>
 <li>Tik op <b>+</b> voor een afspraak. Kies de soort (les, school, training, wedstrijd, anders), voor wie, en <b>Elke week</b> (op welke dagen) of <b>Eén keer</b> (datum).</li>
 <li>Bij een <b>wedstrijd</b> vul je ook de verzameltijd in; die staat dan bovenaan bij de dag. Een adres opent in Kaarten.</li></ol>
+<p><b>Niet elke dag op dezelfde tijd?</b> Kies bij <b>Elke week</b> de dagen en tik op <b>Tijd per dag</b>. Dan geef je elke dag een eigen begin- en eindtijd, bijvoorbeeld zwemmen op maandag om 16:00 en op woensdag om 18:30. Wat je al had ingevuld, staat er dan bij elke dag alvast in.</p>
 <p><b>Gaat een training een keer niet door?</b> Open de afspraak op die dag en tik op <b>Gaat … niet door</b>. Alleen die dag vervalt; de weken erna blijven staan.</p>
 <p>Bovenaan kies je <b>Iedereen</b> of één persoon. Met ‹ en › blader je door de dagen; <b>Weekoverzicht</b> toont de hele week.</p>
 <p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
   },
   {
-    slug: 'agenda-andere-apps', app: 'agenda', title: 'Eierronde, leveringen en trainingen in de agenda', updated: '2026-11-22', version: '3.13.0',
+    slug: 'agenda-andere-apps', app: 'agenda', title: 'Eierronde, leveringen en trainingen in de agenda', updated: '2026-11-22', version: '3.15.0',
     body: `<p>De agenda haalt ook afspraken uit de andere apps. Die zet je niet zelf in de agenda: ze komen vanzelf mee en kloppen altijd met de app waar ze vandaan komen. Tik erop om die app te openen.</p>
 <ul><li><b>🥚 Eierronde</b>: op elke loopdag van Egg-sellent, vanaf de starttijd tot 21:00. Valt een loopdag uit (afwezig), dan staat er "gaat niet door".
 Starttijd en lopers stel je in bij <b>Egg-sellent → Instellingen → Loopdagen</b> en <b>Lopers</b> (de gezinsbeheerder).</li>
 <li><b>📦 Levering eieren</b>: op de leverdatum, met het aantal besteld of geleverd. Ook in de agenda van de lopers.</li>
-<li><b>🧘 Trainingen</b>: op je trainingsdagen, in de agenda van iedereen die meedoet. Vul in Training bij <b>Trainingsdagen</b> een starttijd in; dan staat er ook hoe laat en tot wanneer.</li></ul>
+<li><b>🧘 Trainingen</b>: op je trainingsdagen, in de agenda van iedereen die meedoet. Vul in Training bij <b>Trainingsdagen</b> per dag een starttijd in; dan staat er ook hoe laat en tot wanneer. Elke dag kan een andere tijd hebben; de eerste tijd die je invult, komt alvast bij de dagen die nog leeg zijn.</li></ul>
 <p>Je ziet deze afspraken in je eigen agenda als je persoon in de Agenda gekoppeld is aan je account (Agenda → Personen). Wie Egg-sellent of Training niet mag gebruiken, ziet die afspraken niet.</p>`,
   },
   {

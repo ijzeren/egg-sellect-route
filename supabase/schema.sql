@@ -907,6 +907,10 @@ create table if not exists public.agenda_items (
   check (on_date is not null or cardinality(days) > 0)
 );
 create index if not exists agenda_items_team on public.agenda_items(team_id);
+-- v3.15: elke week, maar niet elke dag op dezelfde tijd: { "1": { "start": "08:30", "end": "09:20" }, … } (leeg = start/end_time voor alle dagen)
+alter table public.agenda_items add column if not exists day_times jsonb not null default '{}'::jsonb;
+alter table public.agenda_items drop constraint if exists agenda_items_day_times_object;
+alter table public.agenda_items add constraint agenda_items_day_times_object check (jsonb_typeof(day_times) = 'object');
 create table if not exists public.agenda_tasks (
   id uuid primary key default gen_random_uuid(),
   team_id uuid not null references public.teams(id) on delete cascade,
