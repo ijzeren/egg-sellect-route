@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.12.2', date: '2026-11-22', title: 'Geen inzoomen meer',
+    notes: [
+      { app: 'hub', text: 'De app zoomt niet meer in of uit, ook niet bij dubbeltikken, knijpen met twee vingers of tikken in een invoerveld. De lettergrootte uit de instellingen van je iPhone blijft gewoon werken.' },
+    ],
+  },
+  {
     version: '3.12.1', date: '2026-11-22', title: 'Eieren: leveringen onderweg in beeld',
     notes: [
       { app: 'eggs', text: 'Planning → Voorraad toont nu elke levering die nog onderweg is: datum, aantal en over hoeveel dagen. Tik erop om hem te wijzigen.', kb: 'eggs-besteladvies' },

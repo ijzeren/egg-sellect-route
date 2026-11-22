@@ -1,11 +1,11 @@
 // Service worker van de familie-app (hub + alle apps eronder): offline werken en updates.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in eggs/index.html als Egg-sellent verandert).
 // Nieuw bestand toegevoegd? Zet het in ASSETS, anders werkt het niet offline.
-const VERSION = '3.12.1';
+const VERSION = '3.12.2';
 const CACHE = 'familie-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png',
-  './shared/theme.css', './shared/ui.css', './shared/family.js', './shared/apps.js', './shared/releases.js', './shared/kb.js', './hub/app.js',
+  './shared/theme.css', './shared/ui.css', './shared/nozoom.js', './shared/family.js', './shared/apps.js', './shared/releases.js', './shared/kb.js', './hub/app.js',
   './eggs/', './eggs/index.html',
   './training/', './training/index.html', './training/training.css', './training/app.js', './training/program.js',
   './training/programs.js', './training/sports/pilates/index.js', './training/sports/pilates/data.js', './training/sports/biocircuit/index.js',

@@ -34,3 +34,13 @@ test('geen vaste breedtes van 320 px of meer, geen 100vw', () => {
     assert.doesNotMatch(s, /\b100vw\b/, `${f}: 100vw`);
   }
 });
+
+test('nooit zoomen: elke pagina met maximum-scale=1 en shared/nozoom.js', () => {
+  for (const p of ['index.html', 'eggs/index.html', 'training/index.html', 'recipes/index.html', 'agenda/index.html']) {
+    const s = read(p);
+    assert.match(s, /name="viewport" content="[^"]*maximum-scale=1[^"]*"/, `${p}: maximum-scale=1`);
+    assert.match(s, /shared\/nozoom\.js/, `${p}: nozoom.js`);
+  }
+  assert.match(read('sw.js'), /shared\/nozoom\.js/, 'nozoom.js in ASSETS (offline)');
+});
+
