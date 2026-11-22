@@ -1056,3 +1056,214 @@ begin
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
 end $$;
+
+-- ---------- Integraties: agendalinks (Thuis, v3.16) ----------
+-- Gegevens van buiten de app binnenhalen. Eerst: agendalinks (iCal), bijv. het rooster uit Magister, per persoon in de
+-- Agenda; iedereen kan er meerdere opgeven. Ophalen gebeurt op de server: Edge Function `integrations`, elk half uur via
+-- pg_cron (cron.sql) en met "Nu bijwerken" in de app.
+-- integrations          één regel per koppeling; config = niet-geheime instellingen (bij 'ical': person_id, kind)
+-- integration_secrets   de link zelf (werkt als een wachtwoord): NOOIT leesbaar vanuit de app, alleen voor de server
+-- integration_runs      logboek per keer ophalen: aantallen en een foutmelding, geen inhoud
+-- platform_integrations soorten koppelingen voor alle gezinnen aan/uit (hoofdbeheer), zoals platform_apps
+-- Afspraken uit een agendalink staan in agenda_items met integration_id + external_id en zijn niet los te wijzigen.
+create table if not exists public.platform_integrations (
+  type text primary key,
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id) on delete set null
+);
+alter table public.platform_integrations enable row level security;
+drop policy if exists platform_integrations_read on public.platform_integrations;
+create policy platform_integrations_read on public.platform_integrations for select to authenticated using (true);
+revoke all on public.platform_integrations from anon;
+grant select on public.platform_integrations to authenticated;
+revoke insert, update, delete on public.platform_integrations from authenticated;
+
+create table if not exists public.integrations (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  type text not null,
+  label text not null check (length(trim(label)) between 1 and 40),
+  enabled boolean not null default true,
+  config jsonb not null default '{}'::jsonb check (jsonb_typeof(config) = 'object'),
+  secret_hint text not null default '',
+  status text not null default 'new' check (status in ('new', 'ok', 'error')),
+  last_sync_at timestamptz,
+  last_error text not null default '',
+  last_count int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.integrations drop constraint if exists integrations_type_check;
+alter table public.integrations add constraint integrations_type_check check (type in ('ical'));
+create index if not exists integrations_team on public.integrations(team_id);
+alter table public.integrations enable row level security;
+-- Zien: leden van het gezin die de app mogen gebruiken waar de koppeling in uitkomt (agendalinks: Agenda). Wijzigen alleen via de functies hieronder.
+drop policy if exists integrations_read on public.integrations;
+create policy integrations_read on public.integrations for select to authenticated
+  using (public.is_member(team_id) and (type <> 'ical' or public.has_app(team_id, 'agenda')));
+revoke all on public.integrations from anon;
+grant select on public.integrations to authenticated;
+revoke insert, update, delete on public.integrations from authenticated;
+
+create table if not exists public.integration_secrets (
+  integration_id uuid primary key references public.integrations(id) on delete cascade,
+  secret text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.integration_secrets enable row level security;
+revoke all on public.integration_secrets from anon, authenticated;
+
+create table if not exists public.integration_runs (
+  id uuid primary key default gen_random_uuid(),
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  at timestamptz not null default now(),
+  ok boolean not null,
+  added int not null default 0,
+  changed int not null default 0,
+  removed int not null default 0,
+  skipped int not null default 0,
+  error text not null default ''
+);
+create index if not exists integration_runs_integration on public.integration_runs(integration_id, at desc);
+alter table public.integration_runs enable row level security;
+drop policy if exists integration_runs_read on public.integration_runs;
+create policy integration_runs_read on public.integration_runs for select to authenticated
+  using (exists (select 1 from public.integrations i where i.id = integration_id));
+revoke all on public.integration_runs from anon;
+grant select on public.integration_runs to authenticated;
+revoke insert, update, delete on public.integration_runs from authenticated;
+
+-- Herkomst van afspraken uit een agendalink. Verwijder je de koppeling, dan gaan zijn afspraken mee.
+alter table public.agenda_items add column if not exists integration_id uuid references public.integrations(id) on delete cascade;
+alter table public.agenda_items add column if not exists external_id text;
+create unique index if not exists agenda_items_external on public.agenda_items(integration_id, external_id);
+-- Gebruikers mogen afspraken uit een agendalink niet wijzigen of verwijderen, en zelf geen herkomst invullen.
+-- De server (service role, auth.uid() leeg) mag alles.
+create or replace function public.agenda_items_import_guard() returns trigger
+language plpgsql as $$
+begin
+  if auth.uid() is null then return coalesce(new, old); end if;
+  -- integration_save zet herkomst-afspraken om naar een andere persoon of soort
+  if coalesce(current_setting('app.integration_write', true), '') = 'on' then return coalesce(new, old); end if;
+  -- koppeling of gezin wordt verwijderd: de afspraken gaan mee (cascade)
+  if tg_op = 'DELETE' and old.integration_id is not null and not exists (select 1 from public.integrations i where i.id = old.integration_id) then return old; end if;
+  if tg_op = 'INSERT' then
+    if new.integration_id is not null or new.external_id is not null then raise exception 'Alleen een agendalink mag afspraken met herkomst toevoegen'; end if;
+    return new;
+  end if;
+  if old.integration_id is not null then
+    raise exception 'Deze afspraak komt uit een agendalink. Wijzig hem in de agenda waar hij vandaan komt.';
+  end if;
+  if tg_op = 'UPDATE' and (new.integration_id is not null or new.external_id is not null) then
+    raise exception 'Alleen een agendalink mag afspraken met herkomst toevoegen';
+  end if;
+  return coalesce(new, old);
+end $$;
+drop trigger if exists agenda_items_import_guard on public.agenda_items;
+create trigger agenda_items_import_guard before insert or update or delete on public.agenda_items for each row execute function public.agenda_items_import_guard();
+
+-- Link opschonen (zelfde regels als cleanUrl in supabase/functions/integrations/ical.mjs): webcal:// → https://, alleen
+-- https, geen interne adressen. Lokaal testen met http: `alter database postgres set app.integrations_allow_http = 'on';`
+create or replace function public.integration_clean_url(p_url text) returns text
+language plpgsql immutable as $$
+declare u text := regexp_replace(trim(coalesce(p_url, '')), '^webcals?://', 'https://', 'i');
+  host text;
+  http_ok boolean := coalesce(current_setting('app.integrations_allow_http', true), '') = 'on';
+begin
+  if u !~* '^https://[^/\s]+' and not (http_ok and u ~* '^http://[^/\s]+') then
+    raise exception 'De link moet beginnen met https:// of webcal://.';
+  end if;
+  if length(u) > 2000 or u ~ '\s' then raise exception 'Dit is geen geldige link. Plak het hele adres.'; end if;
+  host := lower(substring(u from '^https?://(?:[^@/]*@)?([^/:?#]+)'));
+  if not http_ok and (host is null or host = 'localhost' or host like '%.localhost' or host ~ '^[0-9.]+$' or host like '%.internal' or host like '%.local' or host like '[%') then
+    raise exception 'Deze link kan de app niet ophalen.';
+  end if;
+  return u;
+end $$;
+
+-- Koppeling toevoegen of wijzigen. p_id leeg = nieuw. p_url leeg bij wijzigen = link blijft.
+-- Toevoegen: iedereen die de app gebruikt waar het in uitkomt. Wijzigen/verwijderen: wie hem maakte, of een gezinsbeheerder.
+create or replace function public.integration_save(p_id uuid, p_team uuid, p_type text, p_label text, p_config jsonb, p_url text, p_enabled boolean default true)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare r integrations; cfg jsonb := coalesce(p_config, '{}'::jsonb); u text; pid uuid; v_kind text;
+begin
+  if p_id is not null then
+    select * into r from integrations where id = p_id;
+    if r.id is null or not public.is_member(r.team_id) then raise exception 'Onbekende koppeling'; end if;
+    if r.user_id is distinct from auth.uid() and not public.is_admin(r.team_id) then raise exception 'Alleen wie de koppeling maakte, of een beheerder, kan hem wijzigen'; end if;
+    p_team := r.team_id; p_type := r.type;
+  else
+    if not public.is_member(p_team) then raise exception 'Je hoort niet bij dit gezin'; end if;
+  end if;
+  if p_type <> 'ical' then raise exception 'Onbekende soort koppeling'; end if;
+  if exists (select 1 from platform_integrations pi where pi.type = p_type and not pi.enabled) then raise exception 'Deze koppeling staat (tijdelijk) uit voor iedereen'; end if;
+  if not public.has_app(p_team, 'agenda') then raise exception 'Agenda staat niet aan voor jou'; end if;
+  -- agendalink: voor wie (persoon in de agenda) en wat voor afspraken (les of anders)
+  begin pid := (cfg->>'person_id')::uuid; exception when others then pid := null; end;
+  if pid is null or not exists (select 1 from agenda_people p where p.id = pid and p.team_id = p_team and not p.deleted) then raise exception 'Kies voor wie de agenda is'; end if;
+  v_kind := coalesce(nullif(cfg->>'kind', ''), 'lesson');
+  if v_kind not in ('lesson', 'school', 'sport', 'match', 'other') then v_kind := 'other'; end if;
+  cfg := jsonb_build_object('person_id', pid, 'kind', v_kind);
+  if p_id is null and coalesce(trim(p_url), '') = '' then raise exception 'Plak de link van de agenda'; end if;
+  if coalesce(trim(p_url), '') <> '' then u := public.integration_clean_url(p_url); end if;
+  if p_id is null then
+    insert into integrations(team_id, user_id, type, label, enabled, config) values (p_team, auth.uid(), p_type, left(trim(p_label), 40), coalesce(p_enabled, true), cfg) returning * into r;
+  else
+    update integrations set label = left(trim(p_label), 40), enabled = coalesce(p_enabled, enabled), config = cfg, updated_at = now(),
+      status = case when u is not null then 'new' else status end, last_error = case when u is not null then '' else last_error end
+      where id = p_id returning * into r;
+    -- andere persoon of soort: bij de volgende keer ophalen komt alles opnieuw goed; nu alvast de bestaande afspraken omzetten
+    perform set_config('app.integration_write', 'on', true);
+    update agenda_items set person_ids = array[pid], kind = v_kind where integration_id = r.id;
+    perform set_config('app.integration_write', '', true);
+  end if;
+  if u is not null then
+    insert into integration_secrets(integration_id, secret, updated_at) values (r.id, u, now())
+      on conflict (integration_id) do update set secret = excluded.secret, updated_at = now();
+    update integrations set secret_hint = lower(substring(u from '^https?://(?:[^@/]*@)?([^/:?#]+)')) || ' …' || right(u, 4) where id = r.id;
+  end if;
+  return r.id;
+end $$;
+
+create or replace function public.integration_delete(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare r integrations;
+begin
+  select * into r from integrations where id = p_id;
+  if r.id is null or not public.is_member(r.team_id) then raise exception 'Onbekende koppeling'; end if;
+  if r.user_id is distinct from auth.uid() and not public.is_admin(r.team_id) then raise exception 'Alleen wie de koppeling maakte, of een beheerder, kan hem verwijderen'; end if;
+  delete from integrations where id = p_id; -- afspraken, link en logboek gaan mee
+end $$;
+
+-- Hoofdbeheer: soorten koppelingen voor iedereen aan/uit, en per soort alleen aantallen (geen gezinnen, geen inhoud).
+create or replace function public.platform_set_integration(p_type text, p_enabled boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  if p_type not in ('ical') then raise exception 'Onbekende soort koppeling'; end if;
+  insert into platform_integrations(type, enabled, updated_at, updated_by) values (p_type, p_enabled, now(), auth.uid())
+    on conflict (type) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
+end $$;
+create or replace function public.platform_integration_stats()
+returns table(type text, enabled boolean, total int, active int, failing int, last_sync_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
+  return query select t.type, coalesce(pi.enabled, true),
+    (select count(*)::int from integrations i where i.type = t.type),
+    (select count(*)::int from integrations i where i.type = t.type and i.enabled),
+    (select count(*)::int from integrations i where i.type = t.type and i.enabled and i.status = 'error'),
+    (select max(i.last_sync_at) from integrations i where i.type = t.type)
+    from (values ('ical')) as t(type) left join platform_integrations pi on pi.type = t.type;
+end $$;
+do $$
+declare f text;
+begin
+  foreach f in array array['integration_save(uuid, uuid, text, text, jsonb, text, boolean)', 'integration_delete(uuid)', 'platform_set_integration(text, boolean)', 'platform_integration_stats()'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;

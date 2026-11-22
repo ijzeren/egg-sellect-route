@@ -309,10 +309,12 @@ function vCurate() {
 // Alleen voor de hoofdbeheerder (platform_roles = admin). Bewust geen inzage in gezinnen: alleen namen van
 // gezinnen, aantallen en welke apps aan staan; acties zijn aan/uit en verwijderen.
 async function loadAdmin() {
-  const [families, roles] = await Promise.all([F.api('/rest/v1/rpc/platform_families', { method: 'POST', body: {} }), F.api('/rest/v1/rpc/platform_role_list', { method: 'POST', body: {} })]);
-  help.admin = { families: families || [], roles: roles || [] };
+  const [families, roles, integrations] = await Promise.all([F.api('/rest/v1/rpc/platform_families', { method: 'POST', body: {} }), F.api('/rest/v1/rpc/platform_role_list', { method: 'POST', body: {} }),
+    F.api('/rest/v1/rpc/platform_integration_stats', { method: 'POST', body: {} }).catch(() => [])]);
+  help.admin = { families: families || [], roles: roles || [], integrations: integrations || [] };
 }
 const ROLE_PLATFORM = { admin: 'Hoofdbeheerder', runner: 'Assistent' };
+const INTEGRATION_NAMES = { ical: ['📅', 'Agendalinks (iCal)', 'Rooster uit Magister en andere agenda\'s in Agenda'] };
 function vAdmin() {
   if (!help.platformAdmin) return vHome();
   let h = nav(back('home', 'Apps'), 'Beheer') + '<main>' + lt('Beheer', 'Alles buiten de gezinnen');
@@ -322,6 +324,8 @@ function vAdmin() {
   h += sec('Veelgestelde vragen', grp(`<button class="cell" data-a="go" data-v="curate"><span class="tx"><span class="tt">FAQ beheren</span><span class="st">Goedgekeurde antwoorden uit gezinnen opnemen</span></span><span class="tr">${help.candidates && help.candidates.length ? help.candidates.length + ' nieuw' : ''}</span>${CHEV}</button>`));
   if (!help.admin) return h + '<p class="sec-f">Laden…</p></main>';
   const fams = help.admin.families;
+  if (help.admin.integrations.length) h += sec('Koppelingen voor alle gezinnen', grp(help.admin.integrations.map(x => { const n = INTEGRATION_NAMES[x.type] || ['🔗', x.type, '']; return `<div class="cell"><span class="ico" aria-hidden="true">${n[0]}</span><span class="tx"><span class="tt">${esc(n[1])}</span><span class="st">${x.enabled ? `${x.active} actief${x.failing ? ` · ${x.failing} met een fout` : ''}${x.last_sync_at ? ` · laatst ${fmtDate(x.last_sync_at)}` : ''}` : 'Uit voor iedereen'}</span></span>${toggle(x.enabled, 'platformintegration', `data-type="${esc(x.type)}"`, n[1])}</div>`; }).join('')),
+    'Alleen aantallen, geen links of afspraken. Uitzetten stopt het ophalen voor alle gezinnen; er wordt niets verwijderd.');
   h += sec(`Gezinnen (${fams.length})`, grp(fams.map(f => `<button class="cell" data-a="adminfamily" data-id="${esc(f.team_id)}"><span class="tx"><span class="tt">${esc(f.name)}${f.disabled_at ? '<span class="pill">Uit</span>' : ''}</span><span class="st">${f.members} ${f.members === 1 ? 'lid' : 'leden'} · ${f.apps.length ? f.apps.map(a => esc(appName(a))).join(', ') : 'geen apps'} · sinds ${fmtDate(f.created_at).replace(/ \d\d:\d\d$/, '')}</span></span>${CHEV}</button>`).join('') || '<div class="cell"><span class="st">Nog geen gezinnen.</span></div>'));
   h += sec('Hoofdbeheerders en Assistent', grp(help.admin.roles.map(r => `<div class="cell"><span class="tx"><span class="tt">${esc(r.email)}</span><span class="st">${ROLE_PLATFORM[r.role] || r.role}</span></span><button class="link" style="color:var(--red)" data-a="roleremove" data-id="${esc(r.user_id)}" data-role="${r.role}">Verwijder</button></div>`).join('')
     + `<label class="cell field"><span class="fl">E-mail</span><input type="email" id="roleEmail" autocapitalize="off" placeholder="naam@voorbeeld.nl"></label>
@@ -479,6 +483,12 @@ document.addEventListener('click', ev => {
       run(el, async () => { await F.api('/rest/v1/rpc/platform_set_app', { method: 'POST', body: { p_app: app, p_enabled: on } }); await loadPlatformApps(); await F.refreshFamilies().catch(() => {}); render(); });
       break;
     }
+    case 'platformintegration': {
+      const type = el.dataset.type, x = help.admin.integrations.find(i => i.type === type), on = !x.enabled;
+      if (!on && !confirm('Deze koppeling uitzetten voor alle gezinnen? Het ophalen stopt; er wordt niets verwijderd.')) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/platform_set_integration', { method: 'POST', body: { p_type: type, p_enabled: on } }); await loadAdmin(); render(); });
+      break;
+    }
     case 'adminfamily': ui.familyId = el.dataset.id; go('adminfamily'); break;
     case 'familyon': {
       const f = help.admin.families.find(x => x.team_id === el.dataset.id), off = !f.disabled_at;
@@ -528,10 +538,12 @@ document.addEventListener('keydown', ev => {
 });
 
 /* ---------- start ---------- */
-// ?login (vanuit een app die een login nodig heeft) opent direct het inlogscherm; ?view=family het gezinsscherm.
+// ?login (vanuit een app die een login nodig heeft) opent direct het inlogscherm; ?view=family het gezinsscherm; ?article=<slug> een artikel.
 const q = new URLSearchParams(location.search);
 if (q.has('login')) { ui.view = account() ? (account().teamId ? 'home' : 'onboard') : 'login'; history.replaceState(null, '', location.pathname); }
 if (q.get('view') === 'family') { ui.view = 'family'; history.replaceState(null, '', location.pathname); }
+// ?article=<slug>: een kennisbankartikel openen vanuit een app (bijv. Agenda → agendalinks)
+if (q.get('article') && kbBySlug(q.get('article'))) { ui.slug = q.get('article'); ui.view = 'article'; history.replaceState(null, '', location.pathname); }
 render();
 F.loginFromLink().then(ok => { if (ok) { go(account().teamId ? 'home' : 'onboard'); refresh(); } }).catch(e => toast(e.message, 'err'));
 refresh();

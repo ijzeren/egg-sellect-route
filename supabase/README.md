@@ -321,3 +321,24 @@ Dit staat ook in [`schema.sql`](schema.sql) (opnieuw uitvoeren mag ook). Bestaan
 op elke dag, zoals voorheen. De starttijd per trainingsdag zit in de voortgang van Training (`settings.times`, geen
 schemawijziging); een oude enkele tijd wordt vanzelf de tijd van elke trainingsdag.
 Controle: `select count(*) from agenda_items where day_times <> '{}';` → 0.
+
+## Update naar agendalinks (v3.16.0)
+Doe dit **vóór** je v3.16.0 pusht, in deze volgorde:
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit (bevat ook de stap van 3.15.0). Nieuw:
+   `platform_integrations`, `integrations`, `integration_secrets` (de links; alleen voor de server),
+   `integration_runs`, op `agenda_items` de kolommen `integration_id` en `external_id`, en de functies
+   `integration_save`, `integration_delete`, `platform_set_integration`, `platform_integration_stats`.
+   Controle: `select count(*) from integrations;` → 0.
+2. **Functie deployen**:
+   ```bash
+   npx supabase functions deploy integrations --project-ref istqegonfkfrkyddfajd --no-verify-jwt
+   ```
+   Geen eigen geheimen nodig (SUPABASE_URL en de sleutels levert Supabase zelf).
+3. **Tijdschema**: voer [`cron.sql`](cron.sql) opnieuw uit (maakt ook de job `thuis-integrations`, elke 30 minuten).
+   Controle: `select jobname, schedule from cron.job;` → `egg-sellent-push` en `thuis-integrations`.
+
+Lokaal getest met een eigen testagenda (http): `npx supabase functions serve integrations --no-verify-jwt --env-file <bestand>`
+met `INTEGRATIONS_ALLOW_HTTP=1` in dat bestand, en in de lokale database (als `supabase_admin`):
+`alter database postgres set app.integrations_allow_http = 'on';`. **Nooit in productie**: daar zijn alleen https-links
+toegestaan. De link van een agenda komt nooit terug in de app, in foutmeldingen of in het logboek.

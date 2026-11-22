@@ -3,6 +3,8 @@
 //   - gegevens per gezin in Supabase (agenda_people, agenda_items, agenda_tasks); kopie op de telefoon om offline te lezen
 //   - wijzigen kan alleen met verbinding
 //   - logica (wat is er op welke dag, rooster plakken): plan.js
+//   - agendalinks (iCal, bijv. Magister): per persoon één of meer links; de server haalt ze op (Edge Function
+//     `integrations`), de afspraken staan in agenda_items met integration_id en zijn hier alleen te lezen
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as A from './plan.js';
 import { PROGRAMS } from '../training/programs.js';
@@ -26,7 +28,7 @@ const toRow = c => ({ kind: c.kind, title: c.title, place: c.place, notes: c.not
   on_date: c.date, days: c.days, valid_from: c.from, valid_until: c.until, weeks: c.weeks, skip: c.skip, day_times: c.dayTimes || {} });
 
 // data = { people, items (plan-vorm), tasks, members, at }
-let data = (FAMILY && storage.get(APP, DKEY)) || { people: [], items: [], tasks: [], members: [], ext: [], at: null };
+let data = (FAMILY && storage.get(APP, DKEY)) || { people: [], items: [], tasks: [], members: [], ext: [], links: [], at: null };
 // eigen afspraken + afgeleide afspraken uit Egg-sellent en Training (A.externalItems)
 const allItems = () => data.items.concat(data.ext || []);
 const mePerson = () => data.people.find(p => p.user_id && me && p.user_id === me.userId);
@@ -36,6 +38,8 @@ let loading = false, offline = false;
 
 const person = id => data.people.find(p => p.id === id);
 const dots = ids => (ids || []).map(person).filter(Boolean).map(p => `<span class="dot" style="background:${esc(p.color)}" title="${esc(p.name)}"></span>`).join('');
+const link = id => (data.links || []).find(l => l.id === id);
+const linkLabel = id => (link(id) || {}).label || 'agendalink';
 const names = ids => (ids || []).map(person).filter(Boolean).map(p => esc(p.name)).join(', ');
 
 /* ---------- server ---------- */
@@ -44,7 +48,7 @@ async function load() {
   loading = true;
   try {
     const soft = p => p.catch(() => null); // geen toegang tot een andere app: die afspraken overslaan
-    const [people, items, tasks, members, team, apps, memberApps, absences, deliveries, tracks] = await Promise.all([
+    const [people, items, tasks, members, team, apps, memberApps, absences, deliveries, tracks, links] = await Promise.all([
       api(`/rest/v1/agenda_people?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`),
       api(`/rest/v1/agenda_items?team_id=eq.${FAMILY}&deleted=is.false&select=*`),
       // open huiswerk, en afgevinkt huiswerk van de laatste twee weken
@@ -56,6 +60,7 @@ async function load() {
       soft(api(`/rest/v1/absences?team_id=eq.${FAMILY}&deleted=is.false&select=date`)),
       soft(api(`/rest/v1/stock_events?team_id=eq.${FAMILY}&kind=eq.delivery&deleted=is.false&select=id,kind,date,ordered,delivered,broken,deleted`)),
       soft(api(`/rest/v1/training_tracks?team_id=eq.${FAMILY}&deleted=is.false&select=id,program,participants,data,deleted`)),
+      soft(api(`/rest/v1/integrations?team_id=eq.${FAMILY}&type=eq.ical&select=id,user_id,label,enabled,config,secret_hint,status,last_sync_at,last_error,last_count&order=created_at`)),
     ]);
     const ppl = people || [], mem = members || [];
     const eggApp = (apps || []).find(a => a.app === 'eggs'), es = (eggApp && eggApp.settings) || {};
@@ -66,7 +71,7 @@ async function load() {
     const walkers = Array.isArray(es.walkers) && es.walkers.length ? es.walkers : mem.filter(access).map(u => u.user_id);
     const ext = A.externalItems({ eggs, walkDays: eggs ? team[0].walk_days || [] : [], walkStart: es.walkStart || {}, walkers,
       absences: (absences || []).map(a => a.date), deliveries: deliveries || [], tracks: tracks || [], programs: PROGRAMS, people: ppl });
-    data = { people: ppl, items: (items || []).map(fromRow), tasks: tasks || [], members: mem, ext, at: new Date().toISOString() };
+    data = { people: ppl, items: (items || []).map(fromRow), tasks: tasks || [], members: mem, ext, links: links || data.links || [], at: new Date().toISOString() };
     if (ui.pid && !person(ui.pid)) ui.pid = '';
     if (ui.pid === null && mePerson()) ui.pid = mePerson().id;
     storage.set(APP, DKEY, data);
@@ -75,7 +80,7 @@ async function load() {
     offline = e instanceof TypeError || !navigator.onLine;
     if (!offline) toast(e.message, 'err');
   } finally { loading = false; }
-  if (!['edit', 'task', 'timetable', 'people'].includes(ui.view)) render();
+  if (!['edit', 'task', 'timetable', 'people', 'link'].includes(ui.view)) render();
 }
 const persist = () => storage.set(APP, DKEY, data);
 const need = () => { if (!navigator.onLine) throw new Error('Geen verbinding. Probeer het straks opnieuw.'); };
@@ -142,7 +147,7 @@ const chips = () => data.people.length > 1 ? `<div class="chips" role="group" ar
 function itemCell(it, d) {
   const k = A.kindOf(it.kind), icon = it.icon || k[2], time = it.meet ? `<b>${it.meet}</b><span>verzamelen</span>` : it.start ? `<b>${it.start}</b>${it.end ? `<span>${it.end}</span>` : ''}` : '<b>–</b>';
   const skipped = !it.date && (it.skip || []).includes(d);
-  const inner = `<span class="tm">${time}</span><span class="tx"><span class="tt">${icon} ${esc(it.title)}${skipped ? ' · gaat niet door' : ''}</span><span class="st">${dots(it.person_ids)} ${[it.meet && it.start ? `aftrap ${it.start}` : '', esc(it.place), it.ext ? (it.ext.app === 'eggs' ? 'uit Egg-sellent' : 'uit Training') : ''].filter(Boolean).join(' · ')}</span></span>${ICON_CHEV}`;
+  const inner = `<span class="tm">${time}</span><span class="tx"><span class="tt">${icon} ${esc(it.title)}${skipped ? ' · gaat niet door' : ''}</span><span class="st">${dots(it.person_ids)} ${[it.meet && it.start ? `aftrap ${it.start}` : '', esc(it.place), it.ext ? (it.ext.app === 'eggs' ? 'uit Egg-sellent' : 'uit Training') : it.integration_id ? `uit ${esc(linkLabel(it.integration_id))}` : ''].filter(Boolean).join(' · ')}</span></span>${ICON_CHEV}`;
   if (it.ext) return `<a class="cell item${skipped ? ' skipped' : ''}" href="${esc(it.ext.href)}" style="text-decoration:none;color:inherit">${inner}</a>`;
   return `<button class="cell item${skipped ? ' skipped' : ''}" data-a="item" data-id="${esc(it.id)}" data-day="${d}">${inner}</button>`;
 }
@@ -170,6 +175,7 @@ function vDay() {
     ${open.length > soon.length || data.tasks.some(x => x.done) ? `<button class="cell" data-a="go" data-v="tasks"><span class="tx"><span class="tt">Al het huiswerk</span></span><span class="tr">${open.length} open</span>${ICON_CHEV}</button>` : ''}</div>`);
   h += sec('', `<div class="grp"><button class="cell" data-a="go" data-v="week"><span class="tx"><span class="tt">Weekoverzicht</span></span>${ICON_CHEV}</button>
     <button class="cell" data-a="timetable"><span class="tx"><span class="tt">Schoolrooster invoeren</span></span>${ICON_CHEV}</button>
+    <button class="cell" data-a="go" data-v="links"><span class="tx"><span class="tt">Agendalinks</span><span class="st">Rooster uit Magister of een andere agenda</span></span>${(data.links || []).some(l => l.enabled && l.status === 'error') ? '<span class="tr late">⚠︎</span>' : (data.links || []).length ? `<span class="tr">${data.links.length}</span>` : ''}${ICON_CHEV}</button>
     <button class="cell" data-a="go" data-v="people"><span class="tx"><span class="tt">Personen</span></span><span class="tr">${data.people.map(p => `<span class="dot" style="background:${esc(p.color)}"></span>`).join('')}</span>${ICON_CHEV}</button></div>`,
     offline ? 'Geen verbinding: je ziet de laatst opgehaalde agenda.' : '');
   return h + '</main>';
@@ -191,13 +197,20 @@ function vItem() {
   const it = data.items.find(x => x.id === ui.id); if (!it) return vDay();
   const k = A.kindOf(it.kind), d = ui.itemDay, skipped = (it.skip || []).includes(d), tt = A.timesOn(it, d || A.today());
   const when = it.date ? longDate(it.date) : `Elke ${A.WEEK_ORDER.filter(n => it.days.includes(n)).map(n => A.DAYNAMES[n]).join(', ')}${it.weeks ? ` (${it.weeks === 'odd' ? 'oneven' : 'even'} weken)` : ''}${it.from || it.until ? ` · ${it.from ? 'vanaf ' + A.fmtShort(it.from) : ''}${it.until ? ' t/m ' + A.fmtShort(it.until) : ''}` : ''}`;
-  let h = navBar(backTo(ui.from || 'day', ui.from === 'week' ? 'Week' : 'Agenda'), '', '<button class="nb" data-a="edit">Wijzig</button>') + '<main>' + lt(`${k[2]} ${esc(it.title)}`, k[1]);
+  const imported = !!it.integration_id;
+  let h = navBar(backTo(ui.from || 'day', ui.from === 'week' ? 'Week' : 'Agenda'), '', imported ? '' : '<button class="nb" data-a="edit">Wijzig</button>') + '<main>' + lt(`${k[2]} ${esc(it.title)}`, k[1]);
   h += `<div class="grp">
     <div class="cell"><span class="tx"><span class="tt">${esc(when)}</span><span class="st">${[it.meet ? `verzamelen ${it.meet}` : '', tt.start ? `${it.kind === 'match' ? 'aftrap ' : ''}${tt.start}${tt.end ? ' – ' + tt.end : ''}` : ''].filter(Boolean).join(' · ') || 'Hele dag'}</span></span></div>
     ${A.hasDayTimes(it) ? `<div class="cell"><span class="tx"><span class="tt">Tijd per dag</span><span class="st">${A.WEEK_ORDER.filter(n => it.days.includes(n)).map(n => { const x = A.timesOn(it, A.addDays(A.weekStart(A.today()), (n + 6) % 7)); return `${A.DSH[n]} ${x.start || '–'}${x.end ? '–' + x.end : ''}`; }).join(' · ')}</span></span></div>` : ''}
     <div class="cell"><span class="tx"><span class="tt">${dots(it.person_ids)} ${names(it.person_ids)}</span></span></div>
     ${it.place ? `<a class="cell" href="https://maps.apple.com/?q=${encodeURIComponent(it.place)}" target="_blank" rel="noopener"><span class="tx"><span class="tt">${esc(it.place)}</span><span class="st">Open in Kaarten</span></span>${ICON_CHEV}</a>` : ''}
     ${it.notes ? `<div class="cell"><span class="tx"><span class="tt" style="white-space:pre-wrap">${esc(it.notes)}</span></span></div>` : ''}</div>`;
+  if (imported) {
+    const l = link(it.integration_id);
+    h += sec('', `<div class="grp">${l ? `<button class="cell" data-a="link" data-id="${esc(l.id)}"><span class="tx"><span class="tt">Uit de agendalink ${esc(l.label)}</span><span class="st">${esc(linkStatus(l))}</span></span>${ICON_CHEV}</button>` : '<div class="cell"><span class="tx muted">Uit een agendalink</span></div>'}</div>`,
+      'Deze afspraak komt uit een agendalink en is hier niet te wijzigen. Pas hem aan in de agenda waar hij vandaan komt (bijv. Magister); de app werkt hem elk half uur bij.');
+    return h + '</main>';
+  }
   if (!it.date && d) h += `<div class="sec"><button class="btn sec" data-a="${skipped ? 'unskip' : 'skip'}">${skipped ? `Gaat ${longDate(d)} toch door` : `Gaat ${longDate(d)} niet door`}</button><p class="sec-f">Bijvoorbeeld als de training uitvalt of het vakantie is. Alleen deze ene keer.</p></div>`;
   h += `<div style="margin-top:18px"><button class="btn danger" data-a="delitem">Afspraak verwijderen</button></div>`;
   return h + '</main>';
@@ -291,7 +304,57 @@ function vTimetable() {
 }
 function readTt() { const d = ui.draft; for (const [k, id] of [['text', 'tt-text'], ['from', 'tt-from'], ['until', 'tt-until']]) { const el = document.getElementById(id); if (el) d[k] = el.value; } }
 
-const VIEWS = { day: vDay, week: vWeek, item: vItem, edit: vEdit, tasks: vTasks, task: vTask, people: vPeople, timetable: vTimetable };
+/* ---------- agendalinks ---------- */
+const ago = iso => { if (!iso) return ''; const d = new Date(iso), t = new Date(); const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return A.ymd(d) === A.ymd(t) ? `vandaag ${hm}` : `${A.fmtShort(A.ymd(d))} ${hm}`; };
+function linkStatus(l) {
+  if (!l.enabled) return 'Staat uit';
+  if (l.status === 'error') return `⚠︎ ${l.last_error || 'Bijwerken lukte niet'}`;
+  if (l.status === 'new') return 'Wordt zo opgehaald';
+  return `${l.last_count} ${l.last_count === 1 ? 'afspraak' : 'afspraken'} · bijgewerkt ${ago(l.last_sync_at)}`;
+}
+const mayEdit = l => !l.id || l.user_id === me.userId || me.role === 'admin';
+const LINK_KINDS = [['lesson', 'Schoolrooster'], ['other', 'Andere agenda']];
+function vLinks() {
+  let h = navBar(backTo('day', 'Agenda'), 'Agendalinks', `<button class="nb" data-a="newlink" aria-label="Agendalink toevoegen" style="font-size:1.6rem;font-weight:300">+</button>`) + '<main>' + lt('Agendalinks', 'Rooster en agenda\'s automatisch in de agenda');
+  const links = data.links || [];
+  for (const p of data.people) {
+    const mine = links.filter(l => (l.config || {}).person_id === p.id);
+    if (!mine.length) continue;
+    h += sec(`<span class="dot" style="background:${esc(p.color)}"></span> ${esc(p.name)}`, `<div class="grp">${mine.map(l => `<button class="cell" data-a="link" data-id="${esc(l.id)}"><span class="tx"><span class="tt">${esc(l.label)}</span><span class="st${l.enabled && l.status === 'error' ? ' late' : ''}">${esc(linkStatus(l))}</span></span>${ICON_CHEV}</button>`).join('')}</div>`);
+  }
+  const orphan = links.filter(l => !person((l.config || {}).person_id));
+  if (orphan.length) h += sec('Zonder persoon', `<div class="grp">${orphan.map(l => `<button class="cell" data-a="link" data-id="${esc(l.id)}"><span class="tx"><span class="tt">${esc(l.label)}</span><span class="st late">De persoon staat niet meer in de agenda</span></span>${ICON_CHEV}</button>`).join('')}</div>`);
+  h += sec(links.length ? '' : 'Nog geen agendalinks', `<div class="grp"><button class="cell tint" data-a="newlink"><span class="tx"><span class="tt">Agendalink toevoegen</span></span></button>
+    <a class="cell" href="../?article=agendalinks" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">Waar vind ik de link?</span><span class="st">Uitleg voor Magister en andere agenda's</span></span>${ICON_CHEV}</a></div>`,
+    'Plak de agendalink (iCal) van bijvoorbeeld het rooster in Magister. De app haalt de afspraken elk half uur op en zet ze bij die persoon in de agenda. Iedereen kan meerdere links toevoegen.');
+  return h + '</main>';
+}
+function vLink() {
+  const d = ui.draft, l = d.id ? link(d.id) : null, can = mayEdit(d);
+  let h = navBar(`<button class="nb" data-a="go" data-v="links">${d.id ? ICON_BACK + '<span>Links</span>' : 'Annuleer'}</button>`, d.id ? '' : 'Agendalink', can ? `<button class="nb" data-a="savelink" style="font-weight:600">Bewaar</button>` : '') + '<main>';
+  if (d.id) h += lt(esc(d.label || 'Agendalink'), l ? esc(linkStatus(l)) : '');
+  if (!can) h += `<div class="card"><p class="muted">Alleen wie deze link toevoegde, of een beheerder van het gezin, kan hem wijzigen.</p></div>`;
+  h += sec('Voor wie', `<div class="chips wrap">${data.people.map(p => `<button data-a="linkwho" data-id="${esc(p.id)}" aria-pressed="${d.person_id === p.id}" ${can ? '' : 'disabled'}><span class="dot" style="background:${esc(p.color)}"></span>${esc(p.name)}</button>`).join('')}</div>`);
+  h += sec('Soort', `<div class="grp"><div class="cell stack">${seg(LINK_KINDS, d.kind, 'linkkind', can ? '' : 'disabled')}</div>
+    <label class="cell field"><span class="fl">Naam</span><input type="text" id="l-label" value="${esc(d.label)}" maxlength="40" placeholder="bijv. Magister" ${can ? '' : 'disabled'}></label></div>`,
+    d.kind === 'lesson' ? 'De afspraken komen als les in de agenda; het huiswerk kan dan de volgende les van een vak voorstellen.' : 'De afspraken komen als gewone afspraak in de agenda.');
+  h += sec('Link', `<div class="grp"><div class="cell"><textarea class="ta" id="l-url" placeholder="${d.id ? 'Plak hier een nieuwe link om de oude te vervangen' : 'https://… of webcal://…'}" style="min-height:4.5rem;overflow-wrap:anywhere" autocapitalize="off" autocorrect="off" spellcheck="false" ${can ? '' : 'disabled'}>${esc(d.url || '')}</textarea></div></div>`,
+    d.id && l && l.secret_hint ? `Ingesteld: ${esc(l.secret_hint)}. De link zelf is geheim: niemand in het gezin kan hem terugzien.` : 'De link werkt als een wachtwoord: de app bewaart hem veilig en laat hem aan niemand zien. <a href="../?article=agendalinks">Waar vind ik de link?</a>');
+  if (d.id && l) {
+    h += sec('', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">Aan</span><span class="st">Uit = niet meer bijwerken; de afspraken blijven staan</span></span><button class="toggle" role="switch" data-a="linkon" aria-checked="${!!d.enabled}" aria-label="Agendalink aan" ${can ? '' : 'disabled'}></button></div>
+      <button class="cell tint" data-a="synclink" ${l.enabled ? '' : 'disabled'}><span class="tx"><span class="tt">Nu bijwerken</span></span></button></div>`);
+    if (can) h += `<div style="margin-top:18px"><button class="btn danger" data-a="dellink">Agendalink verwijderen</button></div><p class="sec-f">Verwijderen haalt ook alle afspraken uit deze link uit de agenda.</p>`;
+  }
+  return h + '</main>';
+}
+function readLink() { const d = ui.draft; if (!d) return; const a = document.getElementById('l-label'), b = document.getElementById('l-url'); if (a) d.label = a.value; if (b) d.url = b.value; }
+async function syncLink(id) {
+  const r = await api('/functions/v1/integrations', { method: 'POST', body: { mode: 'sync', id } });
+  await load();
+  return r || {};
+}
+
+const VIEWS = { day: vDay, week: vWeek, item: vItem, edit: vEdit, tasks: vTasks, task: vTask, people: vPeople, timetable: vTimetable, links: vLinks, link: vLink };
 function render() {
   const g = gate(), a = $('#app');
   a.innerHTML = g ? navBar(hubLink()) + '<main>' + lt('Agenda') + `<div class="card"><p>${g}</p></div></main>` : (VIEWS[ui.view] || vDay)();
@@ -307,7 +370,7 @@ const toggle = (list, v) => list.includes(v) ? list.filter(x => x !== v) : [...l
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-a]'); if (!el || el.disabled) return;
   const a = el.dataset.a, v = ui.view;
-  if (v === 'edit') readItemDraft(); else if (v === 'task') readTaskDraft(); else if (v === 'timetable') readTt();
+  if (v === 'edit') readItemDraft(); else if (v === 'task') readTaskDraft(); else if (v === 'timetable') readTt(); else if (v === 'link') readLink();
   switch (a) {
     case 'go': go(el.dataset.v, { draft: null }); break;
     case 'pid': ui.pid = el.dataset.id; storage.set(APP, `${FAMILY}:pid`, ui.pid); render(); break;
@@ -363,6 +426,30 @@ document.addEventListener('click', ev => {
     }); break;
     case 'timetable': go('timetable', { draft: { person_id: ui.pid || (data.people[0] || {}).id || '', day: [1, 2, 3, 4, 5].includes(A.dow(ui.day)) ? A.dow(ui.day) : 1, text: '', ...A.schoolYear() } }); break;
     case 'ttwho': ui.draft.person_id = el.dataset.id; render(); break;
+    case 'newlink': go('link', { draft: { id: null, person_id: ui.pid || (data.people.length === 1 ? data.people[0].id : ''), kind: 'lesson', label: 'Magister', url: '', enabled: true } }); break;
+    case 'link': { const l = link(el.dataset.id); if (l) go('link', { draft: { id: l.id, user_id: l.user_id, person_id: (l.config || {}).person_id || '', kind: (l.config || {}).kind === 'lesson' ? 'lesson' : 'other', label: l.label, url: '', enabled: l.enabled } }); break; }
+    case 'linkwho': ui.draft.person_id = el.dataset.id; render(); break;
+    case 'linkkind': { const d = ui.draft, defaults = ['', 'Magister', 'Agenda']; if (defaults.includes(d.label.trim())) d.label = el.dataset.v === 'lesson' ? 'Magister' : 'Agenda'; d.kind = el.dataset.v; render(); break; }
+    case 'linkon': ui.draft.enabled = !ui.draft.enabled; render(); break;
+    case 'savelink': run(el, async () => {
+      need();
+      const d = ui.draft;
+      if (!d.person_id) throw new Error('Kies voor wie de agenda is.');
+      if (!d.label.trim()) throw new Error('Geef de link een naam.');
+      if (!d.id && !d.url.trim()) throw new Error('Plak de link van de agenda.');
+      const id = await api('/rest/v1/rpc/integration_save', { method: 'POST', body: { p_id: d.id, p_team: FAMILY, p_type: 'ical', p_label: d.label.trim(), p_config: { person_id: d.person_id, kind: d.kind }, p_url: d.url.trim() || null, p_enabled: d.enabled } });
+      toast('Bewaard. Agenda ophalen…');
+      const r = d.enabled ? await syncLink(id).catch(e => ({ ok: false, error: e.message })) : (await load(), {});
+      go('links', { draft: null });
+      if (d.enabled) toast(r.ok ? `${r.count} ${r.count === 1 ? 'afspraak' : 'afspraken'} opgehaald.` : r.error || 'Ophalen lukte niet.', r.ok ? '' : 'err');
+    }); break;
+    case 'synclink': run(el, async () => {
+      need(); const r = await syncLink(ui.draft.id);
+      render(); toast(r.ok ? `Bijgewerkt: ${r.count} ${r.count === 1 ? 'afspraak' : 'afspraken'}${r.added || r.changed || r.removed ? ` (${[r.added && `${r.added} nieuw`, r.changed && `${r.changed} gewijzigd`, r.removed && `${r.removed} weg`].filter(Boolean).join(', ')})` : ''}.` : r.error || 'Bijwerken lukte niet.', r.ok ? '' : 'err');
+    }); break;
+    case 'dellink': if (confirm(`"${ui.draft.label}" verwijderen? Alle afspraken uit deze link verdwijnen uit de agenda.`)) run(el, async () => {
+      need(); await api('/rest/v1/rpc/integration_delete', { method: 'POST', body: { p_id: ui.draft.id } }); await load(); go('links', { draft: null }); toast('Verwijderd.');
+    }); break;
     case 'ttday': ui.draft.day = +el.dataset.d; render(); break;
     case 'savett': run(el, async () => {
       need();

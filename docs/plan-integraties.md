@@ -1,7 +1,20 @@
-# Plan: integraties (Thuis 3.15 – 3.17)
+# Plan: integraties (Thuis 3.16 – 3.17)
 
-*Opgesteld 22 nov 2026. Status: plan, nog niet gebouwd. Open vragen staan onderaan. 3.11.0 is gebruikt voor Gerechten, 3.14.0 voor de nieuwe naam Thuis;
-de versienummers hieronder zijn een richtlijn: neem bij het bouwen de eerstvolgende vrije versie (zie shared/releases.js).*
+*Opgesteld 22 nov 2026, bijgewerkt na de keuzes van de gebruiker. 3.15.0 = starttijd per dag (Training en Agenda).*
+
+**Status**
+- **3.16.0 gebouwd**: fundament + **agendalinks (iCal)**, eerst voor het rooster uit Magister. Iedereen kan per persoon
+  meerdere links opgeven. Beheer staat in **Agenda → Agendalinks** (app-specifiek), hoofdbeheer in **Beheer**.
+- **3.17.0 volgt**: **Gezondheid** via Opdrachten, voor iedereen die toestemming geeft; zichtbaar in Training.
+- Later: Google Agenda (werkt al als agendalink, type `ical`), huiswerk uit Magister, boodschappen (docs/plan-groceries.md, 3.18+).
+
+**Zoals gebouwd (wijkt af van de eerste opzet hieronder)**
+- Eén Edge Function `integrations` (modi `cron`, `sync`, later `ingest`) in plaats van twee.
+- Eén type `ical` voor alle agendalinks; `config = { person_id, kind }` bepaalt voor wie en welke soort afspraak.
+- Afspraken uit een link: `agenda_items` met `integration_id` + `external_id` (uniek samen), venster −14 … +90 dagen,
+  verdwenen of afgelaste afspraken → `deleted`. Wijzigen door gebruikers wordt geblokkeerd (trigger).
+- Herhalingen: DAILY/WEEKLY worden uitgerold; maandelijks/jaarlijks tellen als overgeslagen (`integration_runs.skipped`).
+- Schermen: niet in de hub maar in de app waar het in uitkomt (Agenda; Gezondheid in Training), zoals CLAUDE.md voorschrijft.
 
 ## Doel
 Gegevens van buiten de app automatisch binnenhalen, zodat gezinnen ze niet zelf hoeven over te typen:

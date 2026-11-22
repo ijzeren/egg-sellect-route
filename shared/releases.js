@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.16.0', date: '2026-11-22', title: 'Agendalinks: rooster uit Magister in de agenda',
+    notes: [
+      { app: 'agenda', text: 'Nieuw: Agendalinks. Plak de agendalink van bijvoorbeeld het rooster in Magister, en de lessen komen vanzelf in de agenda. De app werkt ze elk half uur bij. Je kunt per persoon meerdere links toevoegen.', kb: 'agendalinks' },
+    ],
+  },
+  {
     version: '3.15.0', date: '2026-11-22', title: 'Starttijd per dag',
     notes: [
       { app: 'training', text: 'Bij Trainingsdagen vul je nu per dag een starttijd in. Train je op maandag om 7:15 en op zaterdag om 9:30? Dan staat dat zo in de agenda. Had je al één tijd? Die staat nu bij al je trainingsdagen.', kb: 'agenda-andere-apps' },

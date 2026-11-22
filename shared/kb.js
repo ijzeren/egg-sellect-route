@@ -180,6 +180,27 @@ Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het
 <p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
   },
   {
+    slug: 'agendalinks', app: 'agenda', title: 'Agendalinks: rooster uit Magister in de agenda', updated: '2026-11-22', version: '3.16.0',
+    body: `<p>Met een <b>agendalink</b> komen afspraken uit een andere agenda vanzelf in Agenda, bijvoorbeeld het lesrooster uit <b>Magister</b>. De app haalt ze elk half uur op. Je hoeft niets over te typen.</p>
+<h3>Toevoegen</h3>
+<ol><li>Open <b>Agenda → Agendalinks</b> en tik op <b>Agendalink toevoegen</b>.</li>
+<li>Kies <b>voor wie</b> de agenda is, en de soort: <b>Schoolrooster</b> (de afspraken worden lessen) of <b>Andere agenda</b>.</li>
+<li>Plak de link (begint met <b>https://</b> of <b>webcal://</b>) en tik op <b>Bewaar</b>. De app haalt de agenda meteen op en laat zien hoeveel afspraken erin staan.</li></ol>
+<p>Iedereen die Agenda gebruikt, kan links toevoegen, ook meerdere per persoon (bijvoorbeeld school én sportclub).</p>
+<h3>Waar vind ik de link?</h3>
+<ul><li><b>Magister</b>: log in op de website van Magister (niet in de app) en open de <b>Agenda</b>. Zoek naar <b>Agenda delen</b>, <b>iCal</b> of <b>CloudAgenda</b> en kopieer de link.
+Zie je die optie niet? Dan heeft de school het delen uitgezet. Vraag de mentor of de ICT van school of ze het kunnen aanzetten.</li>
+<li><b>Google Agenda</b>: op de computer: Instellingen → kies de agenda → <b>Geheim adres in iCal-indeling</b>.</li>
+<li><b>Andere agenda's</b>: elke link naar een agenda in iCal-indeling (vaak eindigt die op <b>.ics</b>) werkt.</li></ul>
+<h3>Goed om te weten</h3>
+<ul><li><b>De link is geheim.</b> Wie hem heeft, kan de agenda lezen. De app bewaart hem op de server en laat hem aan niemand zien, ook niet aan het gezin. Je ziet alleen het begin van het adres en de laatste tekens.</li>
+<li>Afspraken uit een link zijn in de app <b>niet te wijzigen</b>. Verandert het rooster, dan past de app ze vanzelf aan; een les die vervalt, verdwijnt.</li>
+<li>De app houdt de afspraken bij van twee weken terug tot drie maanden vooruit.</li>
+<li><b>Nu bijwerken</b> (open de link) haalt de agenda meteen op. Staat er een ⚠︎ bij de link, dan lukte ophalen niet; de melding zegt wat je kunt doen. Werkt een link niet meer, plak dan een nieuwe link in hetzelfde scherm.</li>
+<li><b>Uitzetten</b> stopt het bijwerken; de afspraken blijven staan. <b>Verwijderen</b> haalt ook alle afspraken uit die link weg.
+Wijzigen en verwijderen kan wie de link toevoegde, of een beheerder van het gezin.</li></ul>`,
+  },
+  {
     slug: 'agenda-andere-apps', app: 'agenda', title: 'Eierronde, leveringen en trainingen in de agenda', updated: '2026-11-22', version: '3.15.0',
     body: `<p>De agenda haalt ook afspraken uit de andere apps. Die zet je niet zelf in de agenda: ze komen vanzelf mee en kloppen altijd met de app waar ze vandaan komen. Tik erop om die app te openen.</p>
 <ul><li><b>🥚 Eierronde</b>: op elke loopdag van Egg-sellent, vanaf de starttijd tot 21:00. Valt een loopdag uit (afwezig), dan staat er "gaat niet door".
