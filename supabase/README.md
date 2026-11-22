@@ -342,3 +342,18 @@ Lokaal getest met een eigen testagenda (http): `npx supabase functions serve int
 met `INTEGRATIONS_ALLOW_HTTP=1` in dat bestand, en in de lokale database (als `supabase_admin`):
 `alter database postgres set app.integrations_allow_http = 'on';`. **Nooit in productie**: daar zijn alleen https-links
 toegestaan. De link van een agenda komt nooit terug in de app, in foutmeldingen of in het logboek.
+
+## Update naar Gezondheid in Training (v3.17.0)
+Doe dit **vóór** je v3.17.0 pusht (na de stappen van 3.16.0):
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `health_permissions` (toestemming voor kinderen),
+   `health_samples` (gewicht en stappen per dag; alleen de gebruiker zelf, of het gezin als die deelt), type
+   `apple_health` in `integrations`, de functies `health_enable`, `health_set_share`, `health_delete`, `health_allow`,
+   `health_may`, en een trigger die gezondheid wist als iemand het gezin verlaat.
+   Controle: `select count(*) from health_samples;` → 0.
+2. **Functie opnieuw deployen** (de modus ingest is nieuw):
+   ```bash
+   npx supabase functions deploy integrations --project-ref istqegonfkfrkyddfajd --no-verify-jwt
+   ```
+De persoonlijke link is `…/functions/v1/integrations?t=<token>`; op de server staat alleen de sha256 van het token.
+De hoofdbeheerder ziet in Beheer alleen aantallen, nooit metingen.

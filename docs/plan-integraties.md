@@ -5,7 +5,9 @@
 **Status**
 - **3.16.0 gebouwd**: fundament + **agendalinks (iCal)**, eerst voor het rooster uit Magister. Iedereen kan per persoon
   meerdere links opgeven. Beheer staat in **Agenda → Agendalinks** (app-specifiek), hoofdbeheer in **Beheer**.
-- **3.17.0 volgt**: **Gezondheid** via Opdrachten, voor iedereen die toestemming geeft; zichtbaar in Training.
+- **3.17.0 gebouwd**: **Gezondheid** (gewicht en stappen) via Opdrachten, voor iedereen die toestemming geeft (kinderen:
+  eerst een beheerder); privé tenzij je deelt; zichtbaar in Training. Type `apple_health`, modus `ingest` met een
+  persoonlijk token (gehasht op de server).
 - Later: Google Agenda (werkt al als agendalink, type `ical`), huiswerk uit Magister, boodschappen (docs/plan-groceries.md, 3.18+).
 
 **Zoals gebouwd (wijkt af van de eerste opzet hieronder)**

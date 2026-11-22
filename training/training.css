@@ -82,3 +82,13 @@ details p{margin:0 0 12px;color:var(--label2);font-size:.94rem;line-height:1.45}
 .dtime{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
 .dtime span{min-width:0;overflow-wrap:anywhere}
 .dtime input{max-width:7rem;font:inherit;border:0;background:var(--fill);border-radius:8px;padding:6px 8px;color:inherit}
+/* gezondheid */
+.hbars{display:flex;align-items:flex-end;gap:3px;height:28px;width:56px;flex:none}
+.hbars span{flex:1;background:var(--green);opacity:.45;border-radius:2px;min-height:0}
+.hbars span.now{opacity:1}
+.hbars span.empty{height:3px!important;background:var(--fill);opacity:1}
+.cell.stack .hbars{width:100%;height:44px;margin-top:8px;gap:6px}
+.hlist{margin:8px 0 0;padding-left:20px}.hlist li{margin:4px 0}
+.hconsent{display:flex;gap:10px;align-items:flex-start;margin-top:14px}
+.hconsent input{width:22px;height:22px;flex:none;margin:2px 0 0;accent-color:var(--green)}
+.hlink{display:block;margin-top:6px;font-size:.8rem;overflow-wrap:anywhere;word-break:break-all;user-select:all;-webkit-user-select:all}

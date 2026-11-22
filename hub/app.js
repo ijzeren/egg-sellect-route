@@ -47,12 +47,13 @@ function go(view, extra) { Object.assign(ui, { view }, extra || {}); render(); w
 async function loadFamily() {
   const a = account(); if (!a || !a.teamId) { fam = null; return; }
   const t = a.teamId;
-  const [members, apps, memberApps] = await Promise.all([
+  const [members, apps, memberApps, healthPerms] = await Promise.all([
     F.api(`/rest/v1/team_members?team_id=eq.${t}&select=user_id,role,name,joined_at&order=joined_at`),
     F.api(`/rest/v1/team_apps?team_id=eq.${t}&select=app,enabled`),
     F.api(`/rest/v1/team_member_apps?team_id=eq.${t}&select=user_id,app,access,role`),
+    F.api(`/rest/v1/health_permissions?team_id=eq.${t}&select=user_id`).catch(() => []),
   ]);
-  fam = { id: t, members: members || [], apps: Object.fromEntries((apps || []).map(x => [x.app, x.enabled])), memberApps: memberApps || [] };
+  fam = { id: t, members: members || [], apps: Object.fromEntries((apps || []).map(x => [x.app, x.enabled])), memberApps: memberApps || [], healthPerms: (healthPerms || []).map(x => x.user_id) };
 }
 const isAdmin = () => { const a = account(); return !!(a && a.role === 'admin'); };
 const memberApp = (uid, app) => (fam && fam.memberApps.find(x => x.user_id === uid && x.app === app)) || {};
@@ -189,6 +190,9 @@ function vMember() {
     return `<div class="cell"><span class="ico" aria-hidden="true">${app.icon}</span><span class="tx"><span class="tt">${esc(app.name)}</span></span>${toggle(acc, 'access', `data-id="${esc(m.user_id)}" data-app="${app.id}"`, 'Toegang tot ' + app.name, !admin)}</div>`
       + (acc && roles ? `<div class="cell stack">${seg(roles, roles.find(([k]) => app.roles[k] === app.roles[appRole(m, app.id)])?.[0], 'approle', `data-id="${esc(m.user_id)}" data-app="${app.id}"`, !admin)}</div>` : '');
   }).join('')), 'Rollen per app, bijvoorbeeld in Egg-sellent: beheerder (instellingen en bestellen) of bezorger.');
+  // Gezondheid (Training): een kind mag het pas aanzetten als een beheerder toestemming geeft (v3.17).
+  if (m.role === 'child' && fam.apps.training) h += sec('Gezondheid', grp(`<div class="cell"><span class="ico" aria-hidden="true">❤️</span><span class="tx"><span class="tt">Gewicht en stappen bijhouden</span><span class="st">${(fam.healthPerms || []).includes(m.user_id) ? 'Toestemming gegeven' : 'Geen toestemming'}</span></span>${toggle((fam.healthPerms || []).includes(m.user_id), 'healthallow', `data-id="${esc(m.user_id)}"`, 'Toestemming gezondheid', !admin)}</div>`),
+    'Met toestemming kan het kind in Training zijn of haar gewicht en stappen van de iPhone laten bijhouden. Alleen het kind ziet ze, tenzij het zelf deelt. Toestemming intrekken wist alle metingen.');
   if (admin && !self) h += sec('', grp('<button class="cell red center" data-a="remove">Verwijder uit gezin</button>'));
   return h + '</main>';
 }
@@ -314,7 +318,7 @@ async function loadAdmin() {
   help.admin = { families: families || [], roles: roles || [], integrations: integrations || [] };
 }
 const ROLE_PLATFORM = { admin: 'Hoofdbeheerder', runner: 'Assistent' };
-const INTEGRATION_NAMES = { ical: ['📅', 'Agendalinks (iCal)', 'Rooster uit Magister en andere agenda\'s in Agenda'] };
+const INTEGRATION_NAMES = { ical: ['📅', 'Agendalinks (iCal)', 'Rooster uit Magister en andere agenda\'s in Agenda'], apple_health: ['❤️', 'Gezondheid (iPhone)', 'Gewicht en stappen in Training'] };
 function vAdmin() {
   if (!help.platformAdmin) return vHome();
   let h = nav(back('home', 'Apps'), 'Beheer') + '<main>' + lt('Beheer', 'Alles buiten de gezinnen');
@@ -487,6 +491,12 @@ document.addEventListener('click', ev => {
       const type = el.dataset.type, x = help.admin.integrations.find(i => i.type === type), on = !x.enabled;
       if (!on && !confirm('Deze koppeling uitzetten voor alle gezinnen? Het ophalen stopt; er wordt niets verwijderd.')) return;
       run(el, async () => { await F.api('/rest/v1/rpc/platform_set_integration', { method: 'POST', body: { p_type: type, p_enabled: on } }); await loadAdmin(); render(); });
+      break;
+    }
+    case 'healthallow': {
+      const uid = el.dataset.id, on = !(fam.healthPerms || []).includes(uid);
+      if (!on && !confirm('Toestemming intrekken? De metingen van dit kind worden gewist.')) return;
+      run(el, async () => { await F.api('/rest/v1/rpc/health_allow', { method: 'POST', body: { p_team: fam.id, p_user: uid, p_allowed: on } }); await loadFamily(); render(); });
       break;
     }
     case 'adminfamily': ui.familyId = el.dataset.id; go('adminfamily'); break;

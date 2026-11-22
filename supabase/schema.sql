@@ -1096,13 +1096,17 @@ create table if not exists public.integrations (
   updated_at timestamptz not null default now()
 );
 alter table public.integrations drop constraint if exists integrations_type_check;
-alter table public.integrations add constraint integrations_type_check check (type in ('ical'));
+alter table public.integrations add constraint integrations_type_check check (type in ('ical', 'apple_health'));
 create index if not exists integrations_team on public.integrations(team_id);
 alter table public.integrations enable row level security;
 -- Zien: leden van het gezin die de app mogen gebruiken waar de koppeling in uitkomt (agendalinks: Agenda). Wijzigen alleen via de functies hieronder.
 drop policy if exists integrations_read on public.integrations;
 create policy integrations_read on public.integrations for select to authenticated
-  using (public.is_member(team_id) and (type <> 'ical' or public.has_app(team_id, 'agenda')));
+  using (public.is_member(team_id) and case type
+    when 'ical' then public.has_app(team_id, 'agenda')
+    -- gezondheid: alleen je eigen, of van wie het zelf deelt met het gezin (en dan alleen voor wie Training gebruikt)
+    when 'apple_health' then user_id = auth.uid() or (coalesce((config->>'share')::boolean, false) and public.has_app(team_id, 'training'))
+    else false end);
 revoke all on public.integrations from anon;
 grant select on public.integrations to authenticated;
 revoke insert, update, delete on public.integrations from authenticated;
@@ -1168,7 +1172,7 @@ create trigger agenda_items_import_guard before insert or update or delete on pu
 -- Link opschonen (zelfde regels als cleanUrl in supabase/functions/integrations/ical.mjs): webcal:// → https://, alleen
 -- https, geen interne adressen. Lokaal testen met http: `alter database postgres set app.integrations_allow_http = 'on';`
 create or replace function public.integration_clean_url(p_url text) returns text
-language plpgsql immutable as $$
+language plpgsql stable as $$  -- stable: leest app.integrations_allow_http
 declare u text := regexp_replace(trim(coalesce(p_url, '')), '^webcals?://', 'https://', 'i');
   host text;
   http_ok boolean := coalesce(current_setting('app.integrations_allow_http', true), '') = 'on';
@@ -1234,7 +1238,7 @@ declare r integrations;
 begin
   select * into r from integrations where id = p_id;
   if r.id is null or not public.is_member(r.team_id) then raise exception 'Onbekende koppeling'; end if;
-  if r.user_id is distinct from auth.uid() and not public.is_admin(r.team_id) then raise exception 'Alleen wie de koppeling maakte, of een beheerder, kan hem verwijderen'; end if;
+  if r.user_id is distinct from auth.uid() and (r.type = 'apple_health' or not public.is_admin(r.team_id)) then raise exception 'Alleen wie de koppeling maakte, of een beheerder, kan hem verwijderen'; end if;
   delete from integrations where id = p_id; -- afspraken, link en logboek gaan mee
 end $$;
 
@@ -1243,7 +1247,7 @@ create or replace function public.platform_set_integration(p_type text, p_enable
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if not public.has_platform_role('admin') then raise exception 'Alleen voor de hoofdbeheerder'; end if;
-  if p_type not in ('ical') then raise exception 'Onbekende soort koppeling'; end if;
+  if p_type not in ('ical', 'apple_health') then raise exception 'Onbekende soort koppeling'; end if;
   insert into platform_integrations(type, enabled, updated_at, updated_by) values (p_type, p_enabled, now(), auth.uid())
     on conflict (type) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
 end $$;
@@ -1257,7 +1261,7 @@ begin
     (select count(*)::int from integrations i where i.type = t.type and i.enabled),
     (select count(*)::int from integrations i where i.type = t.type and i.enabled and i.status = 'error'),
     (select max(i.last_sync_at) from integrations i where i.type = t.type)
-    from (values ('ical')) as t(type) left join platform_integrations pi on pi.type = t.type;
+    from (values ('ical'), ('apple_health')) as t(type) left join platform_integrations pi on pi.type = t.type;
 end $$;
 do $$
 declare f text;
@@ -1267,3 +1271,122 @@ begin
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
 end $$;
+
+-- ---------- Gezondheid: gewicht en stappen van de iPhone (Thuis, v3.17) ----------
+-- Een webapp kan niet bij Apple Gezondheid. Daarom stuurt een automatisering in Opdrachten op de iPhone de gegevens
+-- naar de Edge Function `integrations` (modus ingest), met een persoonlijke link (token). Alleen met toestemming:
+-- - iedereen zet het zelf aan (integrations, type 'apple_health', één per persoon per gezin) en geeft daarbij toestemming;
+-- - voor een kind geeft eerst een gezinsbeheerder toestemming (health_permissions);
+-- - privé: alleen jij ziet je gegevens; delen met het gezin (in Training) is een aparte keuze (config.share);
+-- - stoppen wist alles (de koppeling en alle metingen). Het token staat alleen gehasht (sha256) op de server.
+create table if not exists public.health_permissions (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  allowed_by uuid references auth.users(id) on delete set null,
+  allowed_at timestamptz not null default now(),
+  primary key (team_id, user_id)
+);
+alter table public.health_permissions enable row level security;
+drop policy if exists health_permissions_read on public.health_permissions;
+create policy health_permissions_read on public.health_permissions for select to authenticated using (public.is_member(team_id));
+revoke all on public.health_permissions from anon;
+grant select on public.health_permissions to authenticated;
+revoke insert, update, delete on public.health_permissions from authenticated;
+
+create unique index if not exists integrations_health_one on public.integrations(team_id, user_id) where type = 'apple_health';
+
+create table if not exists public.health_samples (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  kind text not null check (kind in ('weight', 'steps')),
+  day date not null,
+  value numeric not null,
+  unit text not null default '',
+  updated_at timestamptz not null default now(),
+  unique (integration_id, kind, day)
+);
+create index if not exists health_samples_user on public.health_samples(user_id, kind, day);
+alter table public.health_samples enable row level security;
+drop policy if exists health_samples_read on public.health_samples;
+create policy health_samples_read on public.health_samples for select to authenticated
+  using (user_id = auth.uid() or exists (select 1 from public.integrations i where i.id = integration_id and i.type = 'apple_health'
+    and coalesce((i.config->>'share')::boolean, false) and public.is_member(i.team_id) and public.has_app(i.team_id, 'training')));
+revoke all on public.health_samples from anon;
+grant select on public.health_samples to authenticated;
+revoke insert, update, delete on public.health_samples from authenticated;
+
+-- Mag deze gebruiker gezondheid aanzetten? Volwassenen zelf; een kind alleen met toestemming van een beheerder.
+create or replace function public.health_may(p_team uuid, p_user uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from team_members m where m.team_id = p_team and m.user_id = p_user
+    and (m.role <> 'child' or exists (select 1 from health_permissions hp where hp.team_id = p_team and hp.user_id = p_user)));
+$$;
+
+-- Aanzetten (met toestemming) of een nieuwe persoonlijke link maken. Geeft het token één keer terug.
+create or replace function public.health_enable(p_team uuid, p_share boolean default false)
+returns text language plpgsql security definer set search_path = public as $$
+declare r integrations; tok text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+begin
+  if not public.is_member(p_team) then raise exception 'Je hoort niet bij dit gezin'; end if;
+  if not public.has_app(p_team, 'training') then raise exception 'Training staat niet aan voor jou'; end if;
+  if exists (select 1 from platform_integrations pi where pi.type = 'apple_health' and not pi.enabled) then raise exception 'Gezondheid staat (tijdelijk) uit voor iedereen'; end if;
+  if not public.health_may(p_team, auth.uid()) then raise exception 'Vraag eerst een beheerder van het gezin om toestemming (Gezin → jouw naam → Gezondheid).'; end if;
+  select * into r from integrations where team_id = p_team and user_id = auth.uid() and type = 'apple_health';
+  if r.id is null then
+    insert into integrations(team_id, user_id, type, label, enabled, config)
+      values (p_team, auth.uid(), 'apple_health', 'Gezondheid', true, jsonb_build_object('consent_at', now(), 'kinds', jsonb_build_array('weight', 'steps'), 'share', coalesce(p_share, false)))
+      returning * into r;
+  end if;
+  insert into integration_secrets(integration_id, secret, updated_at) values (r.id, encode(sha256(convert_to(tok, 'UTF8')), 'hex'), now())
+    on conflict (integration_id) do update set secret = excluded.secret, updated_at = now();
+  update integrations set secret_hint = '…' || right(tok, 4), enabled = true, updated_at = now() where id = r.id;
+  return tok;
+end $$;
+create or replace function public.health_set_share(p_team uuid, p_share boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update integrations set config = config || jsonb_build_object('share', coalesce(p_share, false)), updated_at = now()
+    where team_id = p_team and user_id = auth.uid() and type = 'apple_health';
+  if not found then raise exception 'Gezondheid staat nog niet aan'; end if;
+end $$;
+-- Stoppen: koppeling, link en alle metingen weg.
+create or replace function public.health_delete(p_team uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from integrations where team_id = p_team and user_id = auth.uid() and type = 'apple_health';
+end $$;
+-- Beheerder: toestemming voor een kind geven of intrekken. Intrekken wist ook de gegevens van dat kind.
+create or replace function public.health_allow(p_team uuid, p_user uuid, p_allowed boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin(p_team) then raise exception 'Alleen een beheerder van het gezin'; end if;
+  if not exists (select 1 from team_members where team_id = p_team and user_id = p_user) then raise exception 'Onbekend gezinslid'; end if;
+  if p_allowed then
+    insert into health_permissions(team_id, user_id, allowed_by) values (p_team, p_user, auth.uid()) on conflict (team_id, user_id) do nothing;
+  else
+    delete from health_permissions where team_id = p_team and user_id = p_user;
+    delete from integrations where team_id = p_team and user_id = p_user and type = 'apple_health'
+      and exists (select 1 from team_members m where m.team_id = p_team and m.user_id = p_user and m.role = 'child');
+  end if;
+end $$;
+do $$
+declare f text;
+begin
+  foreach f in array array['health_may(uuid, uuid)', 'health_enable(uuid, boolean)', 'health_set_share(uuid, boolean)', 'health_delete(uuid)', 'health_allow(uuid, uuid, boolean)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+  grant execute on function public.health_may(uuid, uuid) to service_role; -- de Edge Function controleert hiermee bij elke ontvangst
+end $$;
+-- Wie het gezin verlaat (of verwijderd wordt): zijn of haar gezondheid in dat gezin gaat weg.
+create or replace function public.health_member_left() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from integrations where team_id = old.team_id and user_id = old.user_id and type = 'apple_health';
+  delete from health_permissions where team_id = old.team_id and user_id = old.user_id;
+  return old;
+end $$;
+drop trigger if exists health_member_left on public.team_members;
+create trigger health_member_left after delete on public.team_members for each row execute function public.health_member_left();

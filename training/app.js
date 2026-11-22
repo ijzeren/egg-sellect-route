@@ -4,7 +4,9 @@
 //   - op een andere dag mag je altijd trainen: dat is een bonustraining
 //   - trainingen per gezin: samen (meerdere deelnemers) of apart; Supabase-tabel training_tracks, lokaal eerst.
 //     Niet iedereen hoeft mee te doen: wie een programma nooit opent, heeft er geen training in.
-import { storage, account, api, applyTheme, esc, registerSW, canUse } from '../shared/family.js';
+//   - gezondheid (v3.17): gewicht en stappen van de iPhone, alleen met toestemming; privé tenzij je deelt (health.js)
+import { storage, account, api, applyTheme, esc, registerSW, canUse, CFG } from '../shared/family.js';
+import * as H from './health.js';
 import * as P from './program.js';
 import { PROGRAMS, programById } from './programs.js';
 import { E, WEEKS, DAYS, PHASES, planFor, lessonTitle } from './sports/pilates/index.js';
@@ -139,6 +141,105 @@ function syncText() {
   return `${who} · bijwerken…`;
 }
 
+/* ---------- gezondheid ----------
+   Gewicht en stappen komen van de iPhone via een automatisering in Opdrachten (zie kennisbank 'gezondheid').
+   Alleen met toestemming; standaard privé, delen met het gezin is een eigen keuze. Gegevens staan in Supabase
+   (health_samples); de app leest ze alleen. Lezen mag offline uit de kopie op de telefoon. */
+const HKEY = `${SCOPE}:health`, HLINK = `${SCOPE}:healthLink`;
+let health = storage.get(APP, HKEY, null) || { mine: null, shared: [], samples: [], allowed: false, child: false, at: null };
+let hPrev = 'programs', hBusy = false, hConsent = false;
+async function loadHealth() {
+  if (!FAMILY || !me) return;
+  try {
+    const since = P.addDays(P.today(), -45);
+    const [ints, samples, perms, role] = await Promise.all([
+      api(`/rest/v1/integrations?team_id=eq.${FAMILY}&type=eq.apple_health&select=id,user_id,enabled,config,status,last_sync_at,last_error,last_count,secret_hint`),
+      api(`/rest/v1/health_samples?team_id=eq.${FAMILY}&day=gte.${since}&select=user_id,kind,day,value&order=day`),
+      api(`/rest/v1/health_permissions?team_id=eq.${FAMILY}&user_id=eq.${me.userId}&select=user_id`),
+      api(`/rest/v1/team_members?team_id=eq.${FAMILY}&user_id=eq.${me.userId}&select=role`),
+    ]);
+    const mine = (ints || []).find(i => i.user_id === me.userId) || null;
+    const child = !!(role && role[0] && role[0].role === 'child');
+    health = { mine, shared: (ints || []).filter(i => i.user_id !== me.userId), samples: samples || [], allowed: !child || !!(perms && perms.length), child, at: new Date().toISOString() };
+    if (!mine) storage.remove(APP, HLINK);
+    storage.set(APP, HKEY, health);
+    if (['programs', 'home', 'health'].includes(view)) render();
+  } catch (e) { /* offline of geen toegang: de laatste kopie blijft staan */ }
+}
+const hLink = () => storage.get(APP, HLINK, null);
+const ago = iso => { if (!iso) return ''; const d = new Date(iso), t = P.today(), day = P.ymd(d), hm = d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }); return day === t ? `vandaag ${hm}` : day === P.addDays(t, -1) ? `gisteren ${hm}` : `${P.fmtShort(day)} ${hm}`; };
+function bars(week) {
+  const max = Math.max(1, ...week.map(x => x.value || 0));
+  return `<div class="hbars" aria-hidden="true">${week.map(x => `<span style="height:${x.value ? Math.max(6, Math.round(x.value / max * 100)) : 0}%" class="${x.day === P.today() ? 'now' : ''}${x.value ? '' : ' empty'}"></span>`).join('')}</div>`;
+}
+function healthLine(s) {
+  return [s.weight ? `${H.fmtKg(s.weight.value)}${s.weight.delta ? ` (${s.weight.delta > 0 ? '+' : '−'}${String(Math.abs(s.weight.delta)).replace('.', ',')})` : ''}` : '', s.steps.today != null ? `${H.fmtSteps(s.steps.today)} stappen vandaag` : s.steps.avg != null ? `gem. ${H.fmtSteps(s.steps.avg)} stappen` : ''].filter(Boolean).join(' · ');
+}
+function healthSection() {
+  if (!FAMILY || !me) return '';
+  const t = P.today(), m = health.mine;
+  let body;
+  if (!m) body = `<button class="cell" data-a="health"><span class="tx"><span class="tt">Gewicht en stappen bijhouden</span><span class="st">Van je iPhone, alleen met jouw toestemming</span></span>${ICON_CHEV}</button>`;
+  else {
+    const s = H.summary(health.samples, me.userId, t);
+    body = `<button class="cell hcell" data-a="health"><span class="tx"><span class="tt">${s.empty ? 'Nog geen metingen' : esc(healthLine(s)) || 'Geen meting van vandaag'}</span><span class="st">${m.status === 'error' && m.last_error ? '⚠︎ ' + esc(m.last_error) : m.last_sync_at ? 'Laatste meting ' + ago(m.last_sync_at) : 'Zet de opdracht op je iPhone klaar'}${m.config && m.config.share ? ' · gedeeld met het gezin' : ''}</span></span>${s.empty ? '' : bars(s.steps.week)}${ICON_CHEV}</button>`;
+  }
+  for (const o of health.shared) {
+    const s = H.summary(health.samples, o.user_id, t);
+    if (s.empty) continue;
+    body += `<div class="cell hcell"><span class="tx"><span class="tt">${esc(memberName(o.user_id))}</span><span class="st">${esc(healthLine(s))}</span></span>${bars(s.steps.week)}</div>`;
+  }
+  return `<section class="sec"><h2 class="sec-h">Gezondheid</h2><div class="grp">${body}</div></section>`;
+}
+function healthView() {
+  const m = health.mine, link = hLink();
+  let h = navBar(backTo('hback', 'Terug'), 'Gezondheid') + '<main>' + lt('Gezondheid', 'Gewicht en stappen van je iPhone');
+  if (!FAMILY || !me) return h + `<div class="card"><p>Log in en sluit je aan bij een gezin om gezondheid bij te houden.</p></div></main>`;
+  if (!m) {
+    if (!health.allowed) return h + `<div class="card"><p>Voor kinderen geeft eerst een beheerder van het gezin toestemming. Vraag het je ouder: <b>Gezin → jouw naam → Gezondheid</b> in het startscherm.</p></div></main>`;
+    h += `<div class="card"><h2>Wat gebeurt er?</h2><ul class="hlist"><li>Een automatisering op je iPhone (Opdrachten) stuurt één keer per dag je <b>gewicht</b> en <b>aantal stappen</b> naar Thuis.</li>
+      <li>Alleen jij ziet ze, hier in Training. Met het gezin delen kan, als je dat zelf kiest.</li>
+      <li>Je kunt altijd stoppen: dan wordt alles gewist.</li></ul>
+      <label class="hconsent"><input type="checkbox" id="hconsent" ${hConsent ? 'checked' : ''}><span>Ik geef toestemming dat Thuis mijn gewicht en stappen per dag bewaart.</span></label>
+      <button class="btn" data-a="hon" ${hBusy ? 'disabled' : ''}>Aanzetten</button></div>`;
+    h += `<p class="sec-f">Gezondheidsgegevens zijn bijzondere persoonsgegevens. Thuis bewaart alleen het getal per dag, geen andere gegevens uit Gezondheid. <a href="../?article=gezondheid">Meer uitleg</a></p>`;
+    return h + '</main>';
+  }
+  const s = H.summary(health.samples, me.userId, P.today());
+  h += `<div class="grp"><div class="cell"><span class="tx"><span class="tt">${s.empty ? 'Nog geen metingen ontvangen' : esc(healthLine(s))}</span><span class="st">${m.status === 'error' && m.last_error ? '⚠︎ ' + esc(m.last_error) : m.last_sync_at ? 'Laatste meting ' + ago(m.last_sync_at) : 'Wacht op de eerste meting'}</span></span></div>
+    ${s.steps.avg != null ? `<div class="cell stack"><span class="st">Stappen, afgelopen 7 dagen · gemiddeld ${H.fmtSteps(s.steps.avg)} per dag</span>${bars(s.steps.week)}</div>` : ''}</div>`;
+  h += `<section class="sec"><h2 class="sec-h">Opdracht op je iPhone</h2><div class="grp">
+    ${link ? `<div class="cell stack"><span class="st">Je persoonlijke link (geheim, alleen voor jouw opdracht)</span><code class="hlink">${esc(link)}</code></div>
+    <button class="cell tint" data-a="hcopy"><span class="tx"><span class="tt">Kopieer link</span></span></button>`
+      : `<div class="cell"><span class="tx"><span class="tt">Link ingesteld (${esc(m.secret_hint || '')})</span><span class="st">De link staat op de telefoon waarop je hem maakte. Nodig op deze telefoon? Maak een nieuwe; de oude werkt dan niet meer.</span></span></div>`}
+    <a class="cell" href="../?article=gezondheid" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">Opdracht maken in Opdrachten</span><span class="st">Stap voor stap, 5 minuten</span></span>${ICON_CHEV}</a>
+    <button class="cell" data-a="hnew"><span class="tx"><span class="tt">Nieuwe link maken</span></span></button></div></section>`;
+  h += `<section class="sec"><div class="grp"><div class="cell"><span class="tx"><span class="tt">Delen met het gezin</span><span class="st">${m.config && m.config.share ? 'Gezinsleden die Training gebruiken, zien je gewicht en stappen' : 'Alleen jij ziet je gegevens'}</span></span><button class="toggle" role="switch" data-a="hshare" aria-checked="${!!(m.config && m.config.share)}" aria-label="Delen met het gezin"></button></div></div></section>`;
+  h += `<div style="margin-top:18px"><button class="btn danger" data-a="hoff">Stoppen en alles wissen</button></div><p class="sec-f">Stoppen wist je toestemming, je link en alle metingen. Haal daarna ook de automatisering weg in Opdrachten.</p>`;
+  return h + '</main>';
+}
+async function healthAct(a) {
+  if (hBusy) return; hBusy = true;
+  try {
+    if (a === 'hon' || a === 'hnew') {
+      if (a === 'hon' && !(document.getElementById('hconsent') || {}).checked) { alert('Vink eerst aan dat je toestemming geeft.'); return; }
+      if (a === 'hnew' && !confirm('Een nieuwe link maken? De oude link werkt dan niet meer; pas hem aan in je opdracht.')) return;
+      const tok = await api('/rest/v1/rpc/health_enable', { method: 'POST', body: { p_team: FAMILY, p_share: false } });
+      storage.set(APP, HLINK, `${CFG.supabaseUrl.replace(/\/+$/, '')}/functions/v1/integrations?t=${tok}`);
+    } else if (a === 'hshare') {
+      await api('/rest/v1/rpc/health_set_share', { method: 'POST', body: { p_team: FAMILY, p_share: !(health.mine.config && health.mine.config.share) } });
+    } else if (a === 'hoff') {
+      if (!confirm('Stoppen en alles wissen? Je metingen worden verwijderd. Dit kan niet ongedaan worden.')) return;
+      await api('/rest/v1/rpc/health_delete', { method: 'POST', body: { p_team: FAMILY } });
+      storage.remove(APP, HLINK);
+    } else if (a === 'hcopy') {
+      await navigator.clipboard.writeText(hLink()); alert('Gekopieerd. Plak de link in de opdracht (Haal inhoud op van URL).'); return;
+    }
+    await loadHealth();
+  } catch (e) { alert(e.message || String(e)); }
+  finally { hBusy = false; render(); }
+}
+
 /* ---------- scherm ---------- */
 const $ = s => document.querySelector(s);
 let view = 'programs', cur = 1, S = null, timer = null, AC = null, muted = false, confirmBox = '', pick = null, pickTimes = {}, lastDone = null;
@@ -158,7 +259,8 @@ function render() {
   const a = $('#app');
   if (!canUse('training')) { a.innerHTML = navBar(hubLink()) + '<main>' + lt('Training', esc(me.teamName)) + '<div class="card"><p>Training staat niet aan voor jou in dit gezin. Een beheerder kan de app aanzetten bij <b>Gezin → Apps</b> in het startscherm.</p><a class="btn" href="../?view=family">Naar gezin</a></div></main>'; return; }
   const c = isCircuit();
-  if (view === 'programs' || !PROGRAM) a.innerHTML = programsView();
+  if (view === 'health') a.innerHTML = healthView();
+  else if (view === 'programs' || !PROGRAM) a.innerHTML = programsView();
   else if (view === 'home') a.innerHTML = c ? circuitHome() : home();
   else if (view === 'days') a.innerHTML = daysView();
   else if (view === 'people') a.innerHTML = peopleView();
@@ -178,6 +280,7 @@ function programsView() {
     return `<button class="cell prog${s && s.today ? ' now' : ''}" data-a="program" data-id="${pg.id}"><span class="pic" aria-hidden="true">${pg.icon}</span><span class="tx"><span class="tt"><b>${esc(pg.name)}</b></span><span class="st">${esc(line)}</span>${sub ? `<span class="st">${esc(sub)}</span>` : ''}</span>${ICON_CHEV}</button>`;
   }).join('') + '</div>';
   h += `<p class="sec-f">Ieder kiest zelf aan welke programma's hij of zij meedoet. Samen trainen of apart regel je per programma bij "Wie doen er mee?".</p>`;
+  h += healthSection();
   h += `<p class="sec-f" id="syncline">${syncText()}</p>`;
   return h + '</main>';
 }
@@ -233,6 +336,7 @@ function home() {
     });
     h += '</div>';
   });
+  h += healthSection();
   h += `<section class="sec"><h2 class="sec-h">Instellingen</h2><div class="grp">
     <button class="cell" data-a="days"><span class="tx"><span class="tt">Trainingsdagen</span></span><span class="tr">${daysText(prog.settings.days)}</span>${ICON_CHEV}</button>
     <button class="cell" data-a="people"><span class="tx"><span class="tt">Wie doen er mee?</span></span><span class="tr">${esc(trackName(track()))}</span>${ICON_CHEV}</button>
@@ -375,6 +479,7 @@ function circuitHome() {
   h += `<section class="sec"><h2 class="sec-h">Toestellen en gewicht</h2><div class="grp">${stations().map((st, i) => `<div class="cell"><span class="tx"><span class="tt">${i + 1}. ${esc(st.n)}</span>${BIO.stationInfo(st.id) ? `<span class="st">${esc(BIO.stationInfo(st.id).g)}</span>` : ''}</span><span class="tr">${last[st.id] ? kg(last[st.id].w) : '–'}</span></div>`).join('')}</div>
   <p class="sec-f">Het gewicht dat je het laatst noteerde. Dat doe je na elke training.</p></section>`;
   if (recent.length) h += `<section class="sec"><h2 class="sec-h">Laatste trainingen</h2><div class="grp">${recent.map(x => `<div class="cell"><span class="tx"><span class="tt">${P.fmtShort(x.d)}</span><span class="st">${x.bonus ? 'Bonustraining' : 'Trainingsdag'}${x.manual ? ' · zonder de app' : ''}</span></span><span class="tr">${Object.values(x.w || {}).filter(v => v !== '').length ? '✓ gewichten' : ''}</span></div>`).join('')}</div></section>`;
+  h += healthSection();
   h += `<section class="sec"><h2 class="sec-h">Instellingen</h2><div class="grp">
     <button class="cell" data-a="days"><span class="tx"><span class="tt">Trainingsdagen</span></span><span class="tr">${daysText(prog.settings.days)}</span>${ICON_CHEV}</button>
     <button class="cell" data-a="stations"><span class="tx"><span class="tt">Toestellen</span></span><span class="tr">${stations().length}</span>${ICON_CHEV}</button>
@@ -514,6 +619,9 @@ document.addEventListener('click', ev => {
   const b = ev.target.closest('[data-a]'); if (!b) return; const a = b.dataset.a;
   if (a === 'program') { openProgram(b.dataset.id); pick = null; confirmBox = ''; view = P.hasSchedule(prog) ? 'home' : 'days'; render(); }
   else if (a === 'programs') { view = 'programs'; confirmBox = ''; render(); }
+  else if (a === 'health') { if (view !== 'health') hPrev = view; view = 'health'; render(); loadHealth(); }
+  else if (a === 'hback') { view = hPrev === 'health' ? 'programs' : hPrev; render(); }
+  else if (['hon', 'hnew', 'hshare', 'hoff', 'hcopy'].includes(a)) { if (a === 'hon') hConsent = !!(document.getElementById('hconsent') || {}).checked; healthAct(a); }
   else if (a === 'open') { cur = +b.dataset.n || 0; view = 'day'; render(); }
   else if (a === 'home') { view = 'home'; confirmBox = ''; render(); }
   else if (a === 'days') { pick = null; view = 'days'; render(); }
@@ -561,3 +669,5 @@ function startProgram() {
 startProgram();
 render();
 syncNow();
+loadHealth();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadHealth(); });

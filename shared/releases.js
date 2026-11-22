@@ -10,6 +10,13 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.17.0', date: '2026-11-22', title: 'Gezondheid in Training',
+    notes: [
+      { app: 'training', text: 'Nieuw: houd je gewicht en stappen bij in Training, rechtstreeks van je iPhone. Een automatisering in Opdrachten stuurt ze één keer per dag. Alleen met jouw toestemming, en alleen jij ziet ze, tenzij je kiest om te delen met het gezin.', kb: 'gezondheid' },
+      { app: 'hub', text: 'Voor kinderen geeft een beheerder eerst toestemming voor Gezondheid, bij Gezin → (kind).', kb: 'gezondheid' },
+    ],
+  },
+  {
     version: '3.16.0', date: '2026-11-22', title: 'Agendalinks: rooster uit Magister in de agenda',
     notes: [
       { app: 'agenda', text: 'Nieuw: Agendalinks. Plak de agendalink van bijvoorbeeld het rooster in Magister, en de lessen komen vanzelf in de agenda. De app werkt ze elk half uur bij. Je kunt per persoon meerdere links toevoegen.', kb: 'agendalinks' },

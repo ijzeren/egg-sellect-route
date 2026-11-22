@@ -3,6 +3,8 @@
 // Aanroepen (POST, JSON):
 //   { "mode": "cron" }               elke 30 min via pg_cron (cron.sql): alle agendalinks die aan de beurt zijn
 //   { "mode": "sync", "id": "…" }    "Nu bijwerken" in de app (ingelogd; alleen een koppeling die je mag zien)
+//   POST …/integrations?t=<token>    Gezondheid: de opdracht op de iPhone stuurt { steps, weight, date? } (zie health.mjs);
+//                                    antwoord is gewone tekst, zodat Opdrachten het kan tonen
 //
 // SUPABASE_URL, SUPABASE_ANON_KEY en SUPABASE_SERVICE_ROLE_KEY levert Supabase zelf.
 // Zet "Verify JWT" UIT voor deze functie (config.toml): de cron-aanroep heeft geen gebruiker; "sync" controleert zelf.
@@ -12,6 +14,7 @@
 // Lokaal testen met http-links: INTEGRATIONS_ALLOW_HTTP=1 (zie supabase/README.md).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { parseICal, toAgendaRows, cleanUrl, localParts } from "./ical.mjs";
+import { parseHealthBody } from "./health.mjs";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
@@ -141,14 +144,44 @@ async function syncForUser(req: Request, id: string) {
   return json(await syncOne(it as Integration));
 }
 
+/* ---------- Gezondheid: ontvangen van de iPhone ---------- */
+const text = (body: string, status = 200) => new Response(body, { status, headers: { ...cors, "Content-Type": "text/plain; charset=utf-8" } });
+async function sha256(s: string) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+async function ingest(token: string, body: any) {
+  if (!/^[0-9a-f]{40,80}$/.test(token)) return text("Deze link klopt niet. Maak in Training → Gezondheid een nieuwe link.", 401);
+  const { data: sec } = await db.from("integration_secrets").select("integration_id").eq("secret", await sha256(token)).maybeSingle();
+  const { data: it } = sec ? await db.from("integrations").select("id, team_id, user_id, type, enabled, config, teams!inner(disabled_at)").eq("id", sec.integration_id).maybeSingle() : { data: null };
+  if (!it || it.type !== "apple_health") return text("Deze link werkt niet meer. Maak in Training → Gezondheid een nieuwe link.", 401);
+  if (!it.enabled || (it as any).teams?.disabled_at || await platformOff("apple_health")) return text("Gezondheid staat uit; er is niets opgeslagen.", 409);
+  const { data: may } = await db.rpc("health_may", { p_team: it.team_id, p_user: it.user_id });
+  if (!may) return text("Er is geen toestemming (meer); er is niets opgeslagen.", 403);
+  const today = localParts(Date.now()).date;
+  const r = parseHealthBody(body, today, (it.config?.kinds as string[]) || ["weight", "steps"]);
+  if (r.samples.length) {
+    const rows = r.samples.map((x: any) => ({ team_id: it.team_id, user_id: it.user_id, integration_id: it.id, kind: x.kind, day: r.day, value: x.value, unit: x.unit, updated_at: new Date().toISOString() }));
+    const { error } = await db.from("health_samples").upsert(rows, { onConflict: "integration_id,kind,day" });
+    if (error) { console.error("health", error.code); return text("Opslaan lukte niet. Probeer het later opnieuw.", 500); }
+  }
+  const { count } = await db.from("health_samples").select("id", { count: "exact", head: true }).eq("integration_id", it.id);
+  const ok = r.samples.length > 0;
+  if (!ok && !r.problems.length) r.problems.push(r.ignored.length ? `Onbekende gegevens (${r.ignored.slice(0, 3).join(", ")}): stuur steps en/of weight.` : "Geen gegevens ontvangen: stuur steps en/of weight.");
+  await db.from("integrations").update({ status: ok ? "ok" : "error", last_sync_at: new Date().toISOString(), last_error: ok ? "" : (r.problems[0] || "Geen gegevens ontvangen."), last_count: count ?? 0 }).eq("id", it.id);
+  await db.from("integration_runs").insert({ integration_id: it.id, team_id: it.team_id, ok, added: r.samples.length, skipped: r.ignored.length, error: ok ? "" : (r.problems[0] || "") });
+  const said = r.samples.map((x: any) => x.kind === "steps" ? `${Math.round(x.value).toLocaleString("nl-NL")} stappen` : `${String(x.value).replace(".", ",")} kg`);
+  return text(ok ? `Opgeslagen voor ${r.day}: ${said.join(" en ")}.${r.problems.length ? " " + r.problems.join(" ") : ""}` : `Niets opgeslagen. ${r.problems.join(" ")}`, ok ? 200 : 400);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Alleen POST" }, 405);
   let body: any = {};
-  try { body = await req.json(); } catch { /* leeg */ }
+  const raw = await req.text();
+  try { body = raw ? JSON.parse(raw) : {}; } catch { body = null; }
+  const token = new URL(req.url).searchParams.get("t");
   try {
-    if (body.mode === "cron") return json(await cron());
-    if (body.mode === "sync" && typeof body.id === "string") return await syncForUser(req, body.id);
+    if (token) return await ingest(token, body);
+    if (body?.mode === "cron") return json(await cron());
+    if (body?.mode === "sync" && typeof body.id === "string") return await syncForUser(req, body.id);
     return json({ error: "Onbekende opdracht" }, 400);
   } catch (e) {
     console.error("integrations", String((e as any)?.message ?? e).replace(/https?:\/\/\S+/g, "[link]").slice(0, 300));

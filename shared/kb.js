@@ -180,6 +180,31 @@ Een kind zonder telefoon of account kan ook. Heeft iemand wel een account in het
 <p><b>Wie mag wat?</b> Iedereen die Agenda mag gebruiken, kan afspraken en huiswerk toevoegen en wijzigen. Kinderen hebben pas toegang als een beheerder Agenda voor hen aanzet bij <b>Gezin → tik op het kind → Apps</b>.</p>`,
   },
   {
+    slug: 'gezondheid', app: 'training', title: 'Gezondheid: gewicht en stappen van je iPhone', updated: '2026-11-22', version: '3.17.0',
+    body: `<p>In <b>Training</b> kun je je <b>gewicht</b> en <b>aantal stappen</b> per dag bijhouden, uit de app Gezondheid van je iPhone. Een webapp mag niet zelf in Gezondheid kijken. Daarom stuurt een automatisering in de app <b>Opdrachten</b> de gegevens één keer per dag naar Thuis.</p>
+<h3>Toestemming en privacy</h3>
+<ul><li>Het staat pas aan als jij toestemming geeft (Training → Gezondheid → <b>Aanzetten</b>).</li>
+<li>Thuis bewaart alleen het getal per dag: je gewicht en je stappen. Verder niets uit Gezondheid.</li>
+<li><b>Alleen jij</b> ziet je gegevens. Wil je dat het gezin ze ook ziet in Training? Zet dan <b>Delen met het gezin</b> aan. Ook de hoofdbeheerder van de app ziet ze niet.</li>
+<li><b>Kinderen</b>: eerst geeft een beheerder van het gezin toestemming bij <b>Gezin → (kind) → Gezondheid</b>. Intrekken wist alle metingen van het kind.</li>
+<li><b>Stoppen en alles wissen</b> haalt je toestemming, je link en alle metingen weg. Verlaat je het gezin, dan gebeurt dat ook.</li></ul>
+<h3>De opdracht maken (eenmalig, ongeveer 5 minuten)</h3>
+<ol><li>Zet Gezondheid aan in Training en tik op <b>Kopieer link</b>. Deze link is persoonlijk en geheim.</li>
+<li>Open <b>Opdrachten</b> → tab <b>Automatisering</b> → <b>+</b> → <b>Tijdstip van de dag</b>. Kies bijvoorbeeld 21:30, <b>Dagelijks</b>, en <b>Voer direct uit</b>. Kies daarna <b>Nieuwe lege automatisering</b>.</li>
+<li>Voeg de actie <b>Zoek gezondheidsmonsters</b> toe (zoek op "gezondheid"). Kies type <b>Stappen</b>, met <b>Begindatum is vandaag</b>. Zie je <b>Groepeer per</b>, kies dan <b>Dag</b>.</li>
+<li>Voeg nog een <b>Zoek gezondheidsmonsters</b> toe met type <b>Gewicht</b>. Sorteer op <b>Begindatum</b>, <b>Nieuwste eerst</b>, en <b>Beperk</b> tot 1.</li>
+<li>Voeg <b>Haal inhoud op van URL</b> toe en plak je link. Tik op het pijltje voor meer opties: methode <b>POST</b>, hoofdtekst <b>JSON</b>.
+Voeg twee tekstvelden toe: <b>steps</b> met het resultaat van de stappen, en <b>weight</b> met het resultaat van het gewicht.</li>
+<li>Optioneel: voeg <b>Toon melding</b> toe met de inhoud van de URL. Dan zie je wat Thuis antwoordde.</li>
+<li>Tik op de afspeelknop om te testen. De eerste keer vraagt je iPhone of Opdrachten Gezondheid mag lezen: kies <b>Sta toe</b>.
+Thuis antwoordt bijvoorbeeld "Opgeslagen voor 2026-11-22: 8.123 stappen en 72,4 kg".</li></ol>
+<p>Geen weegschaal die met Gezondheid praat? Laat het gewicht dan weg; stappen alleen werkt ook. Getallen mogen met komma of punt (72,4 of 72.4).</p>
+<h3>Werkt het niet?</h3>
+<ul><li>In Training staat bij Gezondheid wanneer de laatste meting binnenkwam, of een ⚠︎ met wat er misging.</li>
+<li><b>Nieuwe telefoon of link kwijt?</b> Tik op <b>Nieuwe link maken</b> en zet die in je opdracht. De oude link werkt dan niet meer.</li>
+<li>Android werkt (nog) niet: daar is geen Opdrachten.</li></ul>`,
+  },
+  {
     slug: 'agendalinks', app: 'agenda', title: 'Agendalinks: rooster uit Magister in de agenda', updated: '2026-11-22', version: '3.16.0',
     body: `<p>Met een <b>agendalink</b> komen afspraken uit een andere agenda vanzelf in Agenda, bijvoorbeeld het lesrooster uit <b>Magister</b>. De app haalt ze elk half uur op. Je hoeft niets over te typen.</p>
 <h3>Toevoegen</h3>
