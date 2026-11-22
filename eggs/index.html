@@ -273,7 +273,7 @@ html.pop::view-transition-old(root){animation-name:vt-out-r;z-index:2} html.pop:
 
 <script>
 'use strict';
-const APP_VERSION = '3.11.3';
+const APP_VERSION = '3.11.4';
 const KEY = 'eggselent-data-v1';
 const UIKEY = 'eggselent-ui-v1';
 
@@ -771,6 +771,20 @@ function defaultNext(a, D, k){
   if (!db.settings.walkDays.length) return addDays(D, 7 * Math.max(1, k));
   const c = nextCandidates(a, D, k);
   return c.find(x => !isAbsent(x)) || c[0] || addDays(D, 7 * Math.max(1, k));
+}
+// Voorkeursdag gewijzigd: een volgende keer die de app zelf koos, schuift mee naar de nieuwe voorkeur.
+// Een datum die aan de deur anders is afgesproken (of om afwezigheid verschoven) blijft staan.
+// Geeft het bezoek terug met de oude datum (voor Ongedaan), of null als er niets veranderde.
+function shiftPlannedNext(a, oldPrefs){
+  const T = todayStr(), v = visitsOf(a.id).filter(x => DEC(x) && x.date <= T).pop();
+  if (!v || !v.nextDate || v.nextDate < T || v.double) return null;
+  const k = Math.max(1, weeksBetween(v.date, v.nextDate)), cur = a.prefDays;
+  a.prefDays = oldPrefs || []; const was = defaultNext(a, v.date, k); a.prefDays = cur;
+  if (was !== v.nextDate) return null;
+  const now = defaultNext(a, v.date, k);
+  if (now === v.nextDate || now < T) return null;
+  const old = v.nextDate; v.nextDate = now; v.ts = Date.now();
+  return { v, old };
 }
 // Valt de vaste dag van deze klant bij het volgende bezoek op een dag dat de bezorger afwezig is?
 function nextVisitImpact(a, D){
@@ -2183,20 +2197,23 @@ document.addEventListener('click', e => {
       const r = ui.rangeDo || {}, targets = rangeTargets(selRange(), r);
       if (!targets.length) break;
       const snap = targets.map(a => ({ a, prefDays: (a.prefDays || []).slice(), freq: a.freq }));
+      const moved = [];
       for (const a of targets) {
-        if (r.pref != null && !(r.onlyEmpty && (a.prefDays || []).length)) a.prefDays = r.pref.slice();
+        if (r.pref != null && !(r.onlyEmpty && (a.prefDays || []).length)) { const old = (a.prefDays || []).slice(); a.prefDays = r.pref.slice(); const m = shiftPlannedNext(a, old); if (m) moved.push(m); }
         if (r.freq != null) a.freq = r.freq;
       }
       save(); ui.sel = null; ui.rangeDo = null; ui.sheet = null; renderSheet(); render();
       const what = [r.pref != null ? (r.pref.length ? r.pref.map(d => DAYS[d]).join(' / ') : 'geen voorkeursdag') : '', r.freq != null ? freqText(r.freq).toLowerCase() : ''].filter(Boolean).join(', ');
-      toast(`${plural(targets.length, 'adres', 'adressen')}: ${what}`, 'Ongedaan', () => { for (const x of snap) { x.a.prefDays = x.prefDays; x.a.freq = x.freq; } save(); render(); });
+      toast(`${plural(targets.length, 'adres', 'adressen')}: ${what}${moved.length ? ` · ${moved.length}× volgende keer verschoven` : ''}`, 'Ongedaan', () => { for (const x of snap) { x.a.prefDays = x.prefDays; x.a.freq = x.freq; } for (const m of moved) { m.v.nextDate = m.old; m.v.ts = Date.now(); } save(); render(); });
       break;
     }
     case 'toggleexcl': { const a = byId(ui.id); a.excluded = !a.excluded; save(); render(); if (a.excluded) toast(`${label(a)} uitgesloten`, 'Ongedaan', () => { a.excluded = false; save(); render(); }); break; }
     case 'prefday': {
       const d = +el.dataset.d;
       if (!ui.id) { ui.draft.prefDays = toggleIn(ui.draft.prefDays || [], d); saveUi(); render(); break; }
-      const a = byId(ui.id); a.prefDays = toggleIn(a.prefDays || [], d); save(); render();
+      const a = byId(ui.id), old = (a.prefDays || []).slice(); a.prefDays = toggleIn(old, d);
+      const m = shiftPlannedNext(a, old); save(); render();
+      if (m) toast(`Volgende keer nu ${fmtShort(m.v.nextDate)} (was ${fmtShort(m.old)})`, 'Ongedaan', () => { m.v.nextDate = m.old; m.v.ts = Date.now(); save(); render(); });
       break;
     }
     case 'freq': {

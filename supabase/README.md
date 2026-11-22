@@ -299,3 +299,8 @@ Doe dit **vóór** je v3.9.0 pusht (staat al in productie sinds 22 nov 2026):
 Staat al in productie (22 nov 2026). Voor een nieuwe omgeving: voer [`schema.sql`](schema.sql) opnieuw uit.
 Nieuw op `recipes`: `pairs` (lijst van `{ id?, text }`: een ander gerecht van het gezin of een vrije suggestie), plus de
 rechten om die kolom te vullen. De soort `sauce` (Saus en dip) past binnen de bestaande controle op `category`.
+
+## Eenmalige correctie: volgende keer na nieuwe voorkeursdag (v3.11.4)
+Staat al in productie (22 nov 2026), geen schemawijziging. Wilhelminasingel 25, 31 en 33 kregen woensdag als extra
+voorkeursdag nadat de app hun volgende keer al op do 26 nov had gezet; [`fix-2026-11-22-next-date.sql`](fix-2026-11-22-next-date.sql)
+zet die op wo 25 nov (veilig om opnieuw te draaien). Vanaf 3.11.4 schuift de app zo'n zelfgekozen datum zelf mee.

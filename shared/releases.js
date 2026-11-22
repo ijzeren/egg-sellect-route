@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.11.4', date: '2026-11-22', title: 'Eieren: voorkeursdag wijzigen past de ronde aan',
+    notes: [
+      { app: 'eggs', text: 'Wijzig je een voorkeursdag (of voeg je er een toe), dan schuift de volgende keer mee als de app die zelf had gekozen. Zo staat het adres meteen op de goede dag in de ronde. Een datum die je aan de deur anders hebt afgesproken, blijft staan.' },
+    ],
+  },
+  {
     version: '3.11.3', date: '2026-11-22', title: 'Eieren: menu onderaan terug',
     notes: [
       { app: 'eggs', text: 'Op de iPhone zijn het menu onderaan en de knoppen bij een huis weer zichtbaar, en je kunt weer tot onderaan scrollen (laatste adres, "Niet vandaag").' },
