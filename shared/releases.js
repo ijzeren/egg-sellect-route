@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.17.1', date: '2026-11-23', title: 'Meldingen betrouwbaarder',
+    notes: [
+      { app: 'eggs', text: 'Herinneringen voor de loopdag en het bestellen komen betrouwbaarder op tijd binnen. De server wacht nu langer als hij even moet opstarten.' },
+    ],
+  },
+  {
     version: '3.17.0', date: '2026-11-22', title: 'Gezondheid in Training',
     notes: [
       { app: 'training', text: 'Nieuw: houd je gewicht en stappen bij in Training, rechtstreeks van je iPhone. Een automatisering in Opdrachten stuurt ze één keer per dag. Alleen met jouw toestemming, en alleen jij ziet ze, tenzij je kiest om te delen met het gezin.', kb: 'gezondheid' },

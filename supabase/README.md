@@ -361,3 +361,11 @@ Doe dit **vóór** je v3.17.0 pusht (na de stappen van 3.16.0):
    ```
 De persoonlijke link is `…/functions/v1/integrations?t=<token>`; op de server staat alleen de sha256 van het token.
 De hoofdbeheerder ziet in Beheer alleen aantallen, nooit metingen.
+
+## Meldingen: langere wachttijd (v3.17.1)
+Al gedaan in productie op 23 nov 2026. Bij een nieuw project: voer [`cron.sql`](cron.sql) opnieuw uit.
+
+De geplande taak `egg-sellent-push` wacht nu 30 seconden op de functie `push` in plaats van 5 (de standaard van pg_net).
+Bij een koude start duurde de functie soms langer dan 5 seconden, en dan stond er een time-out in `net._http_response`.
+Controle: `select jobname, position('timeout_milliseconds := 30000' in command) > 0 from cron.job;` → `true` bij
+`egg-sellent-push`.

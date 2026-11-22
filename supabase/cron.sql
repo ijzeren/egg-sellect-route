@@ -13,7 +13,8 @@ select cron.schedule(
   select net.http_post(
     url := 'https://istqegonfkfrkyddfajd.supabase.co/functions/v1/push',
     body := '{"mode":"cron"}'::jsonb,
-    headers := '{"Content-Type":"application/json","apikey":"sb_publishable_antF0IJbE25Ie9I3i_KmBQ_qxF0vR8q"}'::jsonb
+    headers := '{"Content-Type":"application/json","apikey":"sb_publishable_antF0IJbE25Ie9I3i_KmBQ_qxF0vR8q"}'::jsonb,
+    timeout_milliseconds := 30000 -- standaard 5 s; te kort als de functie eerst moet opstarten
   );
   $$
 );
