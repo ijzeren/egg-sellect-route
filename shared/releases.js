@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.12.3', date: '2026-11-22', title: 'Eieren: melding "Dubbel ingevoerd?" klopt weer',
+    notes: [
+      { app: 'eggs', text: 'Een levering zonder aantal (niets besteld, niets geleverd) telt niet meer mee en verdwijnt vanzelf als je hem sluit. Daardoor bleef de melding "Dubbel ingevoerd?" soms staan terwijl er geen dubbele levering meer was.' },
+    ],
+  },
+  {
     version: '3.12.2', date: '2026-11-22', title: 'Geen inzoomen meer',
     notes: [
       { app: 'hub', text: 'De app zoomt niet meer in of uit, ook niet bij dubbeltikken, knijpen met twee vingers of tikken in een invoerveld. De lettergrootte uit de instellingen van je iPhone blijft gewoon werken.' },
