@@ -1,7 +1,9 @@
 # De Assistent: gezondheidsscore van gerechten
 
 Instructies voor de geplande Claude-routine die gerechten uit de app Gerechten een gezondheidsscore geeft.
-Script: `scripts/recipe-scores.mjs` (zelfde runner-account als de vragen, zie [runner.md](runner.md)).
+Script: `scripts/recipe-scores.mjs`. Met `RUNNER_EMAIL`/`RUNNER_PASSWORD` in de omgeving gebruikt het het runner-account
+(zie [runner.md](runner.md)); zonder die twee gaat het via de Supabase CLI met de login op deze Mac (`npx supabase login`).
+De geplande taak "Gezondheidsscore gerechten" (Claude-app op de Mac, elke ochtend rond 07:30) gebruikt die tweede manier.
 
 ## Werkwijze
 1. `node scripts/recipe-scores.mjs list` → gerechten zonder score (id, titel, soort, porties, ingrediënten, stappen, updated_at).

@@ -245,9 +245,11 @@ Doe dit **vóór** je v3.4.0 pusht:
    `runner_unscored_recipes()` en `runner_score_recipe()`. Gezinsleden kunnen de gezondheidsscore niet zelf zetten
    (geen schrijfrecht op die kolommen); wijzigt een recept, dan maakt de database de score leeg.
    Controle: `select count(*) from recipes;` → 0.
-2. **Routine voor de gezondheidsscore**: zelfde runner-account als de vragen (v3.2.0, stap 2), geen extra rechten nodig.
-   Plan een Claude-routine (bijv. elke ochtend) met de instructies uit [`docs/recipe-scores.md`](../docs/recipe-scores.md):
-   `RUNNER_EMAIL=… RUNNER_PASSWORD=… node scripts/recipe-scores.mjs list`, beoordelen, en per gerecht `score`.
+2. **Routine voor de gezondheidsscore**: de instructies staan in [`docs/recipe-scores.md`](../docs/recipe-scores.md).
+   Ingesteld (22 nov 2026) als geplande taak "Gezondheidsscore gerechten" in de Claude-app op Mariens Mac, elke ochtend
+   rond 07:30. Die gebruikt de Supabase CLI-login van die Mac (`npx supabase login`), geen runner-account. Draait de app
+   niet, dan loopt de taak bij de volgende start. Liever in de cloud of los van de Mac? Gebruik dan het runner-account
+   (v3.2.0, stap 2) met `RUNNER_EMAIL`/`RUNNER_PASSWORD`; het script kiest dat vanzelf.
 3. Na de push: een beheerder zet **Gerechten** aan bij Gezin → Apps. Kinderen per kind.
 
 Getest op de lokale database (22 nov 2026): schema twee keer achter elkaar; lid kan score niet zetten (ook niet bij
