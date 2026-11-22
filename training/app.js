@@ -3,7 +3,7 @@
 //   - vaste trainingsdagen per week; de lessen worden daarover ingepland (program.js)
 //   - op een andere dag mag je altijd een les doen: dat is een bonustraining
 //   - trainingen per gezin: samen (meerdere deelnemers) of apart; Supabase-tabel training_tracks, lokaal eerst
-import { storage, account, api, applyTheme, esc, registerSW } from '../shared/family.js';
+import { storage, account, api, applyTheme, esc, registerSW, canUse } from '../shared/family.js';
 import * as P from './program.js';
 import { E, WEEKS, DAYS, PHASES, LESSON_SECONDS, planFor, lessonTitle, PROGRAM } from './sports/pilates/index.js';
 
@@ -118,12 +118,12 @@ async function syncNow() {
   else { const el = document.getElementById('syncline'); if (el) el.innerHTML = syncText(); }
 }
 function syncText() {
-  if (!me) return 'Alleen op deze telefoon. Log in via Egg-sellent om samen te trainen en je voortgang op al je telefoons te bewaren.';
-  if (!FAMILY) return 'Alleen op deze telefoon. Sluit je aan bij een gezin om samen te trainen.';
+  if (!me) return 'Alleen op deze telefoon. <a href="../?login">Log in</a> om samen te trainen en je voortgang op al je telefoons te bewaren.';
+  if (!FAMILY) return 'Alleen op deze telefoon. <a href="../?view=family">Sluit je aan bij een gezin</a> om samen te trainen.';
   const who = `Gezin ${esc(me.teamName)}`;
   if (sync.state === 'ok') return `${who} · bijgewerkt om ${sync.at.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}`;
   if (sync.state === 'offline') return `${who} · geen verbinding, wordt later bijgewerkt`;
-  if (sync.state === 'auth') return 'Je bent uitgelogd. Log opnieuw in via Egg-sellent; je voortgang blijft op deze telefoon bewaard.';
+  if (sync.state === 'auth') return 'Je bent uitgelogd. <a href="../?login">Log opnieuw in</a>; je voortgang blijft op deze telefoon bewaard.';
   if (sync.state === 'error') return `${who} · bijwerken mislukt: ${esc(sync.msg)}`;
   return `${who} · bijwerken…`;
 }
@@ -145,6 +145,7 @@ function cues(e) {
 
 function render() {
   const a = $('#app');
+  if (!canUse('training')) { a.innerHTML = navBar(hubLink()) + '<main>' + lt('Training', esc(me.teamName)) + '<div class="card"><p>Training staat niet aan voor jou in dit gezin. Een beheerder kan de app aanzetten bij <b>Gezin → Apps</b> in het startscherm.</p><a class="btn" href="../?view=family">Naar gezin</a></div></main>'; return; }
   if (view === 'home') a.innerHTML = home();
   else if (view === 'days') a.innerHTML = daysView();
   else if (view === 'people') a.innerHTML = peopleView();
@@ -241,7 +242,7 @@ function daysView() {
 
 function peopleView() {
   let h = navBar(backTo('home', 'Overzicht'), 'Wie doen er mee?') + '<main>' + lt('Wie doen er mee?', 'Samen trainen of ieder apart');
-  if (!FAMILY) return h + `<div class="card"><p>${me ? 'Sluit je aan bij een gezin' : 'Log in via Egg-sellent en sluit je aan bij een gezin'} om samen te trainen. Iedereen die meedoet aan een training heeft dan dezelfde voortgang, op elke telefoon.</p></div></main>`;
+  if (!FAMILY) return h + `<div class="card"><p>${me ? '<a href="../?view=family">Sluit je aan bij een gezin</a>' : '<a href="../?login">Log in</a> en sluit je aan bij een gezin'} om samen te trainen. Iedereen die meedoet aan een training heeft dan dezelfde voortgang, op elke telefoon.</p></div></main>`;
   const list = mine();
   h += `<section class="sec"><h2 class="sec-h">Jouw trainingen</h2><div class="grp">${list.map(t => `<button class="cell" data-a="track" data-id="${esc(t.id)}"><span class="tx"><span class="tt">${esc(trackName(t))}</span><span class="st">${esc(P.status(t.data, TOTAL).line)}</span></span>${t.id === activeId ? '<span class="tr" aria-label="actief">✓</span>' : ''}</button>`).join('')}</div>
   <p class="sec-f">Tik om te wisselen. Samen en apart kan naast elkaar: bijvoorbeeld samen met je partner én een eigen training.</p></section>`;

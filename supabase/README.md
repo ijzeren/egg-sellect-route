@@ -188,3 +188,16 @@ Doe dit **voordat** je de nieuwe versie naar GitHub pusht:
    `…/egg-sellect-route/eggs/`; zonder `**` werkt die link niet meer. (Inloggen met de code werkt altijd.)
 3. Optioneel: deploy de push-functie opnieuw (`npx supabase functions deploy push`). Die stuurt dan
    direct naar `eggs/`. Niet verplicht: de app stuurt oude meldingslinks zelf door.
+
+## Update naar gezinnen, rollen en apps (v3.1.0)
+Inloggen gebeurt voortaan in het startscherm; gezinnen hebben rollen (beheerder, lid, kind) en apps per gezin.
+Doe dit **vóór** je v3.1.0 pusht (na de stappen van v3.0.0 hierboven):
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `team_apps`, `team_member_apps`, rechten per
+   app. De rol "bezorger" wordt gezinsrol "lid" met de rol bezorger in Egg-sellent. Er gaat niets verloren.
+2. **SQL Editor**: voer [`migrate-family-dongstra.sql`](migrate-family-dongstra.sql) uit. Het team "Lynn" heet daarna
+   "Familie Dongstra" en Egg-sellent en Training staan aan. De laatste regel toont ter controle de rollen en aantallen.
+3. Redirect URLs: de inloglink komt nu terug op het startscherm (`…/egg-sellect-route/`); met `**` (zie v3.0.0) is dat al goed.
+
+Getest op een lokale kopie van productie (22 nov 2026): migratie twee keer achter elkaar, 20 rechtencontroles
+(o.a. bezorger kan gezin en eierinstellingen niet wijzigen, app uit = geen toegang tot de gegevens).

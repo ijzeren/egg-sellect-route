@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <script>
-// Oude koppelingen van Egg-sellent (meldingen met ?v=…, inloglinks met #access_token=…) wezen naar de root.
-// Die horen nu bij eggs/: direct doorsturen, vóór er iets anders laadt.
+// Oude meldingslinks van Egg-sellent (?v=order …) wezen naar de root; die horen nu bij eggs/.
+// Inloglinks (#access_token=…) handelt de hub zelf af: inloggen gebeurt hier voor alle apps.
 (function () {
-  var q = location.search, h = location.hash;
-  if (/[?&]v=/.test(q) || /(access_token|error_description)=/.test(h)) location.replace('eggs/' + q + h);
+  var q = location.search;
+  if (/[?&]v=/.test(q)) location.replace('eggs/' + q);
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -41,40 +41,7 @@
 <body>
 <div id="app"></div>
 <script src="config.js"></script>
-<script type="module">
-import { storage, account, applyTheme, esc, registerSW, CLOUD } from './shared/family.js';
-import { APPS } from './shared/apps.js';
-import { ymd } from './training/program.js';
-
-applyTheme();
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
-registerSW('./');
-
-const DAYS = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
-const MONL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
-
-function render() {
-  const now = new Date(), today = ymd(now), me = account(), hr = now.getHours();
-  const hello = hr < 6 ? 'Goedenacht' : hr < 12 ? 'Goedemorgen' : hr < 18 ? 'Goedemiddag' : 'Goedenavond';
-  let h = `<main class="hub-top"><div class="lt" style="padding-left:4px"><h1 tabindex="-1">${hello}</h1><div class="sub">${DAYS[now.getDay()]} ${now.getDate()} ${MONL[now.getMonth()]}</div></div><div class="tiles">`;
-  for (const app of APPS) {
-    let s = { line: '', sub: '' };
-    try { s = app.status({ today, account: me, storage }) || s; } catch (e) { console.warn(app.id, e); }
-    h += `<a class="tile${s.today ? ' now' : ''}" href="${app.route}"><span class="ic" aria-hidden="true">${app.icon}</span><span class="nm">${esc(app.name)}</span><span class="ln">${esc(s.line)}</span>${s.sub ? `<span class="sb">${esc(s.sub)}</span>` : ''}</a>`;
-  }
-  h += '</div>';
-  if (CLOUD) {
-    h += `<section class="sec"><h2 class="sec-h">Account</h2><div class="grp">${me
-      ? `<div class="cell"><span class="tx"><span class="tt">${esc(me.email)}</span>${me.teamName ? `<span class="st">Team ${esc(me.teamName)}</span>` : ''}</span></div>`
-      : `<a class="cell" href="eggs/"><span class="tx"><span class="tt">Inloggen</span><span class="st">Gaat via Egg-sellent; daarna geldt het voor alle apps.</span></span></a>`}</div></section>`;
-  }
-  document.getElementById('app').innerHTML = h + '</main>';
-}
-
-render();
-// Terug naar de hub (of de app weer geopend): status opnieuw berekenen.
-addEventListener('pageshow', render);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
-</script>
+<div id="toast" aria-live="polite"></div>
+<script type="module" src="hub/app.js"></script>
 </body>
 </html>

@@ -9,9 +9,9 @@ De apps van het gezin onder één icoon: een startscherm (hub) met daaronder los
 | `/eggs/` | **Egg-sellent** — *Vers aan de deur, slim gepland.* Eierronde, afspraken en besteladvies |
 | `/training/` | **Training** — Pilates 30: 30 lessen op je vaste trainingsdagen, samen of apart, met bonuslessen |
 
-Een gezin (in de database een *team*) heeft meerdere gebruikers; aansluiten gaat met een code.
-Egg-sellent en Training horen bij het gezin. Inloggen en het gezin kiezen gebeurt voorlopig nog in
-Egg-sellent en geldt daarna voor alle apps.
+Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beheerder, lid, kind); aansluiten gaat
+met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
+apps en weergave regel je in de hub; app-specifieke instellingen in de app. Werkafspraken: [CLAUDE.md](CLAUDE.md).
 
 ## Op de iPhone zetten
 1. Open de link hierboven in **Safari**.
@@ -27,17 +27,19 @@ Engels, schermteksten in het Nederlands.
 
 | | |
 |---|---|
-| `index.html` | hub; stuurt oude Egg-sellent-links (`?v=…`, `#access_token=…`) door naar `eggs/` |
+| `index.html` | hub (pagina); stuurt oude meldingslinks (`?v=…`) door naar `eggs/`, handelt inloglinks zelf af |
 | `shared/theme.css`, `shared/ui.css` | gedeeld thema (licht/donker) en bouwstenen |
-| `shared/family.js` | config, gedeelde sessie, opslag per app (`family:<app>:<key>`), thema |
+| `shared/family.js` | config, inloggen, gezinnen, passkeys, opslag per app (`family:<app>:<key>`), thema |
+| `hub/app.js` | hub: inloggen, gezin (leden, rollen, apps), weergave, wat is nieuw |
 | `shared/apps.js` | lijst van apps voor de hub; **een app toevoegen = één item hier + een eigen map** |
+| `shared/releases.js` | versies en release notes (getoond bij "Wat is nieuw") |
 | `eggs/index.html` | Egg-sellent (schermen, logica, opslag, synchronisatie) |
 | `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `sports/pilates/` (oefeningen en lessen) |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
 | `manifest.webmanifest`, `icon-*.png` | naam en icoon op het beginscherm |
 | `supabase/` | databaseschema, mailtekst met inlogcode en [installatiehandleiding](supabase/README.md) |
-| `tests/` | `npm test`: Pilates-inhoud (elke les precies 30 min, alle oefeningen bestaan) en planning |
+| `tests/` | `npm test`: versies en release notes, Pilates-inhoud (elke les precies 30 min) en planning |
 | `PLAN.md` | plan van Egg-sellent (schermafbeeldingen in `docs/design/`) |
 
 ## Training: trainingsdagen en bonus

@@ -30,7 +30,7 @@ create table if not exists public.teams (
 create table if not exists public.team_members (
   team_id uuid not null references public.teams(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  role text not null default 'walker' check (role in ('admin', 'walker')),
+  role text not null default 'member' check (role in ('admin', 'member', 'child')),
   name text not null default '',
   joined_at timestamptz not null default now(),
   primary key (team_id, user_id)
@@ -41,7 +41,7 @@ create table if not exists public.team_invites (
   code text primary key,
   team_id uuid not null references public.teams(id) on delete cascade,
   created_by uuid references auth.users(id) on delete set null,
-  role text not null default 'walker' check (role in ('admin', 'walker')),
+  role text not null default 'member' check (role in ('admin', 'member', 'child')),
   expires_at timestamptz not null default now() + interval '14 days',
   created_at timestamptz not null default now()
 );
@@ -239,32 +239,30 @@ begin
   end loop;
 end $$;
 
--- Een lid mag zijn eigen rol niet ophogen (alleen naam wijzigen).
+-- Rollen wijzigen mag alleen een beheerder, en een gezin houdt altijd minstens één beheerder (zolang er leden zijn).
+-- Zonder ingelogde gebruiker (SQL Editor, migraties) geldt de controle niet.
 create or replace function public.member_guard() returns trigger
 language plpgsql as $$
 begin
-  if new.role <> old.role and not public.is_admin(old.team_id) then
+  if auth.uid() is null then return case when tg_op = 'DELETE' then old else new end; end if;
+  if tg_op = 'UPDATE' and new.role <> old.role and not public.is_admin(old.team_id) then
     raise exception 'Alleen een beheerder kan rollen wijzigen';
   end if;
-  return new;
+  if old.role = 'admin' and (tg_op = 'DELETE' or new.role <> 'admin')
+     and not exists (select 1 from team_members where team_id = old.team_id and role = 'admin' and user_id <> old.user_id)
+     and exists (select 1 from team_members where team_id = old.team_id and user_id <> old.user_id) then
+    raise exception 'Er moet minstens één beheerder in het gezin blijven';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
 end $$;
 drop trigger if exists member_guard on public.team_members;
-create trigger member_guard before update on public.team_members for each row execute function public.member_guard();
+create trigger member_guard before update or delete on public.team_members for each row execute function public.member_guard();
 
 -- ---------- acties (functies) ----------
--- Nieuw team: de maker wordt beheerder.
-create or replace function public.create_team(p_name text, p_member_name text default '')
-returns uuid language plpgsql security definer set search_path = public as $$
-declare t uuid;
-begin
-  if auth.uid() is null then raise exception 'Niet ingelogd'; end if;
-  insert into teams(name) values (trim(p_name)) returning id into t;
-  insert into team_members(team_id, user_id, role, name) values (t, auth.uid(), 'admin', coalesce(p_member_name, ''));
-  return t;
-end $$;
+-- Nieuw gezin (create_team) en mijn gezinnen (my_teams): zie "Gezin: rollen, rechten en apps" verderop.
 
 -- Uitnodigingscode maken (alleen beheerder). 6 tekens, zonder verwarrende letters.
-create or replace function public.create_invite(p_team uuid, p_role text default 'walker')
+create or replace function public.create_invite(p_team uuid, p_role text default 'member')
 returns text language plpgsql security definer set search_path = public as $$
 declare c text; alphabet text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; i int;
 begin
@@ -275,7 +273,8 @@ begin
     for i in 1..6 loop c := c || substr(alphabet, 1 + floor(random() * length(alphabet))::int, 1); end loop;
     exit when not exists (select 1 from team_invites where code = c);
   end loop;
-  insert into team_invites(code, team_id, created_by, role) values (c, p_team, auth.uid(), coalesce(p_role, 'walker'));
+  if coalesce(p_role, 'member') not in ('admin', 'member', 'child') then raise exception 'Onbekende rol'; end if;
+  insert into team_invites(code, team_id, created_by, role) values (c, p_team, auth.uid(), coalesce(p_role, 'member'));
   return c;
 end $$;
 
@@ -292,22 +291,10 @@ begin
   return inv.team_id;
 end $$;
 
--- Mijn teams (na inloggen).
-create or replace function public.my_teams()
-returns table(team_id uuid, team_name text, role text, member_name text)
-language sql stable security definer set search_path = public as $$
-  select t.id, t.name, m.role, m.name from team_members m join teams t on t.id = m.team_id
-  where m.user_id = auth.uid() order by m.joined_at;
-$$;
-
-revoke all on function public.create_team(text, text) from public, anon;
 revoke all on function public.create_invite(uuid, text) from public, anon;
 revoke all on function public.join_team(text, text) from public, anon;
-revoke all on function public.my_teams() from public, anon;
-grant execute on function public.create_team(text, text) to authenticated;
 grant execute on function public.create_invite(uuid, text) to authenticated;
 grant execute on function public.join_team(text, text) to authenticated;
-grant execute on function public.my_teams() to authenticated;
 
 grant select, insert, update, delete on public.addresses, public.visits, public.absences, public.orders, public.stock_events to authenticated;
 grant select, update on public.teams to authenticated;
@@ -360,6 +347,146 @@ alter table public.push_log enable row level security;
 revoke all on public.push_subscriptions, public.team_digest, public.push_log from anon;
 revoke all on public.push_log from authenticated;
 
+-- ---------- Gezin: rollen, rechten en apps (familie-app, v3.1) ----------
+-- Een gezin is in deze database een team. Gezinsrollen (team_members.role):
+--   admin  beheerder: gezin, leden, uitnodigingen en apps beheren
+--   member lid: gebruikt de apps die aan staan
+--   child  kind: alleen apps die een beheerder voor hem/haar aanzet
+-- team_apps         welke apps het gezin heeft aangezet (+ instellingen per app, voor later)
+-- team_member_apps  per lid per app: toegang (null = standaard: iedereen behalve kinderen) en app-rol
+--                   (null = standaard: gezinsbeheerder → 'admin', anders 'member'). Egg-sellent kent 'admin' en 'walker'.
+create table if not exists public.team_apps (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  app text not null check (app ~ '^[a-z][a-z0-9-]{1,30}$'),
+  enabled boolean not null default true,
+  settings jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid() references auth.users(id) on delete set null,
+  primary key (team_id, app)
+);
+create table if not exists public.team_member_apps (
+  team_id uuid not null,
+  user_id uuid not null,
+  app text not null check (app ~ '^[a-z][a-z0-9-]{1,30}$'),
+  access boolean,
+  role text check (role ~ '^[a-z]{2,20}$'),
+  primary key (team_id, user_id, app),
+  foreign key (team_id, user_id) references public.team_members(team_id, user_id) on delete cascade
+);
+
+-- Migratie van teams naar gezinnen (veilig om opnieuw te draaien; er gaan geen gegevens verloren):
+-- 1. teamrol 'walker' (bezorger) → gezinsrol 'member' + rol 'walker' in Egg-sellent
+insert into public.team_member_apps (team_id, user_id, app, role)
+  select team_id, user_id, 'eggs', 'walker' from public.team_members where role = 'walker'
+  on conflict (team_id, user_id, app) do update set role = coalesce(public.team_member_apps.role, excluded.role);
+alter table public.team_members drop constraint if exists team_members_role_check;
+update public.team_members set role = 'member' where role = 'walker';
+alter table public.team_members add constraint team_members_role_check check (role in ('admin', 'member', 'child'));
+alter table public.team_members alter column role set default 'member';
+alter table public.team_invites drop constraint if exists team_invites_role_check;
+update public.team_invites set role = 'member' where role = 'walker';
+alter table public.team_invites add constraint team_invites_role_check check (role in ('admin', 'member', 'child'));
+alter table public.team_invites alter column role set default 'member';
+-- 2. teams van vóór de familie-app waren eierbedrijven: Egg-sellent aan
+insert into public.team_apps (team_id, app) select id, 'eggs' from public.teams where created_at < '2026-11-23'
+  on conflict (team_id, app) do nothing;
+
+-- Mag de ingelogde gebruiker deze app in dit gezin gebruiken?
+create or replace function public.has_app(t uuid, a text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from team_apps ta
+    join team_members m on m.team_id = ta.team_id and m.user_id = auth.uid()
+    left join team_member_apps x on x.team_id = m.team_id and x.user_id = m.user_id and x.app = ta.app
+    where ta.team_id = t and ta.app = a and ta.enabled and coalesce(x.access, m.role <> 'child'));
+$$;
+-- Rol van de ingelogde gebruiker in deze app (null = geen toegang).
+create or replace function public.app_role(t uuid, a text) returns text
+language sql stable security definer set search_path = public as $$
+  select case when public.has_app(t, a) then coalesce(x.role, case when m.role = 'admin' then 'admin' else 'member' end) end
+  from team_members m left join team_member_apps x on x.team_id = m.team_id and x.user_id = m.user_id and x.app = a
+  where m.team_id = t and m.user_id = auth.uid();
+$$;
+
+alter table public.team_apps enable row level security;
+alter table public.team_member_apps enable row level security;
+drop policy if exists apps_select on public.team_apps;
+create policy apps_select on public.team_apps for select using (public.is_member(team_id));
+drop policy if exists apps_admin on public.team_apps;
+create policy apps_admin on public.team_apps for all using (public.is_admin(team_id)) with check (public.is_admin(team_id));
+drop policy if exists member_apps_select on public.team_member_apps;
+create policy member_apps_select on public.team_member_apps for select using (public.is_member(team_id));
+drop policy if exists member_apps_admin on public.team_member_apps;
+create policy member_apps_admin on public.team_member_apps for all using (public.is_admin(team_id)) with check (public.is_admin(team_id));
+grant select, insert, update, delete on public.team_apps, public.team_member_apps to authenticated;
+revoke all on public.team_apps, public.team_member_apps from anon;
+
+-- Gegevens van Egg-sellent: alleen voor wie de app mag gebruiken.
+do $$
+declare t text;
+begin
+  foreach t in array array['addresses', 'visits', 'absences', 'orders', 'stock_events', 'team_digest'] loop
+    execute format('drop policy if exists team_data on public.%I', t);
+    execute format('create policy team_data on public.%I for all using (public.has_app(team_id, ''eggs'')) with check (public.has_app(team_id, ''eggs''))', t);
+  end loop;
+end $$;
+drop policy if exists push_own on public.push_subscriptions;
+create policy push_own on public.push_subscriptions for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid() and public.has_app(team_id, 'eggs'));
+-- De instellingen van Egg-sellent staan (nog) op teams: gezinsbeheerder of beheerder in Egg-sellent mag ze wijzigen.
+-- De naam van het gezin blijft voor gezinsbeheerders (zie team_row).
+drop policy if exists teams_update on public.teams;
+create policy teams_update on public.teams for update
+  using (public.is_admin(id) or public.app_role(id, 'eggs') = 'admin') with check (public.is_admin(id) or public.app_role(id, 'eggs') = 'admin');
+create or replace function public.team_name_guard() returns trigger
+language plpgsql as $$
+begin
+  if new.name <> old.name and auth.uid() is not null and not public.is_admin(old.id) then
+    raise exception 'Alleen een beheerder van het gezin kan de naam wijzigen';
+  end if;
+  return new;
+end $$;
+drop trigger if exists team_name_guard on public.teams;
+create trigger team_name_guard before update on public.teams for each row execute function public.team_name_guard();
+
+-- Beheerders mogen rollen en namen van leden wijzigen.
+drop policy if exists members_update_admin on public.team_members;
+create policy members_update_admin on public.team_members for update using (public.is_admin(team_id)) with check (public.is_admin(team_id));
+
+-- Nieuw gezin: de maker wordt beheerder; p_apps = apps die meteen aan gaan (bijv. '{eggs}').
+drop function if exists public.create_team(text, text);
+create or replace function public.create_team(p_name text, p_member_name text default '', p_apps text[] default '{}')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare t uuid; a text;
+begin
+  if auth.uid() is null then raise exception 'Niet ingelogd'; end if;
+  insert into teams(name) values (trim(p_name)) returning id into t;
+  insert into team_members(team_id, user_id, role, name) values (t, auth.uid(), 'admin', coalesce(p_member_name, ''));
+  foreach a in array coalesce(p_apps, '{}') loop insert into team_apps(team_id, app) values (t, a) on conflict do nothing; end loop;
+  return t;
+end $$;
+
+-- Mijn gezinnen, met mijn rol en de apps die ik daar mag gebruiken: { "eggs": { "role": "walker" }, … }.
+drop function if exists public.my_teams();
+create or replace function public.my_teams()
+returns table(team_id uuid, team_name text, role text, member_name text, apps jsonb)
+language sql stable security definer set search_path = public as $$
+  select t.id, t.name, m.role, m.name,
+    coalesce((select jsonb_object_agg(ta.app, jsonb_build_object('role', coalesce(x.role, case when m.role = 'admin' then 'admin' else 'member' end)))
+      from team_apps ta left join team_member_apps x on x.team_id = ta.team_id and x.user_id = m.user_id and x.app = ta.app
+      where ta.team_id = t.id and ta.enabled and coalesce(x.access, m.role <> 'child')), '{}'::jsonb)
+  from team_members m join teams t on t.id = m.team_id
+  where m.user_id = auth.uid() order by m.joined_at;
+$$;
+revoke all on function public.create_team(text, text, text[]) from public, anon;
+revoke all on function public.my_teams() from public, anon;
+revoke all on function public.has_app(uuid, text) from public, anon;
+revoke all on function public.app_role(uuid, text) from public, anon;
+grant execute on function public.create_team(text, text, text[]) to authenticated;
+grant execute on function public.my_teams() to authenticated;
+grant execute on function public.has_app(uuid, text) to authenticated;
+grant execute on function public.app_role(uuid, text) to authenticated;
+
 -- ---------- Training (familie-app) ----------
 -- Een gezin is in deze database een team (teams / team_members / team_invites, aansluiten met een code).
 -- training_tracks: één voortgang in een trainingsprogramma (bijv. 'pilates30') met één of meer deelnemers
@@ -381,6 +508,6 @@ create table if not exists public.training_tracks (
 create index if not exists training_tracks_program on public.training_tracks(team_id, program);
 alter table public.training_tracks enable row level security;
 drop policy if exists team_data on public.training_tracks;
-create policy team_data on public.training_tracks for all using (public.is_member(team_id)) with check (public.is_member(team_id));
+create policy team_data on public.training_tracks for all using (public.has_app(team_id, 'training')) with check (public.has_app(team_id, 'training'));
 revoke all on public.training_tracks from anon;
 grant select, insert, update, delete on public.training_tracks to authenticated;

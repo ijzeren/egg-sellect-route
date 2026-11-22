@@ -12,12 +12,16 @@ const MON = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt
 const short = s => { const d = P.pd(s); return `${DSH[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
+//   about   één zin voor het aanzetten van de app
+//   roles   rollen binnen de app (optioneel); 'member' is de standaard voor wie geen gezinsbeheerder is
 export const APPS = [
   {
     id: 'eggs',
     name: 'Egg-sellent',
     route: 'eggs/',
     icon: '🥚',
+    about: 'Eierronde langs de deur: afspraken, planning en besteladvies.',
+    roles: { admin: 'Beheerder', member: 'Bezorger', walker: 'Bezorger' },
     status({ today, storage }) {
       const db = storage.raw('eggselent-data-v1');
       const sync = storage.raw('eggselent-sync-v1', {}) || {};
@@ -40,6 +44,7 @@ export const APPS = [
     name: 'Training',
     route: 'training/',
     icon: '🧘',
+    about: 'Pilates 30: lessen op je vaste trainingsdagen, samen of apart.',
     // Toont de actieve training van deze gebruiker (zie training/app.js: tracks per gezin).
     status({ today, account, storage }) {
       const scope = account && account.teamId ? account.teamId : 'local';
