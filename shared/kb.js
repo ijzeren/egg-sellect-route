@@ -97,21 +97,26 @@ Op een andere dag trainen is een <b>bonustraining</b>; die telt gewoon mee.</p>
 <p><b>Veiligheid:</b> laat de toestellen de eerste keer instellen door een trainer. Stop bij pijn. Bij blessures, hartklachten of twijfel: overleg eerst met je huisarts.</p>`,
   },
   {
-    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.4.0',
+    slug: 'gerechten', app: 'recipes', title: 'Gerechten toevoegen en sterren geven', updated: '2026-11-22', version: '3.9.0',
     body: `<p>In <b>Gerechten</b> verzamelt het gezin zijn favoriete recepten. Iedereen die de app mag gebruiken, kan gerechten toevoegen en sterren geven.</p>
 <ol><li>Tik rechtsboven op <b>+</b>. Vul de naam, de soort en voor hoeveel personen in.</li>
 <li>Zet de <b>ingrediënten</b> erin, één per regel, met de hoeveelheid vooraan (bijv. <i>500 g gehakt</i>). Dan kan de app omrekenen naar meer of minder personen.</li>
-<li>Maak het <b>bereidingsschema</b>: per stap wat je doet en hoeveel minuten het duurt. Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink <b>tegelijk met vorige</b> aan.</li>
+<li>Maak de <b>bereiding</b>: per stap wat je doet en hoeveel minuten het duurt. Een bereik vul je in met "tot" (bijv. 240 tot 360 minuten = 4–6 uur).
+Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink <b>tegelijk</b> aan. Optioneel per stap: een korte titel, een fase
+(bijv. Voorbereiding, Roken), de temperatuur van oven of smoker en de kerntemperatuur.</li>
+<li>Zet eventueel <b>benodigdheden</b> (smoker, kernthermometer) en <b>tips</b> erbij. Een tip met "Label: tekst" krijgt een kopje.</li>
 <li>Tik op <b>Bewaar</b>.</li></ol>
-<p>Bij een gerecht kies je <b>Aan tafel om</b>, bijvoorbeeld 18:00. De app zet dan bij elke stap hoe laat je moet beginnen.</p>
+<p>Bij een gerecht kies je <b>Aan tafel om</b>, bijvoorbeeld 18:00. De app zet dan bij elke stap hoe laat je moet beginnen, ook als dat een of meer
+dagen van tevoren is (bijv. pekelen of sous vide). Bij een bereik plant de app met de kortste tijd; houd zelf wat ruimte aan.</p>
 <p><b>Sterren:</b> geef 1 tot 5 sterren. Tik nog een keer op dezelfde ster om ze weg te halen. In de lijst zie je het gemiddelde van het gezin; sorteer op <b>Lekkerst</b> of <b>Gezondst</b> om te kiezen wat je gaat eten.</p>
 <p><b>Wijzigen of verwijderen</b> kan wie het gerecht plaatste, en een beheerder van de app.</p>`,
   },
   {
-    slug: 'gerechten-importeren', app: 'recipes', title: 'Gerechten importeren', updated: '2026-11-22', version: '3.8.0',
+    slug: 'gerechten-importeren', app: 'recipes', title: 'Gerechten importeren', updated: '2026-11-22', version: '3.9.0',
     body: `<p>Heb je recepten al ergens staan, bijvoorbeeld door Claude geschreven? Dan hoef je ze niet over te typen.</p>
 <ol><li>Ga naar <b>Gerechten</b> en tik onderaan op <b>Gerechten importeren</b>.</li>
-<li>Tik op <b>Kies bestanden</b> en kies een of meer bestanden: Markdown (<i>.md</i>), tekst (<i>.txt</i>) of een opgeslagen pagina (<i>.html</i>, bijvoorbeeld een artifact).
+<li>Tik op <b>Kies bestanden</b> en kies een of meer bestanden: een receptbestand (<i>.json</i>, schema.org), Markdown (<i>.md</i>), tekst (<i>.txt</i>) of een opgeslagen pagina (<i>.html</i>, bijvoorbeeld een artifact).
+Heb je van een recept zowel een .json als een .md, kies dan de .json: die is het nauwkeurigst.
 Of plak de tekst en tik op <b>Lees in</b>.</li>
 <li>Controleer de lijst. Per gerecht zie je hoeveel personen, ingrediënten en stappen er zijn gevonden. Wat ontbreekt, staat in het oranje.
 Zet uit wat je niet wilt importeren; gerechten die al bestaan staan standaard uit.</li>
@@ -119,7 +124,9 @@ Zet uit wat je niet wilt importeren; gerechten die al bestaan staan standaard ui
 <p><b>Zo herkent de app een recept:</b> een kop met de naam (bijv. <i># Lasagne</i>), een kop of vette regel <i>Ingrediënten</i> met een lijst,
 en een kop <i>Bereiding</i> met de stappen. "Voor 4 personen" of "Personen: 4" geeft het aantal personen; "15 minuten" in een stap wordt de tijd van die stap,
 en een stap die begint met "Ondertussen" gaat tegelijk met de vorige. Meerdere recepten in één bestand kan: elk met een eigen kop.</p>
-<p>Tip: vraag Claude om je recepten "als Markdown, met kopjes Ingrediënten en Bereiding en minuten per stap". Dan gaat het importeren het best.</p>
+<p>De app neemt ook fases (bijv. <i>### Roken</i> onder Bereiding), stap-titels (<i>1. **Titel** — tekst</i>), regels als <i>⏱ Tijd: 4 u – 6 u · 🌡 Temperatuur: 120 °C</i>,
+benodigdheden en tips over.</p>
+<p>Tip: vraag Claude om je recepten "als schema.org-JSON" of "als Markdown, met kopjes Ingrediënten en Bereiding en minuten per stap". Dan gaat het importeren het best.</p>
 <p><b>Daarna maakt de Assistent het af.</b> Een geïmporteerd gerecht staat eerst op <b>Wordt verrijkt</b>. Je kunt het al gebruiken.
 De Assistent leest je originele bestand nog een keer en maakt het gerecht compleet: losse, duidelijke stappen met bereidingstijden,
 stappen die tegelijk kunnen, en hoeveelheden zoals de app ze kan omrekenen. Hij blijft trouw aan je recept en voegt geen eigen ingrediënten toe.

@@ -3,7 +3,8 @@
 //
 //   node scripts/recipe-enrich.mjs list                          geïmporteerde gerechten met hun originele upload (JSON)
 //   node scripts/recipe-enrich.mjs save <id> <updated_at> -      verrijkt gerecht opslaan; JSON via stdin:
-//        { "title", "intro", "category", "servings", "ingredients": ["…"], "steps": [{ "text", "min", "par" }] }
+//        { "title", "intro", "category", "servings", "ingredients": ["…"],
+//          "steps": [{ "text", "min", "par", "max"?, "title"?, "section"?, "temp"?, "core"? }], "tools": ["…"], "tips": [{ "label", "text" }] }
 //   --local                                                      tegen de lokale Supabase (npx supabase start)
 //
 // Opslaan zet de status op 'ready' (klaar) en wist de originele upload; daarna bepaalt scripts/recipe-scores.mjs de
@@ -44,7 +45,7 @@ function viaRunner() {
     list: async () => { await login(); return call('/rest/v1/rpc/runner_import_recipes', {}); },
     save: async (id, updatedAt, r) => {
       await login();
-      return call('/rest/v1/rpc/runner_enrich_recipe', { p_recipe: id, p_updated_at: updatedAt, p_title: r.title, p_intro: r.intro, p_category: r.category, p_servings: r.servings, p_ingredients: r.ingredients, p_steps: r.steps });
+      return call('/rest/v1/rpc/runner_enrich_recipe', { p_recipe: id, p_updated_at: updatedAt, p_title: r.title, p_intro: r.intro, p_category: r.category, p_servings: r.servings, p_ingredients: r.ingredients, p_steps: r.steps, p_tools: r.tools, p_tips: r.tips });
     },
   };
 }
@@ -73,10 +74,11 @@ function viaCli() {
   const lit = v => { const s = String(v); let tag = 'r' + randomBytes(4).toString('hex'); while (s.includes('$' + tag + '$')) tag += 'x'; return '$' + tag + '$' + s + '$' + tag + '$'; };
   const js = v => (typeof v === 'string' ? JSON.parse(v) : v);
   return {
-    list: async () => query(`select id, title, intro, category, servings, ingredients, steps, source, source_name, updated_at from public.recipes
-      where status = 'import' and not deleted order by created_at limit 20`, false).map(r => ({ ...r, ingredients: js(r.ingredients), steps: js(r.steps) })),
+    list: async () => query(`select id, title, intro, category, servings, ingredients, steps, tools, tips, source, source_name, updated_at from public.recipes
+      where status = 'import' and not deleted order by created_at limit 20`, false).map(r => ({ ...r, ingredients: js(r.ingredients), steps: js(r.steps), tools: js(r.tools), tips: js(r.tips) })),
     save: async (id, updatedAt, r) => query(`update public.recipes set title = ${lit(r.title)}, intro = ${lit(r.intro)}, category = ${lit(r.category)},
       servings = ${Number(r.servings)}, ingredients = ${lit(JSON.stringify(r.ingredients))}::jsonb, steps = ${lit(JSON.stringify(r.steps))}::jsonb,
+      tools = ${lit(JSON.stringify(r.tools))}::jsonb, tips = ${lit(JSON.stringify(r.tips))}::jsonb,
       status = 'ready', source = null, source_name = null
       where id = '${id}' and status = 'import' and not deleted
         and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${lit(updatedAt)}::timestamptz) returning id`, true).length > 0,

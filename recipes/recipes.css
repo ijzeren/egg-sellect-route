@@ -37,3 +37,27 @@ textarea.ta:focus{outline:none}
 .steprow .opts .del{margin-left:auto;color:var(--red)}
 select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right}
 .imp{color:var(--blue);font-weight:600}
+/* bereiding in fases, genummerde stappen met badges (opbouw zoals de receptstijlgids, in de stijl van de app) */
+.ing li.gh{list-style:none;margin:10px 0 2px -20px;font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:var(--label2)}
+.ing li.gh:first-child{margin-top:0}
+.phase{font-size:.765rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--tint);margin:18px 16px 6px}
+.steps2{padding:6px 16px}
+.steps2 .st{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:12px 0;border-top:.5px solid var(--sep)}
+.steps2 .st:first-child{border-top:0}
+.steps2 .num{width:28px;height:28px;border-radius:50%;background:var(--label);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums}
+.steps2 .sb{min-width:0}
+.steps2 .when{display:block;font-size:.76rem;font-weight:600;color:var(--tint);font-variant-numeric:tabular-nums}
+.steps2 .stt{display:block;margin-bottom:2px}
+.steps2 p{margin:0;line-height:1.45}
+.bds{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.bd{display:inline-block;font-size:.76rem;font-weight:600;padding:3px 8px;border-radius:6px;background:var(--fill);color:var(--label2)}
+.bd.temp{background:var(--orange);color:#fff}
+.bd.core{background:var(--red-s);color:var(--red)}
+.bd.par{background:var(--blue-s);color:var(--blue)}
+.tips .tip{padding:10px 0;border-top:.5px solid var(--sep);line-height:1.45}
+.tips .tip:first-child{border-top:0;padding-top:0}
+.tips .tip b{display:block;color:var(--tint);font-size:.88rem}
+.steprow input[type=text]{width:100%;border:0;background:var(--fill);border-radius:8px;padding:8px;font:inherit;color:var(--label)}
+.steprow input.stitle{font-weight:600}
+.steprow .opts input[type=text]{flex:1;min-width:0}
+.steprow .opts.wide input{font-size:.88rem}

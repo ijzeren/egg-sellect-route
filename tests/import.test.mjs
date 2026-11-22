@@ -37,8 +37,8 @@ test('recept zoals Claude het schrijft', () => {
   assert.deepEqual(r.ingredients, ['500 g rundergehakt', '2 uien', '1 blik tomatenblokjes (400 g)', 'Voor de saus:', '50 g boter', '500 ml melk']);
   assert.deepEqual(r.steps.map(s => [s.min, s.par]), [[10, false], [10, true], [45, false]]);
   assert.match(r.intro, /^Een klassieker voor de zondag/);
-  assert.match(r.intro, /Tips: • Lekker met een frisse salade/);
-  assert.doesNotMatch(r.intro, /kcal/);
+  assert.deepEqual(r.tips, [{ label: '', text: 'Lekker met een frisse salade.' }]);
+  assert.doesNotMatch(r.intro, /kcal|Tips/);
   assert.deepEqual(x.warnings, []);
 });
 

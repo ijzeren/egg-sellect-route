@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.9.0', date: '2026-11-22', title: 'Gerechten met fases, temperaturen en tips',
+    notes: [
+      { app: 'recipes', text: 'Een gerecht toont de bereiding nu in fases, met genummerde stappen, de tijd per stap (ook een bereik, zoals 4–6 uur), de temperatuur en de kerntemperatuur.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Nieuw bij een gerecht: benodigdheden en tips. "Aan tafel om" plant nu ook gerechten die dagen van tevoren beginnen.', kb: 'gerechten' },
+      { app: 'recipes', text: 'Importeren kan nu ook uit .json-bestanden (schema.org-recepten), en Markdown met fases, tijdregels en benodigdheden wordt beter herkend.', kb: 'gerechten-importeren' },
+    ],
+  },
+  {
     version: '3.8.0', date: '2026-11-22', title: 'Geïmporteerde gerechten worden afgemaakt',
     notes: [
       { app: 'recipes', text: 'Een geïmporteerd gerecht wordt automatisch afgemaakt door de Assistent: duidelijke stappen, bereidingstijden en hoeveelheden, op basis van je originele bestand.', kb: 'gerechten-importeren' },

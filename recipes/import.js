@@ -1,28 +1,38 @@
-// Gerechten — recepten importeren uit Markdown (bijv. uitvoer van Claude) of HTML (bijv. een opgeslagen artifact).
+// Gerechten — recepten importeren uit schema.org-JSON, Markdown (bijv. uitvoer van Claude) of HTML (een opgeslagen pagina).
 // Zonder scherm, dus te testen met node --test (alleen htmlToMarkdown heeft een DOM nodig: DOMParser in de browser).
 //
 // Herkent per recept:
-//   titel         een kop (# Lasagne) die geen sectienaam is; meerdere recepten per bestand kan
-//   personen      "Personen: 4", "voor 4 personen", "4 porties"
-//   soort         "Soort: soep", anders geraden uit de titel (soep, salade, taart …)
-//   ingrediënten  lijst onder een kop of vette regel "Ingrediënten" / "Benodigdheden" / "Boodschappen"
-//   stappen       lijst of alinea's onder "Bereiding" / "Werkwijze" / "Instructies" / "Stappen";
-//                 minuten uit de tekst ("15 minuten", "1 uur"), "Ondertussen …" = tegelijk met de vorige stap
-//   intro         tekst vóór de secties, plus een sectie "Tips" of "Opmerkingen"
+//   titel          een kop (# Lasagne) die geen sectienaam is; meerdere recepten per bestand kan
+//   personen       "Personen: 4", "voor 4 personen", "4 porties", ook in een tabel (| Porties | 4 personen |)
+//   soort          "Soort/Categorie: soep", anders geraden uit de titel (soep, salade, taart …)
+//   ingrediënten   lijst onder "Ingrediënten" / "Boodschappen"; tussenkoppen ("### Rub") worden groepen;
+//                  "**Zout** — ½ tl" wordt "½ tl Zout" (hoeveelheid vooraan, zodat de app kan omrekenen)
+//   benodigdheden  "Benodigdheden" naast een ingrediëntenlijst = gereedschap (zonder ingrediëntenlijst = ingrediënten)
+//   stappen        lijst of alinea's onder "Bereiding" / "Werkwijze" / …; tussenkoppen = fases;
+//                  "1. **Titel** — tekst"; regels "⏱ Tijd: 4 u – 6 u · 🌡 Temperatuur: 120 °C · Kerntemperatuur: 85 °C"
+//                  onder een stap; anders minuten uit de tekst; "Ondertussen …" = tegelijk met de vorige stap
+//   tips           "Tips" en "Opmerkingen" ("**Label:** tekst"); bronverwijzingen en trefwoorden vallen weg
+//   intro          tekst vóór de secties
+// schema.org-JSON (@type Recipe): name, description, recipeYield, recipeCategory, recipeIngredient, recipeInstructions,
+// tool; met "x-details" (ingrediëntgroepen, stappen met duur/temperaturen, tips) als die er is.
 import { clean, CATEGORIES } from './recipe.js';
 
 const SECTION = [
-  ['ingredients', /^(ingredi[eë]nten|ingrediënten|benodigdheden|boodschappen(lijst)?|nodig|wat heb je nodig|ingredients)\b/i],
+  ['ingredients', /^(ingredi[eë]nten|boodschappen(lijst)?|wat heb je nodig|ingredients)\b/i],
+  ['equipment', /^(benodigdheden|materiaal|gereedschap|keukengerei|equipment|tools)\b/i],
   ['steps', /^(bereiding(swijze)?|werkwijze|instructies|stappen|zo maak je het|aan de slag|method|instructions|directions|preparation)\b/i],
-  ['notes', /^(tips?|opmerkingen|notities|variaties?|serveertips?|bewaren|goed om te weten|notes)\b/i],
-  ['skip', /^(voedingswaarde|voedingswaarden|nutrition|bron|source)\b/i],
+  ['notes', /^(tips?|opmerkingen|notities|variaties?|serveertips?|bewaren|goed om te weten|let op|notes)\b/i],
+  ['meta', /^(overzicht|in het kort|samenvatting)\b/i],
+  ['skip', /^(voedingswaarde|voedingswaarden|nutrition|bron|source|trefwoorden|keywords|tags)\b/i],
 ];
 const plain = s => String(s || '').replace(/\*\*|__|`/g, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/[:：]\s*$/, '').trim();
+const unmark = s => String(s || '').replace(/\*\*|__/g, '').replace(/(^|\s)[*_]\(([^)]*)\)[*_]/g, '$1($2)').replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, '$1$2').trim();
 const sectionOf = text => { const t = plain(text); for (const [k, re] of SECTION) if (re.test(t)) return k; return null; };
 const LIST = /^\s*(?:[-*+•–]|\d+[.)]|\[[ xX]\])\s+/;
 const stripList = s => s.replace(LIST, '').replace(/^\[[ xX]\]\s*/, '').trim();
+const META_LINE = /^(⏱|🌡|🔥|kern|tijd\s*:|temperatuur\s*:)/i;
 
-// Markdown → regels met type: { h: niveau, text } | { li: true, text, ordered } | { p: text }
+// Markdown → regels met type: { h: niveau, text } | { li, text, ordered, indent } | { p: text }
 function tokens(md) {
   const out = [];
   for (const raw of String(md || '').replace(/\r\n?/g, '\n').split('\n')) {
@@ -30,10 +40,17 @@ function tokens(md) {
     if (!line.trim()) { out.push({ blank: true }); continue; }
     const h = line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
     if (h) { out.push({ h: h[1].length, text: h[2].trim() }); continue; }
+    // Tabelregel "| Porties | 4 personen |" → "Porties: 4 personen"; scheidingsregels weg.
+    if (/^\s*\|/.test(line)) {
+      const cells = line.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      if (cells.every(c => /^:?-*:?$/.test(c))) continue;
+      if (cells.length >= 2 && cells[0]) out.push({ p: `${cells[0]}: ${cells.slice(1).join(' ')}`, table: true });
+      continue;
+    }
     // Een vette regel als kop: "**Ingrediënten**" of "**Bereiding:**"
     const b = line.trim().match(/^(?:\*\*|__)(.+?)(?:\*\*|__):?$/);
     if (b) { out.push({ h: 7, text: b[1].trim() }); continue; }
-    if (LIST.test(line)) { out.push({ li: true, text: stripList(line), ordered: /^\s*\d+[.)]/.test(line) }); continue; }
+    if (LIST.test(line)) { out.push({ li: true, text: stripList(line), ordered: /^\s*\d+[.)]/.test(line), indent: line.match(/^\s*/)[0].length }); continue; }
     // Kale regel "Ingrediënten:" telt ook als kop.
     if (/[:：]\s*$/.test(line) && sectionOf(line) && line.length < 40) { out.push({ h: 7, text: line.trim() }); continue; }
     out.push({ p: line.trim() });
@@ -41,6 +58,7 @@ function tokens(md) {
   return out;
 }
 
+/* ---------- tijden, personen, soort ---------- */
 const MIN = /(\d+(?:[.,]\d+)?)\s*(?:[-–tot]+\s*(\d+)\s*)?(minuten|minuut|min\.?|uur|uren|hours?|minutes?)\b/i;
 export function minutesIn(text) {
   const m = String(text || '').match(MIN);
@@ -48,7 +66,37 @@ export function minutesIn(text) {
   const n = parseFloat((m[2] || m[1]).replace(',', '.'));
   return Math.round(/^(uur|uren|hour)/i.test(m[3]) ? n * 60 : n);
 }
-const PAR = /^(ondertussen|intussen|tegelijk(ertijd)?|terwijl|meanwhile)\b/i;
+// "8 u", "2 u 30 min", "45 min – 1 u 15 min", "12 u – 48 u", "min. 2 u 30 min" → { min, max } in minuten.
+function oneDuration(s) {
+  let t = 0, any = false;
+  for (const m of String(s).matchAll(/(\d+(?:[.,]\d+)?)\s*(dagen|dag|d\b|uur|uren|u\b|h\b|minuten|minuut|min)/gi)) {
+    const n = parseFloat(m[1].replace(',', '.')), u = m[2].toLowerCase();
+    t += /^(dag|d)/.test(u) ? n * 1440 : /^(u|h)/.test(u) ? n * 60 : n; any = true;
+  }
+  return any ? Math.round(t) : null;
+}
+export function durationIn(text) {
+  const s = String(text || '').replace(/^.*?tijd\s*:\s*/i, '');
+  // "10-12 minuten": bereik in één eenheid
+  const r = s.match(/^\D*?(\d+)\s*[–-]\s*(\d+)\s*(minuten|min|uur|u)\b/i);
+  if (r) { const f = /^u/i.test(r[3]) ? 60 : 1; return { min: +r[1] * f, max: +r[2] * f }; }
+  const parts = s.split(/\s+[–-]\s+|\s+tot\s+/);
+  const a = oneDuration(parts[0]), b = parts[1] != null ? oneDuration(parts[1]) : null;
+  if (a == null) return null;
+  return b != null && b > a ? { min: a, max: b } : { min: a, max: 0 };
+}
+// Metaregel onder een stap → { min, max, temp, core }
+function stepMeta(text) {
+  const out = {};
+  for (const part of String(text).split(/\s+·\s+|;\s*/)) {
+    const p = part.replace(/^[⏱🌡🔥️\s]+/u, '').trim();
+    if (/^kern/i.test(p)) out.core = p.replace(/^kern\w*\s*[:：]?\s*/i, '').trim();
+    else if (/^temp/i.test(p)) out.temp = p.replace(/^temp\w*\s*[:：]?\s*/i, '').trim();
+    else if (/^tijd/i.test(p)) { const d = durationIn(p); if (d) Object.assign(out, d); }
+  }
+  return out;
+}
+const PAR = /^(ondertussen|intussen|tegelijk(ertijd)?|terwijl|meanwhile)\b|\b(ondertussen|intussen|tegelijkertijd)\b/i;
 
 export function servingsIn(text) {
   const s = String(text || '').replace(/\*\*|__/g, '');
@@ -60,7 +108,7 @@ export function servingsIn(text) {
 const CAT_WORDS = [
   ['soup', /soep|bouillon/i], ['salad', /salade/i], ['dessert', /toetje|dessert|nagerecht|mousse|pudding|tiramisu|ijs\b/i],
   ['breakfast', /ontbijt|lunch|pannenkoek|poffertje|wentelteef|granola|smoothie|tosti/i], ['baking', /taart|cake|koek|brood|muffin|brownie|bakken/i],
-  ['snack', /snack|borrel|dip\b|hapje/i], ['starter', /voorgerecht/i], ['side', /bijgerecht/i],
+  ['snack', /snack|borrel|dip\b|hapje/i], ['starter', /voorgerecht/i], ['side', /bijgerecht/i], ['main', /hoofdgerecht/i],
 ];
 export function categoryIn(text, title) {
   const m = String(text || '').replace(/\*\*|__/g, '').match(/(?:soort|categorie|gang|type)\s*[:：]\s*([^\n]+)/i);
@@ -74,45 +122,159 @@ export function categoryIn(text, title) {
   return 'main';
 }
 
-// Eén blok tokens (één recept) → recept-invoer voor clean().
+/* ---------- ingrediënt- en tipregels ---------- */
+// "**Zout** — ½ tl *(optioneel)* _(om in te smeren)_" → "½ tl Zout (optioneel, om in te smeren)".
+// Meta-opmerkingen over de bron ("eenheid afgeleid") vallen weg.
+const AMOUNT_WORDS = /^(naar smaak|naar behoefte|voldoende|een beetje|snufje|een snuf|hoeveelheid niet vermeld|dun laagje)$/i;
+function ingredientLine(text) {
+  const t = String(text || '').trim();
+  const m = t.match(/^\*\*(.+?)\*\*\s*[—–:-]+\s*(.+)$/);
+  if (!m) return unmark(t);
+  const notes = [];
+  let amount = m[2].replace(/[*_]\(([^)]*)\)[*_]/g, (_, n) => { notes.push(n); return ''; }).replace(/\s+/g, ' ').trim();
+  return joinIngredient(m[1], amount, notes);
+}
+function joinIngredient(name, amount, notes = []) {
+  const keep = notes.map(n => n.trim()).filter(n => n && !/afgeleid|bron|niet vermeld/i.test(n));
+  amount = String(amount || '').trim();
+  const head = /^\d|^[½¼¾⅓⅔]/.test(amount) ? `${amount} ${name}` : AMOUNT_WORDS.test(amount) && !/niet vermeld/i.test(amount) ? `${name}, ${amount}` : name;
+  return unmark(head) + (keep.length ? ` (${keep.join(', ')})` : '');
+}
+function tipOf(text) {
+  const m = String(text || '').match(/^\*\*(.+?)\*\*\s*[:：]?\s*(.+)$/) || String(text || '').match(/^\*\*(.+?):\*\*\s*(.+)$/);
+  return m ? { label: plain(m[1]), text: unmark(m[2]) } : { label: '', text: unmark(text) };
+}
+const isSourceNote = t => /^bron\s*:|^source\s*:/i.test(plain(t));
+
+/* ---------- Markdown → recept ---------- */
 function toRecipe(title, toks) {
-  let sec = 'intro'; const ing = [], steps = [], intro = [], notes = [];
-  let para = null; // stap als alinea's (zonder lijst)
+  let sec = 'intro', phase = '';
+  const ing = [], equip = [], steps = [], intro = [], meta = [], tips = [];
+  let para = null, last = null;
   for (const t of toks) {
     if (t.h) {
       const k = sectionOf(t.text);
-      if (k) sec = k;
-      else if (sec === 'ingredients') ing.push(plain(t.text) + ':'); // tussenkop, bijv. "Voor de saus"
+      if (k) { sec = k; phase = ''; }
+      else if (sec === 'ingredients') ing.push(plain(t.text) + ':');          // tussenkop, bijv. "Rub" of "Voor de saus"
+      else if (sec === 'steps') phase = plain(t.text);                       // fase, bijv. "Garen op de smoker"
       para = null; continue;
     }
     if (t.blank) { para = null; continue; }
     const text = t.text || t.p || '';
-    if (sec === 'ingredients') { if (t.li || t.p) ing.push(text.replace(/\*\*/g, '')); }
+    if (sec === 'meta' || t.table) { meta.push(unmark(text)); continue; }
+    if (sec === 'ingredients') { if (t.li || t.p) ing.push(ingredientLine(text)); }
+    else if (sec === 'equipment') { if (t.li || t.p) equip.push(unmark(text)); }
     else if (sec === 'steps') {
-      const s = text.replace(/^(stap\s*\d+\s*[:.)-]?\s*)/i, '').replace(/\*\*/g, '').trim();
+      if (t.li && last && t.indent > 0 && META_LINE.test(text.replace(/^[^\p{L}⏱🌡]+/u, ''))) { Object.assign(last, stepMeta(text)); continue; }
+      let s = text.replace(/^(stap\s*\d+\s*[:.)-]?\s*)/i, '').trim();
+      let stitle = '';
+      const tm = s.match(/^\*\*(.+?)\*\*\s*[—–:-]+\s*(.+)$/);
+      if (tm) { stitle = plain(tm[1]); s = tm[2]; }
+      s = unmark(s);
       if (!s) continue;
-      if (t.li || !para) { para = { text: s }; steps.push(para); if (t.li) para = null; }
-      else para.text += ' ' + s;
+      if (t.li || !para) {
+        last = { text: s }; if (stitle) last.title = stitle;
+        if (phase && !steps.some(x => x.section === phase)) last.section = phase;
+        steps.push(last); para = t.li ? null : last;
+      } else para.text += ' ' + s;
     }
-    else if (sec === 'notes') notes.push((t.li ? '• ' : '') + text.replace(/\*\*/g, ''));
-    else if (sec === 'intro') intro.push(text.replace(/\*\*/g, ''));
+    else if (sec === 'notes') { if (!isSourceNote(text)) tips.push(tipOf(text)); }
+    else if (sec === 'intro') intro.push(unmark(text));
   }
-  const meta = intro.join('\n');
+  const metaText = [...intro, ...meta].join('\n');
+  const hasMeta = steps.some(s => s.min != null || s.temp || s.core);
   const keep = intro.filter(l => !/^(personen|porties?|aantal personen|soort|categorie|gang|bereidingstijd|kooktijd|totale tijd|tijd|voorbereiding|moeilijkheid|serves|servings)\s*[:：]/i.test(l.replace(/^[^\p{L}]+/u, '')));
   const r = {
     title: plain(title),
-    servings: servingsIn(meta) || servingsIn(title) || 4,
-    category: categoryIn(meta, title),
-    intro: [keep.join(' '), notes.length ? 'Tips: ' + notes.join(' ') : ''].filter(Boolean).join('\n\n'),
-    ingredients: ing,
-    steps: steps.map((s, i) => ({ text: s.text, min: minutesIn(s.text), par: i > 0 && PAR.test(s.text) })),
+    servings: servingsIn(metaText) || servingsIn(title) || 4,
+    category: categoryIn(metaText, title),
+    intro: keep.join(' '),
+    ingredients: ing.length ? ing : equip,
+    tools: ing.length ? equip : [],
+    tips,
+    // Staan er tijdregels ("⏱ Tijd: …") bij de stappen, dan geen tijden uit de lopende tekst raden.
+    steps: steps.map((s, i) => {
+      const d = s.min != null ? { min: s.min, max: s.max || 0 } : { min: hasMeta ? 0 : minutesIn(s.text), max: 0 };
+      return { ...s, min: d.min, max: d.max, par: i > 0 && PAR.test(s.text) };
+    }),
   };
-  return clean(r);
+  r._servingsGuess = !(servingsIn(metaText) || servingsIn(title));
+  return r;
 }
 
-// Markdown → [{ recipe (opgeschoond), warnings: [..] }]. Meerdere recepten in één tekst kan.
-export function parseRecipes(md, fallbackTitle = '') {
-  const toks = tokens(md);
+/* ---------- schema.org-JSON → recept ---------- */
+function findRecipes(v) {
+  if (!v || typeof v !== 'object') return [];
+  if (Array.isArray(v)) return v.flatMap(findRecipes);
+  const type = [].concat(v['@type'] || []);
+  if (type.includes('Recipe')) return [v];
+  return findRecipes(v['@graph'] || []);
+}
+const txt = v => (typeof v === 'string' ? v : v && (v.text || v.name) || '').trim();
+function fromJsonLd(o) {
+  const x = o['x-details'] || {};
+  const yieldText = [].concat(o.recipeYield || []).map(String).join(' ');
+  let ingredients = [];
+  if (Array.isArray(x.ingredientgroepen) && x.ingredientgroepen.length) {
+    const many = x.ingredientgroepen.length > 1;
+    for (const g of x.ingredientgroepen) {
+      if (many && g.groep) ingredients.push(`${g.groep}:`);
+      for (const it of g.items || []) ingredients.push(joinIngredient(it.name, it.amount, [it.optional ? 'optioneel' : '', it.note || '']));
+    }
+  } else {
+    // "3 el Honing [Braise]" → groepen uit de blokhaken
+    let group = null;
+    for (const line of [].concat(o.recipeIngredient || [])) {
+      const m = String(line).match(/^(.*?)\s*\[([^\]]+)\]\s*$/);
+      if (m && m[2] !== group) { group = m[2]; ingredients.push(`${group}:`); }
+      ingredients.push(unmark(m ? m[1] : line));
+    }
+    if (new Set(ingredients.filter(l => l.endsWith(':'))).size <= 1) ingredients = ingredients.filter(l => !l.endsWith(':'));
+  }
+  let steps = [];
+  if (Array.isArray(x.stappen) && x.stappen.length) {
+    for (const sec of x.stappen) (sec.stappen || []).forEach((s, i) => {
+      const st = { text: s.tekst || '', min: s.duur_min_minuten || 0, max: s.duur_max_minuten || 0 };
+      if (s.titel) st.title = s.titel;
+      if (i === 0 && sec.sectie) st.section = sec.sectie;
+      if (s.temperatuur) st.temp = s.temperatuur;
+      if (s.kerntemperatuur) st.core = s.kerntemperatuur;
+      steps.push(st);
+    });
+  } else {
+    const walk = (list, section) => [].concat(list || []).forEach((s, i) => {
+      if (typeof s === 'string') { steps.push({ text: s, min: minutesIn(s) }); return; }
+      if ([].concat(s['@type']).includes('HowToSection')) { walk(s.itemListElement, s.name); return; }
+      let text = txt(s);
+      const meta = text.match(/\(([^()]*(?:Tijd|Temperatuur|Kerntemperatuur)[^()]*)\)\s*$/);
+      const st = { text: meta ? text.slice(0, meta.index).trim() : text, ...(meta ? stepMeta(meta[1]) : { min: minutesIn(text) }) };
+      if (s.name && s.name !== text) st.title = s.name;
+      if (section && i === 0) st.section = section;
+      steps.push(st);
+    });
+    walk(o.recipeInstructions);
+  }
+  steps = steps.map((s, i) => ({ ...s, par: i > 0 && PAR.test(s.text) }));
+  const tips = [...(x.tips || []).map(t => ({ label: t.label || '', text: t.tekst || t.text || '' })),
+    ...(x.opmerkingen || []).filter(t => !isSourceNote(t)).map(t => ({ label: 'Opmerking', text: String(t).replace(/^bron:[^.]*\.\s*/i, '') }))].filter(t => t.text);
+  const r = {
+    title: o.name || '', intro: o.description || '',
+    servings: servingsIn(yieldText) || 4, category: categoryIn(`Categorie: ${String(o.recipeCategory || '').split('/')[0]}`, o.name),
+    ingredients, steps, tips,
+    tools: [].concat(o.tool || []).map(txt).filter(Boolean),
+  };
+  r._servingsGuess = !servingsIn(yieldText);
+  return r;
+}
+
+// Tekst (Markdown of JSON) → [{ recipe (opgeschoond), warnings: [..] }]. Meerdere recepten in één tekst kan.
+export function parseRecipes(input, fallbackTitle = '') {
+  const s = String(input || '').trim();
+  if (/^[[{]/.test(s)) {
+    let json = null; try { json = JSON.parse(s); } catch (e) { /* geen JSON: als tekst lezen */ }
+    if (json) return findRecipes(json).map(fromJsonLd).map(done).filter(x => x.recipe.ingredients.length || x.recipe.steps.length);
+  }
+  const toks = tokens(s);
   const isTitle = (t, lvl) => t.h === lvl && !sectionOf(t.text);
   // Kies het kopniveau waarop splitsen de meeste recepten met ingrediënten oplevert.
   let best = null;
@@ -122,7 +284,7 @@ export function parseRecipes(md, fallbackTitle = '') {
       if (isTitle(t, lvl)) { cur = { title: t.text, toks: [] }; blocks.push(cur); }
       else if (cur) cur.toks.push(t);
     }
-    const ok = blocks.map(b => ({ b, r: toRecipe(b.title, b.toks) })).filter(x => x.r.ingredients.length || x.r.steps.length);
+    const ok = blocks.map(b => toRecipe(b.title, b.toks)).filter(r => r.ingredients.length || r.steps.length);
     if (ok.length && (!best || ok.length > best.length)) best = ok;
   }
   // Geen koppen met recepten: de hele tekst is één recept (titel = eerste regel of bestandsnaam).
@@ -130,22 +292,26 @@ export function parseRecipes(md, fallbackTitle = '') {
     const first = toks.find(t => t.p || t.h);
     const title = fallbackTitle || (first ? first.text || first.p : '');
     const r = toRecipe(title, first && (first.p || first.h) && !fallbackTitle ? toks.slice(toks.indexOf(first) + 1) : toks);
-    best = r.ingredients.length || r.steps.length ? [{ r }] : [];
+    best = r.ingredients.length || r.steps.length ? [r] : [];
   }
-  return best.map(({ r }) => ({ recipe: r, warnings: warningsFor(r) }));
+  return best.map(done);
 }
-function warningsFor(r) {
-  const w = [];
-  if (!r.title) w.push('Geen naam gevonden');
-  if (!r.ingredients.length) w.push('Geen ingrediënten gevonden');
-  if (!r.steps.length) w.push('Geen bereiding gevonden');
-  else if (!r.steps.some(s => s.min)) w.push('Geen tijden bij de stappen');
-  return w;
+function done(raw) {
+  const recipe = clean(raw), w = [];
+  if (!recipe.title) w.push('Geen naam gevonden');
+  if (!recipe.ingredients.length) w.push('Geen ingrediënten gevonden');
+  if (!recipe.steps.length) w.push('Geen bereiding gevonden');
+  else if (!recipe.steps.some(s => s.min)) w.push('Geen tijden bij de stappen');
+  if (raw._servingsGuess) w.push('Aantal personen niet gevonden');
+  return { recipe, warnings: w };
 }
 
 // HTML (bijv. een artifact) → Markdown, zodat parseRecipes het kan lezen. `doc` = een DOM-document (DOMParser).
 export function htmlToMarkdown(doc) {
   doc.querySelectorAll('script,style,noscript,svg,button,nav,footer').forEach(n => n.remove());
+  // JSON-LD in de pagina? Dat is het betrouwbaarst.
+  const ld = [...doc.querySelectorAll('script[type="application/ld+json"]')].map(n => n.textContent);
+  if (ld.length) return ld[0];
   const out = [];
   const text = n => (n.textContent || '').replace(/\s+/g, ' ').trim();
   const walk = node => {

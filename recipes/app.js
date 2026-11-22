@@ -26,7 +26,7 @@ let loading = false, offline = false;
 const isAdmin = () => !!(me && me.apps && me.apps.recipes && me.apps.recipes.role === 'admin');
 const canEdit = r => r && me && (r.user_id === me.userId || isAdmin());
 // Alle kolommen behalve de originele upload (source): die is alleen voor de Assistent en kan groot zijn.
-const COLS = 'id,team_id,user_id,author,title,intro,category,servings,ingredients,steps,health_score,health_notes,health_scored_at,status,source_name,deleted,created_at,updated_at';
+const COLS = 'id,team_id,user_id,author,title,intro,category,servings,ingredients,steps,tools,tips,health_score,health_notes,health_scored_at,status,source_name,deleted,created_at,updated_at';
 const byId = id => data.recipes.find(r => r.id === id);
 const memberName = id => (id === (me && me.userId) ? me.memberName : (data.members.find(m => m.user_id === id) || {}).name) || 'Gezinslid';
 const myStars = id => (data.ratings.find(r => r.recipe_id === id && r.user_id === (me && me.userId)) || {}).stars || 0;
@@ -150,11 +150,21 @@ function vDetail() {
   h += `<div class="card"><h2>Jouw sterren</h2><div class="stars" role="group" aria-label="Geef sterren">${[1, 2, 3, 4, 5].map(n => `<button data-a="rate" data-n="${n}" class="${n <= mine ? 'on' : ''}" aria-label="${n} ${n === 1 ? 'ster' : 'sterren'}" aria-pressed="${n === mine}">★</button>`).join('')}</div>
     <p class="muted small" style="margin-top:6px">${r.count ? `Gezin: <span class="star">★</span> ${R.fmtStars(r.avg)} · ${r.list.map(v => `${esc(memberName(v.user_id))} ${v.stars}`).join(', ')}` : 'Nog niemand heeft sterren gegeven.'}</p></div>`;
   h += sec('Ingrediënten', `<div class="card" style="margin-top:0"><div class="stepper" style="margin-bottom:8px"><button data-a="srv" data-d="-1" aria-label="Minder personen">−</button><b>${servings} ${servings === 1 ? 'persoon' : 'personen'}</b><button data-a="srv" data-d="1" aria-label="Meer personen">+</button></div>
-    <ul class="ing">${x.ingredients.map(i => `<li>${esc(R.scaleLine(i, f))}</li>`).join('')}</ul></div>`, f !== 1 ? `Omgerekend van ${x.servings} naar ${servings} personen.` : '');
+    <ul class="ing">${x.ingredients.map(i => /:$/.test(i) ? `<li class="gh">${esc(i.slice(0, -1))}</li>` : `<li>${esc(R.scaleLine(i, f))}</li>`).join('')}</ul></div>`, f !== 1 ? `Omgerekend van ${x.servings} naar ${servings} personen.` : '');
+  if ((x.tools || []).length) h += sec('Benodigdheden', `<div class="card" style="margin-top:0"><ul class="ing tools">${x.tools.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`);
   if (x.steps.length) {
-    h += sec('Bereidingsschema', `<div class="card" style="margin-top:0">${p.total ? `<div class="eat"><span>Aan tafel om</span><input type="time" id="eatAt" value="${esc(ui.eatAt)}"></div><p class="muted small" style="margin:6px 0 4px">Begin om <b>${p.start}</b> · totaal ${R.fmtMinutes(p.total)}</p>` : ''}
-      <ol class="steps">${p.steps.map((s, i) => `<li><span class="at">${p.total ? s.at : i + 1 + '.'}${s.min ? `<span class="du">${s.min} min</span>` : ''}</span><span>${s.par ? '<span class="par">Tegelijk met de vorige stap</span><br>' : ''}${esc(s.text)}</span></li>`).join('')}</ol></div>`);
+    // Planning: "Aan tafel om" → bij elke stap het begintijdstip (ook dagen van tevoren). Daarna de fases met genummerde stappen.
+    const timeOf = i => p.steps[i], groups = R.sections(x.steps);
+    h += sec('Bereiding', (p.total ? `<div class="card" style="margin-top:0"><div class="eat"><span>Aan tafel om</span><input type="time" id="eatAt" value="${esc(ui.eatAt)}"></div>
+      <p class="muted small" style="margin:6px 0 0">Begin om <b>${p.start}</b>${p.startDay ? ` (${R.dayLabel(p.startDay)})` : ''} · totaal ${R.fmtMinutes(p.total)}</p></div>` : '')
+      + groups.map(g => `${g.section ? `<h3 class="phase">${esc(g.section)}</h3>` : ''}<div class="card steps2">${g.steps.map(st => {
+        const t = timeOf(st.n - 1);
+        const badges = [st.min ? `<span class="bd time">⏱ ${R.fmtRange(st.min, st.max)}</span>` : '', st.temp ? `<span class="bd temp">🌡 ${esc(st.temp)}</span>` : '',
+          st.core ? `<span class="bd core">Kern ${esc(st.core)}</span>` : '', st.par && st.n > 1 ? '<span class="bd par">tegelijk met vorige</span>' : ''].join('');
+        return `<div class="st"><span class="num">${st.n}</span><div class="sb">${p.total ? `<span class="when">${t.at}${t.day ? ` · ${R.dayLabel(t.day)}` : ''}</span>` : ''}${st.title ? `<b class="stt">${esc(st.title)}</b>` : ''}<p>${esc(st.text)}</p>${badges ? `<div class="bds">${badges}</div>` : ''}</div></div>`;
+      }).join('')}</div>`).join(''));
   }
+  if ((x.tips || []).length) h += sec('Tips', `<div class="card tips">${x.tips.map(t => `<div class="tip">${t.label ? `<b>${esc(t.label)}</b>` : ''}<span>${esc(t.text)}</span></div>`).join('')}</div>`);
   if (canEdit(x)) h += `<div style="margin-top:18px"><button class="btn danger" data-a="delete">Gerecht verwijderen</button></div>`;
   return h + '</main>';
 }
@@ -168,10 +178,17 @@ function vEdit() {
     <div class="cell"><textarea class="ta" id="f-intro" placeholder="Korte beschrijving of tip (mag leeg)" style="min-height:3.5rem">${esc(d.intro)}</textarea></div></div>`);
   h += sec('Ingrediënten', `<div class="grp"><div class="cell"><textarea class="ta" id="f-ingredients" placeholder="Eén per regel, bijv.&#10;500 g gehakt&#10;2 uien&#10;1 el olijfolie">${esc(d.ingredients)}</textarea></div></div>`,
     'Eén ingrediënt per regel, met de hoeveelheid vooraan. Dan rekent de app het om naar meer of minder personen.');
-  h += sec('Bereidingsschema', `<div class="grp">${d.steps.map((s, i) => `<div class="steprow"><textarea data-step="${i}" placeholder="Stap ${i + 1}">${esc(s.text)}</textarea>
-    <div class="opts"><label><input type="number" data-min="${i}" value="${s.min || ''}" min="0" max="1440" inputmode="numeric" placeholder="0"> min</label>${i ? `<label><input type="checkbox" data-par="${i}" ${s.par ? 'checked' : ''}> tegelijk met vorige</label>` : ''}<button class="del" data-a="delstep" data-i="${i}">Weg</button></div></div>`).join('')}
+  const inp = (attr, i, val, ph, extra = '') => `<input type="text" ${attr}="${i}" value="${esc(val || '')}" placeholder="${ph}" ${extra}>`;
+  h += sec('Bereiding', `<div class="grp">${d.steps.map((s, i) => `<div class="steprow">
+    <div class="opts wide">${inp('data-sect', i, s.section, 'Fase (bijv. Roken), mag leeg', 'maxlength="60"')}</div>
+    ${inp('data-stitle', i, s.title, `Stap ${i + 1}: korte titel (mag leeg)`, 'maxlength="80" class="stitle"')}
+    <textarea data-step="${i}" placeholder="Wat doe je?">${esc(s.text)}</textarea>
+    <div class="opts"><label><input type="number" data-min="${i}" value="${s.min || ''}" min="0" max="4320" inputmode="numeric" placeholder="0"> tot <input type="number" data-max="${i}" value="${s.max || ''}" min="0" max="4320" inputmode="numeric" placeholder="–"> min</label>${i ? `<label><input type="checkbox" data-par="${i}" ${s.par ? 'checked' : ''}> tegelijk</label>` : ''}</div>
+    <div class="opts">${inp('data-temp', i, s.temp, '🌡 bijv. 180 °C', 'maxlength="40"')}${inp('data-core', i, s.core, 'Kern bijv. 75 °C', 'maxlength="40"')}<button class="del" data-a="delstep" data-i="${i}">Weg</button></div></div>`).join('')}
     <button class="cell tint" data-a="addstep"><span class="tx"><span class="tt">Stap toevoegen</span></span></button></div>`,
-    'Geef per stap aan hoeveel minuten hij duurt. Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink dat aan. Dan rekent de app uit hoe laat je moet beginnen.');
+    'Per stap: minuten (met "tot" voor een bereik, bijv. 240 tot 360), en eventueel een titel, fase, temperatuur en kerntemperatuur. Gaat een stap tegelijk met de vorige (rijst koken terwijl de saus pruttelt), vink "tegelijk" aan. Dan rekent de app uit hoe laat je moet beginnen.');
+  h += sec('Benodigdheden', `<div class="grp"><div class="cell"><textarea class="ta" id="f-tools" placeholder="Eén per regel, bijv.&#10;Smoker&#10;Kernthermometer" style="min-height:4rem">${esc(d.tools || '')}</textarea></div></div>`);
+  h += sec('Tips', `<div class="grp"><div class="cell"><textarea class="ta" id="f-tips" placeholder="Eén per regel, bijv.&#10;Rookhout: appel of kers past goed" style="min-height:4rem">${esc(d.tips || '')}</textarea></div></div>`, 'Eén tip per regel; met "Label: tekst" krijgt de tip een kopje.');
   if (ui.id) h += `<p class="sec-f">Wijzig je naam, personen, ingrediënten of stappen, dan bepaalt de Assistent de gezondheidsscore opnieuw.</p>`;
   return h + '</main>';
 }
@@ -179,10 +196,11 @@ function vEdit() {
 function readDraft() {
   const v = id => (document.getElementById(id) || {}).value ?? '';
   const d = ui.draft;
-  Object.assign(d, { title: v('f-title'), category: v('f-category'), servings: v('f-servings'), intro: v('f-intro'), ingredients: v('f-ingredients') });
+  Object.assign(d, { title: v('f-title'), category: v('f-category'), servings: v('f-servings'), intro: v('f-intro'), ingredients: v('f-ingredients'), tools: v('f-tools'), tips: v('f-tips') });
+  const q = (attr, i, fb) => (document.querySelector(`[${attr}="${i}"]`) || {}).value ?? fb;
   d.steps = d.steps.map((s, i) => ({
-    text: (document.querySelector(`[data-step="${i}"]`) || {}).value ?? s.text,
-    min: (document.querySelector(`[data-min="${i}"]`) || {}).value ?? s.min,
+    text: q('data-step', i, s.text), min: q('data-min', i, s.min), max: q('data-max', i, s.max),
+    title: q('data-stitle', i, s.title), section: q('data-sect', i, s.section), temp: q('data-temp', i, s.temp), core: q('data-core', i, s.core),
     par: i ? !!(document.querySelector(`[data-par="${i}"]`) || {}).checked : false,
   }));
 }
@@ -194,14 +212,14 @@ async function readFiles(files) {
   for (const f of files) {
     let text = await f.text();
     const name = f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
-    if (/\.html?$/i.test(f.name) || isHtml(text)) text = htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html'));
+    if (!/\.json$/i.test(f.name) && !/^\s*[[{]/.test(text) && (/\.html?$/i.test(f.name) || isHtml(text))) text = htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html'));
     for (const x of parseRecipes(text, name)) items.push({ ...x, source: f.name, original: text });
     if (!items.some(x => x.source === f.name)) items.push({ recipe: null, warnings: ['Geen recept herkend'], source: f.name });
   }
   return items;
 }
 function readText(text) {
-  const md = isHtml(text) ? htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html')) : text;
+  const md = !/^\s*[[{]/.test(text) && isHtml(text) ? htmlToMarkdown(new DOMParser().parseFromString(text, 'text/html')) : text;
   const out = parseRecipes(md).map(x => ({ ...x, source: 'geplakte tekst', original: md }));
   return out.length ? out : [{ recipe: null, warnings: ['Geen recept herkend'], source: 'geplakte tekst' }];
 }
@@ -219,7 +237,7 @@ function vImport() {
   let h = navBar(`<button class="nb" data-a="cancel">Annuleer</button>`, 'Importeren') + '<main>';
   if (!imp.items) {
     h += lt('Gerechten importeren', 'Uit Markdown, tekst of een opgeslagen pagina');
-    h += sec('Bestanden', `<div class="grp"><label class="cell tint"><span class="tx"><span class="tt">Kies bestanden…</span><span class="st">.md, .txt of .html, meerdere tegelijk</span></span><input type="file" id="impFiles" multiple accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html" style="position:absolute;opacity:0;width:1px;height:1px"></label></div>`,
+    h += sec('Bestanden', `<div class="grp"><label class="cell tint"><span class="tx"><span class="tt">Kies bestanden…</span><span class="st">.json, .md, .txt of .html, meerdere tegelijk</span></span><input type="file" id="impFiles" multiple accept=".md,.markdown,.txt,.html,.htm,.json,text/markdown,text/plain,text/html,application/json" style="position:absolute;opacity:0;width:1px;height:1px"></label></div>`,
       'Bijvoorbeeld recepten die Claude voor je schreef (als Markdown bewaard of gedownload), of een artifact opgeslagen als pagina.');
     h += sec('Of plak de tekst', `<div class="grp"><div class="cell"><textarea class="ta" id="impText" placeholder="# Lasagne&#10;Voor 4 personen&#10;&#10;## Ingrediënten&#10;- 500 g gehakt&#10;&#10;## Bereiding&#10;1. Bak het gehakt 10 minuten." style="min-height:10rem">${esc(imp.text || '')}</textarea></div></div>`,
       'Meerdere recepten in één keer mag: elk recept met een eigen kop. De app herkent ingrediënten, bereiding, personen en minuten per stap.');
@@ -269,8 +287,8 @@ document.addEventListener('click', ev => {
   if (a === 'go') go(el.dataset.v);
   else if (a === 'open') go('detail', { id: el.dataset.id, servings: null });
   else if (a === 'sort') { ui.sort = el.dataset.v; storage.set(APP, 'sort', ui.sort); render(); }
-  else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', steps: [{ text: '', min: '', par: false }] } });
-  else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
+  else if (a === 'new') go('edit', { id: null, draft: { title: '', category: 'main', servings: 4, intro: '', ingredients: '', tools: '', tips: '', steps: [{ text: '', min: '', par: false }] } });
+  else if (a === 'edit') { const x = byId(ui.id); go('edit', { draft: { ...x, ingredients: x.ingredients.join('\n'), tools: (x.tools || []).join('\n'), tips: (x.tips || []).map(t => t.label ? `${t.label}: ${t.text}` : t.text).join('\n'), steps: x.steps.length ? x.steps.map(s => ({ ...s })) : [{ text: '', min: '', par: false }] } }); }
   else if (a === 'cancel') go(ui.view === 'import' ? 'list' : ui.id ? 'detail' : 'list');
   else if (a === 'import') go('import', { imp: { text: '', items: null } });
   else if (a === 'impread') { const t = ($('#impText') || {}).value || ''; ui.imp.text = t; if (!t.trim()) { toast('Kies bestanden of plak een recept.', 'err'); return; } ui.imp.items = markItems(readText(t)); render(); window.scrollTo(0, 0); }

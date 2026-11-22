@@ -284,3 +284,13 @@ Doe dit **vóór** je v3.8.0 pusht, en vóór de volgende run van de geplande ta
 Getest op de lokale database (22 nov 2026): schema twee keer; lid kan status en upload niet wijzigen; titel wijzigen
 houdt het gerecht op 'import'; import zonder upload is meteen klaar; runner-functies alleen voor de runner; lege stap en
 verouderde versie geweigerd; na verrijken upload weg, status klaar en pas dan in de lijst voor de gezondheidsscore.
+
+## Update naar gerechten met fases en tips (v3.9.0)
+Doe dit **vóór** je v3.9.0 pusht (staat al in productie sinds 22 nov 2026):
+
+1. **SQL Editor** (of `npx supabase db query --remote -f supabase/schema.sql`): voer [`schema.sql`](schema.sql) opnieuw uit.
+   Nieuw op `recipes`: `tools` en `tips` (lijsten). Stappen hebben optioneel `title`, `section`, `temp`, `core` en `max`
+   (in de bestaande kolom `steps`). `runner_enrich_recipe()` krijgt `p_tools` en `p_tips`; de oude versie wordt eerst
+   verwijderd, zodat er maar één is. Controle: `select count(*) from pg_proc where proname = 'runner_enrich_recipe';` → 1.
+2. Let op: tot de push ziet de oude app (3.8) de nieuwe velden niet; wie in de oude app een gerecht wijzigt, verliest
+   titels, fases, temperaturen, benodigdheden en tips van dat gerecht. Push dus snel na stap 1.
