@@ -7,7 +7,7 @@
 import * as P from '../training/program.js';
 import { PROGRAMS } from '../training/programs.js';
 import { ratingOf, fmtStars } from '../recipes/recipe.js';
-import { dayItems, dueSoon, kindOf } from '../agenda/plan.js';
+import { dayItems, dueSoon, kindOf, externalItems } from '../agenda/plan.js';
 
 const DSH = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
 const MON = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -90,16 +90,22 @@ export const APPS = [
     icon: '📅',
     about: 'Schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen in één weekoverzicht.',
     // Uit de kopie op de telefoon (agenda/app.js). Gekoppeld aan een persoon in de agenda? Dan alleen die planning.
+    // Telt mee: eigen afspraken én wat uit de andere apps komt (eierronde, leveringen, trainingen). Trainingen uit de
+    // kopie van Training als die er is: die is nieuwer als je net je trainingsdagen hebt veranderd.
     status({ today, account, storage }) {
       const d = account && account.teamId ? storage.get('agenda', `${account.teamId}:data`) : null;
       if (!d || !(d.people || []).length) return { line: 'Rooster, sport en huiswerk', sub: '' };
       const p = d.people.find(x => x.user_id && x.user_id === account.userId), pid = p ? p.id : null;
-      const items = dayItems(d.items, today, pid), soon = dueSoon(d.tasks, pid, today);
+      const tr = Object.values(storage.get('training', `${account.teamId}:tracks`, {}) || {}).filter(t => t && t.data);
+      const ext = tr.length
+        ? (d.ext || []).filter(x => !(x.ext && x.ext.app === 'training')).concat(externalItems({ tracks: tr, programs: PROGRAMS, people: d.people }))
+        : d.ext || [];
+      const items = dayItems((d.items || []).concat(ext), today, pid), soon = dueSoon(d.tasks, pid, today);
       const hw = soon.length ? plural(soon.length, 'taak', 'taken') + ' huiswerk voor morgen' : '';
       if (!items.length) return { line: 'Vandaag niets gepland', sub: hw };
       const now = new Date(), hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const next = items.find(it => (it.end || it.start || '24:00') >= hm);
-      const line = next ? `${next.meet || next.start || ''} ${kindOf(next.kind)[2]} ${next.title}`.trim() : `Vandaag: ${plural(items.length, 'afspraak', 'afspraken')}`;
+      const line = next ? `${next.meet || next.start || ''} ${next.icon || kindOf(next.kind)[2]} ${next.title}`.trim() : `Vandaag: ${plural(items.length, 'afspraak', 'afspraken')}`;
       return { line, sub: [plural(items.length, 'afspraak', 'afspraken') + ' vandaag', hw].filter(Boolean).join(' · '), today: !!next };
     },
   },

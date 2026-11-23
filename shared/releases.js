@@ -10,6 +10,12 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.17.3', date: '2026-11-23', title: 'Tegel Agenda telt alles mee',
+    notes: [
+      { app: 'agenda', text: 'De tegel Agenda op het startscherm zei soms "Vandaag niets gepland", terwijl er wel een training of eierronde was. Die tellen nu mee, en een nieuwe trainingsdag zie je meteen.', kb: 'agenda-andere-apps' },
+    ],
+  },
+  {
     version: '3.17.2', date: '2026-11-23', title: 'Gezondheid: duidelijkere uitleg voor gewicht',
     notes: [
       { app: 'training', text: 'De uitleg voor de opdracht op je iPhone klopt nu met iOS 27: de actie heet "Zoek gezondheidswaarden". Er staat ook stap voor stap hoe je je gewicht ophaalt.', kb: 'gezondheid' },

@@ -60,3 +60,22 @@ test('training: starttijd per dag', () => {
   assert.equal(dayItems(ext, '2026-11-25', 'p-lynn')[0].end, '20:00');
   assert.equal(dayItems(ext, '2026-11-27', 'p-lynn')[0].start, '', 'vrijdag zonder tijd');
 });
+
+// Tegel op het startscherm: "Vandaag niets gepland" klopte niet als er alleen een training of de eierronde was.
+test('tegel Agenda telt trainingen en de eierronde mee, trainingen uit de kopie van Training', async () => {
+  const { APPS } = await import('../shared/apps.js');
+  const agenda = APPS.find(a => a.id === 'agenda');
+  const MA = '2026-11-23', account = { teamId: 'fam', userId: 'u-marien' };
+  const store = (agendaData, tracks) => ({ get: (app, key, def) => app === 'agenda' && key === 'fam:data' ? agendaData : app === 'training' && key === 'fam:tracks' ? tracks : def, raw: () => null });
+  const track = days => ({ t1: { id: 't1', program: 'biocircuit', participants: ['u-marien'], deleted: false, data: { settings: { days, times: { 1: '19:00' } }, log: [] } } });
+  const oldExt = externalItems({ tracks: [{ id: 't1', program: 'biocircuit', participants: ['u-marien'], data: { settings: { days: [1], times: { 1: '19:00' } } } }], programs: [{ id: 'biocircuit', name: 'Bio-circuit', minutes: 45 }], people });
+  // alleen de kopie van de agenda (Training nooit geopend op deze telefoon)
+  let s = agenda.status({ today: MA, account, storage: store({ people, items: [], tasks: [], ext: oldExt }, undefined) });
+  assert.match(s.sub, /^1 afspraak vandaag/); // de regel zelf hangt af van hoe laat het nu is
+  // Training is nieuwer: maandag is geen trainingsdag meer → niets
+  s = agenda.status({ today: MA, account, storage: store({ people, items: [], tasks: [], ext: oldExt }, track([3])) });
+  assert.equal(s.line, 'Vandaag niets gepland');
+  // net een trainingsdag toegevoegd in Training, Agenda nog niet geopend → toch zichtbaar
+  s = agenda.status({ today: MA, account, storage: store({ people, items: [], tasks: [], ext: [] }, track([1, 3])) });
+  assert.match(s.sub, /^1 afspraak vandaag/); // de regel zelf hangt af van hoe laat het nu is
+});
