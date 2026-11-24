@@ -44,7 +44,7 @@ Engels, schermteksten in het Nederlands.
 | `shared/kb.js` | kennisbank: handleidingen (Hulp → Kennisbank); bron voor de Assistent |
 | `scripts/runner.mjs`, `docs/runner.md` | de Assistent: geplande Claude-routine die open vragen beantwoordt |
 | `eggs/index.html` | Egg-sellent (schermen, logica, opslag, synchronisatie) |
-| `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `programs.js` (lijst), `sports/pilates/`, `sports/biocircuit/` |
+| `training/` | Training: `app.js` (schermen, speler, sync), `program.js` (planning, testbaar), `programs.js` (lijst), `voice.js` (stem tijdens een les), `sports/pilates/` (`guide.js` uitleg, `figures.js` + `rig.js` figuurtjes; bekijken in `tools/figures.html`), `sports/biocircuit/` |
 | `recipes/` | Gerechten: `app.js` (schermen, opslaan), `recipe.js` (omrekenen, bereidingsschema, sterren; testbaar) |
 | `scripts/recipe-scores.mjs`, `docs/recipe-scores.md` | de Assistent: geplande routine die gerechten een gezondheidsscore geeft |
 | `scripts/recipe-enrich.mjs`, `docs/recipe-enrich.md` | de Assistent: geplande routine die geïmporteerde gerechten afmaakt (stappen, tijden) |

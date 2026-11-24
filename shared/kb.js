@@ -85,6 +85,29 @@ Via <b>‹ Training</b> linksboven kies je altijd zelf een ander programma.</p>
 <p><b>Veiligheid:</b> stop bij pijn (spierbrand mag) en kies de makkelijkere variant. Bij blessures, rugklachten, zwangerschap of twijfel: overleg eerst met je huisarts of fysiotherapeut.</p>`,
   },
   {
+    slug: 'pilates-beginnen', app: 'training', title: 'Beginnen met Pilates: uitleg, voorbeeld en stem', updated: '2026-11-24', version: '3.18.0',
+    body: `<p>Nieuw met Pilates? Bij elke oefening staat uitleg stap voor stap en een bewegend voorbeeld.</p>
+<h3>De basis</h3>
+<ul><li><b>Ademhaling</b>: adem in door je neus en laat je ribben opzij uitzetten. Adem uit door je mond. Bij de zware kant van een beweging adem je meestal uit.</li>
+<li><b>Neutrale rug</b>: op je rug heb je een kleine holte onder je onderrug. Bij <b>imprint</b> druk je die zacht in de mat.</li>
+<li><b>Buik licht aan</b>: trek je navel zacht naar je ruggengraat, zonder je adem in te houden.</li>
+<li><b>Tafelstand</b>: op je rug met je knieën boven je heupen en je onderbenen horizontaal. Op handen en knieën heet dat ook wel tafel.</li>
+<li><b>Rustig en gecontroleerd</b>: liever kleiner en netjes dan groot met een zwaai.</li></ul>
+<h3>Uitgebreid of beknopt</h3>
+<p>Open een les en tik op een oefening. Bij <b>Uitgebreid</b> zie je een bewegend figuurtje en de uitleg: beginhouding, de stappen, waar je het voelt, waar je op let en een makkelijkere variant.
+De groene vlek in het figuurtje laat zien waar je het voelt. Een grijs been of arm is de andere kant van je lichaam.
+Onder de uitleg staat een link naar video's van de oefening (YouTube, alleen met internet).</p>
+<p>Ken je de oefeningen? Kies bovenaan de les <b>Beknopt</b>. Dan zie je de korte weergave van eerst. Tijdens de les wissel je met de knop onderaan. De app onthoudt je keuze op deze telefoon.</p>
+<p>Tijdens een oefening per kant draait het figuurtje om als je van kant wisselt.</p>
+<h3>De stem</h3>
+<p>Tijdens de les zegt een stem wat er komt: de naam van de oefening, je houding (op je rug, op handen en knieën, …) en hoe vaak.
+Tien seconden voor het einde hoor je wat hierna komt. Halverwege een oefening per kant hoor je <b>Andere kant</b>, en bij lange oefeningen af en toe een tip, zoals <b>Let op je ademhaling</b>.</p>
+<ul><li>Bovenaan de les zet je de <b>Stem</b> en de <b>Piep</b> (de piepjes bij het aftellen) los van elkaar aan of uit.</li>
+<li>De stem is de Nederlandse stem van je telefoon en werkt ook zonder internet.</li>
+<li>Hoor je niets? Zet het geluid van je telefoon harder en kijk of de stille modus uit staat.</li></ul>
+<p><b>Veiligheid:</b> stop bij pijn (spierbrand mag) en kies de makkelijkere variant. Bij blessures, rugklachten, zwangerschap of twijfel: overleg eerst met je huisarts of fysiotherapeut.</p>`,
+  },
+  {
     slug: 'samen-trainen', app: 'training', title: 'Samen of apart trainen', updated: '2026-11-22', version: '3.0.0',
     body: `<p>Een <b>training</b> is één voortgang door het programma. Je kiest wie er meedoet:</p>
 <ul><li><b>Samen</b>: één training met meerdere gezinsleden. Iedereen ziet dezelfde voortgang, op de eigen telefoon.</li>

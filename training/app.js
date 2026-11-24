@@ -11,6 +11,10 @@ import * as P from './program.js';
 import { PROGRAMS, programById } from './programs.js';
 import { E, WEEKS, DAYS, PHASES, planFor, lessonTitle } from './sports/pilates/index.js';
 import * as BIO from './sports/biocircuit/index.js';
+import { GUIDE } from './sports/pilates/guide.js';
+import { FIG } from './sports/pilates/figures.js';
+import { figureSVG, animateFigures } from './sports/pilates/rig.js';
+import * as V from './voice.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -250,6 +254,23 @@ const backTo = (a, txt) => `<button class="nb back" data-a="${a}">${ICON_BACK}<s
 const lt = (t, sub) => `<div class="lt"><h1 tabindex="-1">${t}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
 const daysText = days => P.WEEK_ORDER.filter(d => days.includes(d)).map(d => P.DSH[d]).join(', ');
 
+// Uitleg bij Pilates (v3.18): uitgebreid (stappen, figuurtje, tips) of beknopt. Per telefoon onthouden, standaard uitgebreid.
+let guide = storage.get(APP, 'guide', 'full') === 'short' ? 'short' : 'full';
+let voiceOn = storage.get(APP, 'voice', true) !== false;
+const full = () => guide === 'full';
+const fig = (id, extra = '') => FIG[id] ? figureSVG(FIG[id], { id }).replace('<svg class="fig"', `<svg class="fig${extra}"`) : '';
+const videoUrl = id => { const en = GUIDE[id] && GUIDE[id].en; return en ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent((/pilates/.test(en) ? en : 'pilates ' + en) + ' beginner') : ''; };
+function guideHTML(id) {
+  const e = E[id], g = GUIDE[id];
+  if (!g) return `<p>${e.d}<br><i>${e.p} · ${e.r}</i></p>`;
+  return `<div class="guide"><p class="gs"><b>Beginhouding</b>${g.start}</p>
+  <ol class="steps">${g.steps.map(x => `<li>${x}</li>`).join('')}</ol>
+  <p class="gr">${e.p} · ${e.r}${e.s && !/per kant/i.test(e.r) ? ' · per kant' : ''}</p>
+  <div class="tips"><p><b>Voel je</b>${g.feel}</p><p><b>Let op</b>${g.avoid}</p><p><b>Makkelijker</b>${g.easier}</p></div></div>`;
+}
+const videoLink = id => videoUrl(id) ? `<a class="vid" href="${videoUrl(id)}" target="_blank" rel="noopener">Bekijk een video (YouTube)</a>` : '';
+const guideSwitch = () => `<div class="segc gsw" role="group" aria-label="Uitleg"><button data-a="guide" data-v="full" aria-pressed="${full()}">Uitgebreid</button><button data-a="guide" data-v="short" aria-pressed="${!full()}">Beknopt</button></div>`;
+
 function cues(e) {
   if (e.h || e.z) return `<div class="cues"><div class="cue h"><b>Hij</b>${e.h || 'Zoals hierboven.'}</div><div class="cue z"><b>Zij</b>${e.z || 'Zoals hierboven.'}</div></div>`;
   return `<div class="same">Hetzelfde voor jullie allebei.</div>`;
@@ -270,6 +291,7 @@ function render() {
   else if (view === 'done') a.innerHTML = c ? circuitDone() : doneView();
   window.scrollTo(0, 0);
   onScroll();
+  animateFigures(id => FIG[id]);
 }
 
 function programsView() {
@@ -407,28 +429,43 @@ function dayView() {
   let h = navBar(backTo('home', 'Overzicht')) + '<main>' + lt(`Les ${cur}`, esc(lessonTitle(cur)));
   h += `<div style="padding:0 4px"><span class="badge">${blockName(d.w)}</span><span class="badge">${PROGRAM.minutes} min</span>${d.rest ? '<span class="badge rest">Rustig</span>' : ''}${done ? `<span class="badge">✓ gedaan ${P.fmtShort(done)}</span>` : plan ? `<span class="badge rest">Gepland ${P.fmtShort(plan.d)}</span>` : ''}${bonus ? '<span class="badge bonus">Vandaag = bonus</span>' : ''}</div>`;
   h += `<button class="btn" style="margin:10px 0" data-a="start">${done ? 'Opnieuw doen' : bonus ? 'Start als bonustraining' : 'Start les'}</button>`;
+  h += `<div class="gbar"><span class="muted small">Uitleg</span>${guideSwitch()}</div>`;
+  if (full()) h += `<p class="sec-f">Tik op een oefening voor een bewegend voorbeeld en uitleg stap voor stap. Nieuw met Pilates? <a href="../?article=pilates-beginnen">Lees eerst de basis</a>.</p>`;
   [0, 1, 2].forEach(p => {
     const it = items.filter(x => x.ph === p);
     h += `<div class="ph"><span>${PHASES[p]}</span><span>${fmt(it.reduce((a, x) => a + x.s, 0))}</span></div>`;
-    it.forEach(x => { const e = E[x.id]; h += `<details><summary><span>${e.n}${x.side ? ' ⇄' : ''}</span><span>${fmt(x.s)}</span></summary><p>${e.d}<br><i>${e.p} · ${e.r}</i></p>${cues(e)}</details>`; });
+    it.forEach(x => {
+      const e = E[x.id];
+      h += `<details><summary><span>${e.n}${x.side ? ' ⇄' : ''}</span><span>${fmt(x.s)}</span></summary>`
+        + (full() ? `${fig(x.id)}${guideHTML(x.id)}${cues(e)}${videoLink(x.id)}` : `<p>${e.d}<br><i>${e.p} · ${e.r}</i></p>${cues(e)}`) + '</details>';
+    });
   });
   h += `<p class="sec-f">⇄ = oefening per kant; de app geeft halverwege een signaal.</p>`;
   if (!done) h += `<button class="btn plain" style="margin-top:14px" data-a="mark">Markeer als gedaan zonder de app</button>`;
   return h + '</main>';
 }
 
+const soundButtons = () => `<span class="snd"><button class="nb" data-a="mute" aria-pressed="${!muted}">${muted ? '🔇' : '🔊'} Piep</button>${V.available() ? `<button class="nb" data-a="voice" aria-pressed="${voiceOn}">${voiceOn ? '🗣️' : '🤐'} Stem</button>` : ''}</span>`;
 function sessionView() {
-  const it = S.items[S.i], e = E[it.id], nx = S.items[S.i + 1];
-  return `<main class="player"><div class="row" style="margin-bottom:6px"><span class="muted small">Les ${cur} · ${PHASES[it.ph]}</span><span style="text-align:right"><button class="nb" data-a="mute" style="min-height:32px;padding:0">${muted ? '🔇 Geluid uit' : '🔊 Geluid aan'}</button></span></div>
-  <div class="bar"><i id="tb"></i></div><div class="tot"><span id="te">0:00</span><span id="tr">30:00</span></div>
-  <div class="ex"><span class="badge">${e.p}</span><h1>${e.n}</h1>
-  <div class="ring"><svg width="200" height="200" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="var(--fill)" stroke-width="8"/><circle id="rg" cx="60" cy="60" r="54" fill="none" stroke="var(--green)" stroke-width="8" stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="0"/></svg><div class="t" id="tm">0:00</div></div>
-  ${it.side ? `<div class="side" id="sd"></div><div class="flip" id="fl" style="display:none">Wissel van kant ⇄</div>` : ''}
+  const it = S.items[S.i], e = E[it.id], nx = S.items[S.i + 1], big = full();
+  const ring = `<div class="ring${big ? ' sm' : ''}"><svg width="200" height="200" viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="var(--fill)" stroke-width="8"/><circle id="rg" cx="60" cy="60" r="54" fill="none" stroke="var(--green)" stroke-width="8" stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="0"/></svg><div class="t" id="tm">0:00</div></div>`;
+  const sides = it.side ? `<div class="side" id="sd"></div><div class="flip" id="fl" style="display:none">Wissel van kant ⇄</div>` : '';
+  const ctl = `<div class="ctl"><button class="btn sec" data-a="prev" aria-label="Vorige">◀◀</button><button class="btn" id="pp" data-a="pause">${S.run ? 'Pauze' : 'Verder'}</button><button class="btn sec" data-a="skip" aria-label="Volgende">▶▶</button></div>
+  <div class="next">${nx ? 'Straks: ' + E[nx.id].n : 'Laatste oefening'}</div>`;
+  const stop = confirmBox === 'stop' ? `<div class="card"><p>Les stoppen? Deze les telt dan niet mee.</p><div class="row"><button class="btn sec" data-a="nostop">Doorgaan</button><button class="btn" data-a="yesstop">Stoppen</button></div></div>` : `<button class="btn plain" style="margin-top:16px" data-a="stop">Stoppen</button>`;
+  const head = `<div class="phead"><span class="muted small">Les ${cur} · ${PHASES[it.ph]}</span>${soundButtons()}</div>
+  <div class="bar"><i id="tb"></i></div><div class="tot"><span id="te">0:00</span><span id="tr">30:00</span></div>`;
+  if (!big) return `<main class="player">${head}
+  <div class="ex"><span class="badge">${e.p}</span><h1>${e.n}</h1>${ring}${sides}
   <p>${e.d}</p><p class="muted"><i>${e.r}</i></p></div>
-  ${cues(e)}
-  <div class="ctl"><button class="btn sec" data-a="prev" aria-label="Vorige">◀◀</button><button class="btn" id="pp" data-a="pause">${S.run ? 'Pauze' : 'Verder'}</button><button class="btn sec" data-a="skip" aria-label="Volgende">▶▶</button></div>
-  <div class="next">${nx ? 'Straks: ' + E[nx.id].n : 'Laatste oefening'}</div>
-  ${confirmBox === 'stop' ? `<div class="card"><p>Les stoppen? Deze les telt dan niet mee.</p><div class="row"><button class="btn sec" data-a="nostop">Doorgaan</button><button class="btn" data-a="yesstop">Stoppen</button></div></div>` : `<button class="btn plain" style="margin-top:16px" data-a="stop">Stoppen</button>`}</main>`;
+  ${cues(e)}${ctl}${stop}<button class="btn plain" data-a="guide" data-v="full">Uitgebreide uitleg</button></main>`;
+  // Uitgebreid: figuurtje naast een kleinere klok, bediening bovenaan, uitleg eronder.
+  return `<main class="player">${head}
+  <div class="ex"><span class="badge">${e.p}</span><h1>${e.n}</h1>
+  <div class="duo">${fig(it.id, S.flip ? ' mirror' : '').replace('<svg class="fig', '<svg id="fg" class="fig')}${ring}</div>${sides}</div>
+  ${ctl}
+  <div class="card gcard">${guideHTML(it.id)}${cues(e)}${videoLink(it.id)}</div>
+  ${stop}<button class="btn plain" data-a="guide" data-v="short">Beknopte weergave</button></main>`;
 }
 
 function updateSession() {
@@ -441,6 +478,7 @@ function updateSession() {
   q('#te', x => x.textContent = fmt(done)); q('#tr', x => x.textContent = '−' + fmt(S.total - done));
   q('#sd', x => x.textContent = S.flip ? 'Kant 2 van 2' : 'Kant 1 van 2');
   q('#fl', x => x.style.display = (S.flip && S.flashUntil > performance.now()) ? 'block' : 'none');
+  q('#fg', x => x.classList.toggle('mirror', !!S.flip));   // tweede kant: figuurtje gespiegeld
 }
 
 function doneView() {
@@ -577,14 +615,42 @@ function beep(f, d) { if (muted || !AC) return; try { const o = AC.createOscilla
 function buzz() { try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
 function goTo(i) {
   if (i >= S.items.length) { finish(); return; }
+  const prev = S.items[S.i];
   S.i = Math.max(0, i); S.left = S.items[S.i].s; S.flip = false; S.lc = null; S.last = performance.now(); S.flashUntil = 0; render();
+  announce(prev);
+}
+
+/* ---------- stem (alleen Pilates): oefening, houding, andere kant, ademhaling ---------- */
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+function talk(t) { if (voiceOn && S && !isCircuit()) V.say(t); }
+function announce(prev) {
+  if (!voiceOn || isCircuit()) return;
+  const it = S.items[S.i], e = E[it.id], first = !S.said;
+  const phase = first || (prev && prev.ph !== it.ph) ? PHASES[it.ph] + '. ' : '';
+  const moved = first || !prev || E[prev.id].p !== e.p;
+  const pre = S.said && S.said.pre;   // houding is al aangekondigd
+  S.said = {};
+  talk(`${first ? `Les ${cur}. ` : ''}${phase}${V.spoken(e.n)}. ${moved && !pre ? cap(V.position(e.p)) + '. ' : ''}${V.spoken(e.r)}.${it.side && !/per kant/i.test(e.r) ? ' Per kant.' : ''}`);
+}
+function voiceTick(it) {
+  if (!voiceOn || isCircuit() || !S.said) return;
+  const nx = S.items[S.i + 1], f = 1 - S.left / it.s;
+  if (nx && it.s >= 40 && S.left <= 10 && !S.said.pre) {
+    S.said.pre = 1; const a = E[it.id], b = E[nx.id];
+    talk(`Nog tien seconden. Hierna: ${V.spoken(b.n)}${a.p !== b.p ? ', ' + V.position(b.p) : ''}.`);
+  } else if (it.s >= 90 && f >= .3 && !S.said.r1 && S.left > 15) {
+    S.said.r1 = 1; talk(V.REMINDERS[(cur + S.i) % V.REMINDERS.length]);
+  } else if (it.s >= 150 && f >= .75 && !S.said.r2 && S.left > 15) {
+    S.said.r2 = 1; talk(V.REMINDERS[(cur + S.i + 2) % V.REMINDERS.length]);
+  }
 }
 function tick() {
   if (!S || !S.run) return; const now = performance.now(); S.left -= (now - S.last) / 1000; S.last = now;
   const it = S.items[S.i], c = Math.ceil(S.left);
   if (c !== S.lc) { if (c >= 1 && c <= 3) beep(660, .08); S.lc = c; }
-  if (it.side && !S.flip && S.left <= it.s / 2) { S.flip = true; S.flashUntil = now + 4000; beep(990, .15); setTimeout(() => beep(990, .15), 230); buzz(); }
+  if (it.side && !S.flip && S.left <= it.s / 2) { S.flip = true; S.flashUntil = now + 4000; beep(990, .15); setTimeout(() => beep(990, .15), 230); buzz(); talk('Andere kant.'); }
   if (S.left <= 0) { beep(520, .4); goTo(S.i + 1); return; }
+  voiceTick(it);
   updateSession();
 }
 async function lock() { try { if (navigator.wakeLock && S) S.wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
@@ -605,12 +671,12 @@ function startSession() {
   S = { items, total: items.reduce((a, x) => a + x.s, 0), i: 0, left: 0, run: true, flip: false, last: performance.now() };
   view = 'session'; confirmBox = ''; lock(); goTo(0); clearInterval(timer); timer = setInterval(tick, 200); beep(700, .2);
 }
-function endSession() { clearInterval(timer); timer = null; unlock(); S = null; }
+function endSession() { clearInterval(timer); timer = null; unlock(); V.stop(); S = null; }
 function complete(manual) {
   lastDone = P.record(prog, isCircuit() ? P.nextSessionNo(prog) : cur, P.today(), manual);
   save();
 }
-function finish() { endSession(); complete(false); view = 'done'; render(); }
+function finish() { const pil = !isCircuit(); endSession(); complete(false); view = 'done'; render(); if (pil && voiceOn) V.say('Les klaar. Goed gedaan!'); }
 
 function onScroll() { const n = document.getElementById('nav'); if (n) n.classList.toggle('scrolled', window.scrollY > 4); }
 window.addEventListener('scroll', onScroll, { passive: true });
@@ -643,10 +709,12 @@ document.addEventListener('click', ev => {
   else if (a === 'stations') { view = 'stations'; render(); }
   else if (a === 'st-up' || a === 'st-del' || a === 'st-reset' || a === 'st-add') editStations(a, b);
   else if (a === 'saveweights') saveWeights();
-  else if (a === 'pause') { S.run = !S.run; S.last = performance.now(); $('#pp').textContent = S.run ? 'Pauze' : 'Verder'; }
+  else if (a === 'pause') { S.run = !S.run; S.last = performance.now(); $('#pp').textContent = S.run ? 'Pauze' : 'Verder'; if (!S.run) V.stop(); }
   else if (a === 'skip') goTo(S.i + 1);
   else if (a === 'prev') { const it = S.items[S.i]; if (it.s - S.left > 3) goTo(S.i); else goTo(S.i - 1); }
-  else if (a === 'mute') { muted = !muted; b.textContent = muted ? '🔇 Geluid uit' : '🔊 Geluid aan'; }
+  else if (a === 'mute') { muted = !muted; if (view === 'session' && !isCircuit()) render(); else b.textContent = muted ? '🔇 Geluid uit' : '🔊 Geluid aan'; }
+  else if (a === 'voice') { voiceOn = !voiceOn; storage.set(APP, 'voice', voiceOn); if (!voiceOn) V.stop(); else V.say('Stem aan.'); render(); }
+  else if (a === 'guide') { guide = b.dataset.v === 'short' ? 'short' : 'full'; storage.set(APP, 'guide', guide); const y = window.scrollY; render(); if (view === 'day') window.scrollTo(0, y); }
   else if (a === 'stop') { confirmBox = 'stop'; if (S) S.run = false; render(); }
   else if (a === 'nostop') { confirmBox = ''; S.run = true; S.last = performance.now(); render(); }
   else if (a === 'yesstop') { confirmBox = ''; endSession(); view = 'day'; render(); }

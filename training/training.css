@@ -92,3 +92,37 @@ details p{margin:0 0 12px;color:var(--label2);font-size:.94rem;line-height:1.45}
 .hconsent{display:flex;gap:10px;align-items:flex-start;margin-top:14px}
 .hconsent input{width:22px;height:22px;flex:none;margin:2px 0 0;accent-color:var(--green)}
 .hlink{display:block;margin-top:6px;font-size:.8rem;overflow-wrap:anywhere;word-break:break-all;user-select:all;-webkit-user-select:all}
+
+/* Pilates: figuurtje en uitgebreide uitleg (v3.18) */
+.fig{display:block;width:100%;max-width:300px;height:auto;margin:4px auto 8px}
+.fig .mat{fill:var(--fill2)}
+.fig .near,.fig .far{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.fig .near{stroke:var(--label)}
+.fig .far{stroke:var(--label3)}
+.fig .hd{fill:var(--label)}
+.fig .fx{fill:var(--green);opacity:.28}
+.fig.mirror{transform:scaleX(-1);transform-origin:center}
+details .fig{max-height:130px;margin-top:0}
+.gbar{display:flex;align-items:center;gap:10px;margin:4px 4px 0}
+.gbar .segc{flex:1}
+.guide{font-size:.94rem;line-height:1.45;color:var(--label)}
+.guide b{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--label2);margin-bottom:2px}
+.guide .gs{margin:0 0 8px}
+.guide .steps{margin:0 0 8px;padding-left:1.3em}
+.guide .steps li{margin:0 0 4px}
+.guide .gr{margin:0 0 10px;color:var(--label2);font-size:.85rem;font-style:italic}
+.guide .tips{display:grid;gap:6px;margin:0 0 4px}
+.guide .tips p{margin:0;background:var(--bg);border-radius:10px;padding:8px 10px;font-size:.88rem;color:var(--label)}
+details .guide p{color:var(--label)}
+.vid{display:inline-block;margin:0 0 12px;font-size:.9rem;color:var(--tint)}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px}
+.phead .snd{display:flex;gap:2px;flex:none}
+.phead .nb{min-height:32px;padding:0 6px;font-size:.9rem}
+.phead .nb[aria-pressed=false]{color:var(--label2)}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) 116px;align-items:center;gap:8px;margin:4px 0}
+.duo .fig{margin:0;max-height:120px}
+.ring.sm{width:116px;height:116px;margin:0}
+.ring.sm svg{width:116px;height:116px}
+.ring.sm .t{font-size:1.7rem}
+.gcard{text-align:left;margin-top:14px}
+.gcard .cues{margin-bottom:8px}

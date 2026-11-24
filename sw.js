@@ -1,14 +1,15 @@
 // Service worker van de familie-app (hub + alle apps eronder): offline werken en updates.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in eggs/index.html als Egg-sellent verandert).
 // Nieuw bestand toegevoegd? Zet het in ASSETS, anders werkt het niet offline.
-const VERSION = '3.17.3';
+const VERSION = '3.18.0';
 const CACHE = 'familie-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png',
   './shared/theme.css', './shared/ui.css', './shared/nozoom.js', './shared/family.js', './shared/apps.js', './shared/releases.js', './shared/kb.js', './hub/app.js',
   './eggs/', './eggs/index.html',
   './training/', './training/index.html', './training/training.css', './training/app.js', './training/program.js', './training/health.js',
-  './training/programs.js', './training/sports/pilates/index.js', './training/sports/pilates/data.js', './training/sports/biocircuit/index.js',
+  './training/programs.js', './training/sports/pilates/index.js', './training/sports/pilates/data.js', './training/sports/pilates/guide.js',
+  './training/sports/pilates/figures.js', './training/sports/pilates/rig.js', './training/voice.js', './training/sports/biocircuit/index.js',
   './recipes/', './recipes/index.html', './recipes/recipes.css', './recipes/app.js', './recipes/recipe.js', './recipes/import.js',
   './agenda/', './agenda/index.html', './agenda/agenda.css', './agenda/app.js', './agenda/plan.js',
 ];

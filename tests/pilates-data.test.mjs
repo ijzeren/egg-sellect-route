@@ -29,3 +29,20 @@ test('alle oefening-id\'s bestaan', () => {
 test('rustige lessen vallen op 7, 14, 21 en 28', () => {
   assert.deepEqual(DAYS.map((d, i) => d.rest ? i + 1 : 0).filter(Boolean), [7, 14, 21, 28]);
 });
+
+// v3.18: elke oefening heeft uitleg voor beginners en een figuurtje.
+test('elke oefening heeft uitgebreide uitleg en een figuurtje', async () => {
+  const { GUIDE } = await import('../training/sports/pilates/guide.js');
+  const { FIG } = await import('../training/sports/pilates/figures.js');
+  const { figureSVG } = await import('../training/sports/pilates/rig.js');
+  for (const id of Object.keys(E)) {
+    const g = GUIDE[id];
+    assert.ok(g, `geen uitleg: ${id}`);
+    for (const k of ['start', 'feel', 'avoid', 'easier', 'en']) assert.ok(g[k] && g[k].length > 3, `${id}: ${k} ontbreekt`);
+    assert.ok(Array.isArray(g.steps) && g.steps.length >= 2, `${id}: te weinig stappen`);
+    assert.ok(FIG[id] && FIG[id].k.length >= 1, `geen figuur: ${id}`);
+    const svg = figureSVG(FIG[id], { id });
+    assert.doesNotMatch(svg, /NaN|undefined/, `${id}: figuur klopt niet`);
+  }
+  for (const id of [...Object.keys(GUIDE), ...Object.keys(FIG)]) assert.ok(E[id], `uitleg of figuur voor onbekende oefening: ${id}`);
+});
