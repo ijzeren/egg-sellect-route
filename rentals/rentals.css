@@ -1,0 +1,42 @@
+/* Verhuur — bovenop shared/theme.css en shared/ui.css. Eigen accentkleur: groen. */
+body{--tint:var(--green)}
+.card{background:var(--cell);border-radius:12px;padding:16px;margin:12px 0}
+.card h2{font-size:1.06rem;font-weight:700;margin:0 0 4px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:99px;background:var(--cell);font-weight:500;white-space:nowrap;color:var(--label)}
+.chips button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.quick button{min-height:36px;padding:0 12px;border-radius:99px;background:var(--fill);color:var(--tint);font-weight:500;font-size:.88rem}
+.quick button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.pager{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin:4px 0 10px}
+.pager .nb{font-size:1.8rem;font-weight:300}
+.pager .lbl{display:flex;flex-direction:column;align-items:center;min-height:44px;justify-content:center;text-align:center}
+.pager .lbl span{font-size:.82rem;color:var(--label2)}
+.src{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--label2);vertical-align:1px;white-space:nowrap}
+.src.booking{background:var(--blue-s);color:var(--blue)}
+.src.airbnb{background:var(--red-s);color:var(--red)}
+.src.direct{background:var(--green-s);color:var(--green)}
+.src.own{background:var(--orange-s);color:var(--orange)}
+.cell.stay .dt{width:3.4rem;flex:none;display:flex;flex-direction:column;font-variant-numeric:tabular-nums;line-height:1.2}
+.cell.stay .dt b{font-size:1.15rem}
+.cell.stay .dt span{font-size:.72rem;color:var(--label2)}
+.cell.stay.off .tt,.cell.stay.off .dt{text-decoration:line-through;color:var(--label3)}
+.cell.stay.tent .tt{color:var(--label2)}
+/* aangifte: één kaart per verblijf, waarden in de volgorde van het portaal, met kopieerknop */
+.decl{background:var(--cell);border-radius:12px;margin:12px 0;overflow:hidden}
+.decl .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px 4px}
+.decl .hd b{font-size:1.02rem}
+.kv{display:flex;align-items:center;gap:8px;min-height:40px;padding:4px 8px 4px 16px;border-top:.5px solid var(--sep)}
+.kv .k{flex:1;min-width:0;color:var(--label2);font-size:.9rem;word-break:normal;overflow-wrap:normal;hyphens:auto}
+.kv .v{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
+.kv .cp{min-width:44px;min-height:36px;border-radius:8px;color:var(--tint);font-size:.82rem;font-weight:500}
+.kv .cp:active{background:var(--press)}
+.warn{color:var(--red);font-size:.84rem;padding:6px 16px 10px}
+.note{color:var(--label2);font-size:.84rem;padding:6px 16px 10px}
+.sum{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-variant-numeric:tabular-nums}
+.sum .tot{font-weight:700;border-top:.5px solid var(--sep);padding-top:6px;margin-top:2px}
+.sum span:nth-child(even){text-align:right}
+textarea.ta{width:100%;min-height:4.5rem;border:0;background:none;font:inherit;line-height:1.45;resize:vertical;padding:8px 0;color:var(--label)}
+textarea.ta:focus{outline:none}
+.cell.field .fl{width:6.4rem}

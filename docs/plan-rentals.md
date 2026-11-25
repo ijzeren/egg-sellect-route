@@ -1,7 +1,7 @@
 # Plan: Verhuur (overzicht per vakantiehuis)
 
-*Opgesteld 25 nov 2026. Status: onderzoek en plan, nog niet gebouwd; we beginnen met handmatige boekingen (zie
-Fasering). Open vragen staan onderaan. Versie: eerstvolgende vrije minor (3.18.0 is Pilates; zie `shared/releases.js`).*
+*Opgesteld 25 nov 2026. Status: **fase 1 gebouwd in v3.20.0** (boekingen met de hand, aangifte, rollen); fase 2–4
+volgen (zie Fasering). Open vragen staan onderaan. Versie: eerstvolgende vrije minor (3.18.0 is Pilates; zie `shared/releases.js`).*
 
 Nieuwe app **Verhuur** (`/rentals/`, app-id `rentals`). Eerste huis: **Vacances au Bonhomme** (Le Bonhomme, Haut-Rhin,
 intercommunalité Vallée de Kaysersberg).

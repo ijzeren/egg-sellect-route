@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.20.0', date: '2026-11-25', title: 'Nieuwe app: Verhuur',
+    notes: [
+      { app: 'rentals', text: 'Nieuwe app Verhuur voor jullie vakantiehuis. Zet hem aan bij Gezin → Apps. Voer boekingen in van Booking.com, Airbnb of direct, en ook jullie eigen verblijven.', kb: 'verhuur' },
+      { app: 'rentals', text: 'Bij een directe boeking rekent de app uit wat de gast betaalt: huur, schoonmaak, bedlinnen en de toeristenbelasting.', kb: 'verhuur' },
+      { app: 'rentals', text: 'Aangifte toeristenbelasting: per maand alle verblijven in de volgorde van het portaal, met een kopieerknop per waarde. Je ziet ook wat je zelf moet betalen.', kb: 'verhuur' },
+      { app: 'rentals', text: 'Een kijker ziet wie wanneer komt, zonder bedragen of namen. Handig voor de schoonmaak.', kb: 'verhuur' },
+    ],
+  },
+  {
     version: '3.19.0', date: '2026-11-25', title: 'Nieuwe app: Financiën',
     notes: [
       { app: 'finance', text: 'Nieuw: Financiën. Download je transacties in Rabo Online Bankieren als CSV en lees ze in. Je ziet per maand wat er binnenkwam en wat eruit ging, per soort: boodschappen, energie, verzekeringen en zo verder.', kb: 'financien-inlezen' },

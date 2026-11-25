@@ -8,6 +8,7 @@ import * as P from '../training/program.js';
 import { PROGRAMS } from '../training/programs.js';
 import { ratingOf, fmtStars } from '../recipes/recipe.js';
 import { dayItems, dueSoon, kindOf, externalItems } from '../agenda/plan.js';
+import { isStay, nights, declarationDue } from '../rentals/tax.js';
 
 const DSH = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
 const MON = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -121,6 +122,29 @@ export const APPS = [
       if (!t || !t.accounts) return { line: 'Lees een export van je bank in', sub: 'Rabobank CSV of CAMT.053' };
       const sub = t.imported ? `Laatst ingelezen ${short(t.imported.slice(0, 10))}` : '';
       return t.open ? { line: `${plural(t.open, 'transactie', 'transacties')} nog in te delen`, sub } : { line: 'Alles ingedeeld', sub };
+    },
+  },
+  {
+    id: 'rentals',
+    name: 'Verhuur',
+    route: 'rentals/',
+    icon: '🏡',
+    about: 'Vakantiehuis: boekingen, eigen gebruik en de aangifte van de toeristenbelasting.',
+    roles: { admin: 'Beheerder', member: 'Kijker' },
+    // Uit de kopie op de telefoon (rentals/app.js): wie is er nu, wie komt er; beheerder: aangifte van vorige maand.
+    status({ today, account, storage }) {
+      const d = account && account.teamId ? storage.get('rentals', `${account.teamId}:data`) : null;
+      const houses = (d && d.houses) || [];
+      if (!houses.length) return { line: 'Boekingen en toeristenbelasting', sub: '' };
+      const hid = storage.get('rentals', `${account.teamId}:house`), h = houses.find(x => x.id === hid) || houses[0];
+      const list = (d.bookings || []).filter(b => b.house_id === h.id && isStay(b));
+      const now = list.find(b => b.arrival <= today && today < b.departure), next = list.find(b => b.arrival > today);
+      const admin = !!(account.apps && account.apps.rentals && account.apps.rentals.role === 'admin');
+      const due = declarationDue(today, (d.declarations || []).filter(x => x.house_id === h.id).map(x => String(x.month).slice(0, 7)));
+      const sub = admin && (due.late || (due.open && +today.slice(8, 10) <= 5)) ? 'Aangifte toeristenbelasting doen' : h.name;
+      if (now) return { line: `Bezet tot ${short(now.departure)} · ${plural(now.guests, 'persoon', 'personen')}`, sub, today: true };
+      if (next) return { line: `Aankomst ${short(next.arrival)} · ${plural(nights(next), 'nacht', 'nachten')}`, sub, today: next.arrival === today };
+      return { line: 'Geen boekingen gepland', sub };
     },
   },
 ];

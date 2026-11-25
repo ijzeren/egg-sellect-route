@@ -19,14 +19,14 @@ test('vangnet tegen horizontaal scrollen staat in het gedeelde thema', () => {
 });
 
 test('elke pagina laadt het gedeelde thema', () => {
-  for (const p of ['index.html', 'eggs/index.html', 'training/index.html', 'recipes/index.html', 'agenda/index.html', 'finance/index.html'])
+  for (const p of ['index.html', 'eggs/index.html', 'training/index.html', 'recipes/index.html', 'agenda/index.html', 'finance/index.html', 'rentals/index.html'])
     assert.match(read(p), /shared\/theme\.css/, p);
 });
 
 test('geen vaste breedtes van 320 px of meer, geen 100vw', () => {
   const files = [];
   const walk = d => { for (const f of readdirSync(join(root, d))) { const p = join(d, f); if (statSync(join(root, p)).isDirectory()) walk(p); else if (/\.(css|html|js)$/.test(f)) files.push(p); } };
-  for (const d of ['shared', 'hub', 'eggs', 'training', 'recipes', 'agenda', 'finance']) walk(d);
+  for (const d of ['shared', 'hub', 'eggs', 'training', 'recipes', 'agenda', 'finance', 'rentals']) walk(d);
   files.push('index.html');
   for (const f of files) {
     const s = read(f);
@@ -36,7 +36,7 @@ test('geen vaste breedtes van 320 px of meer, geen 100vw', () => {
 });
 
 test('nooit zoomen: elke pagina met maximum-scale=1 en shared/nozoom.js', () => {
-  for (const p of ['index.html', 'eggs/index.html', 'training/index.html', 'recipes/index.html', 'agenda/index.html', 'finance/index.html']) {
+  for (const p of ['index.html', 'eggs/index.html', 'training/index.html', 'recipes/index.html', 'agenda/index.html', 'finance/index.html', 'rentals/index.html']) {
     const s = read(p);
     assert.match(s, /name="viewport" content="[^"]*maximum-scale=1[^"]*"/, `${p}: maximum-scale=1`);
     assert.match(s, /shared\/nozoom\.js/, `${p}: nozoom.js`);

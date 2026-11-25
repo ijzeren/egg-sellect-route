@@ -289,6 +289,29 @@ Staat het rooster erin, dan stelt de app de datum van de <b>volgende les van dat
 <p>Huiswerk dat vandaag of morgen af moet, zie je ook op het startscherm bij de tegel Agenda. Te laat? Dan staat het in het rood bovenaan.</p>`,
   },
   {
+    slug: 'verhuur', app: 'rentals', title: 'Verhuur: boekingen en toeristenbelasting', updated: '2026-11-25', version: '3.20.0',
+    body: `<p>In <b>Verhuur</b> houd je de boekingen van jullie vakantiehuis bij en doe je elke maand de aangifte van de toeristenbelasting (taxe de séjour).</p>
+<ol><li>Zet de app aan bij <b>Gezin → Apps</b>. Een beheerder voegt eerst het <b>huis</b> toe (naam, plaats, sterren als het huis geclassificeerd is).</li>
+<li>Tik op <b>+</b> voor een boeking. Kies waar hij geboekt is: <b>Booking.com</b>, <b>Airbnb</b>, <b>Direct</b> of <b>Eigen gebruik</b> (familie of vrienden). Nog niet zeker? Kies <b>Optie</b> of <b>Verwacht</b>.</li>
+<li>Vul aankomst, vertrek, het aantal <b>personen</b> en het aantal <b>volwassenen</b> (18 jaar en ouder) in. Kinderen betalen geen toeristenbelasting, maar tellen wel mee voor de prijs per persoon.</li>
+<li>Bij Booking.com en Airbnb vul je de <b>huur</b> in: wat de gast betaalt voor de overnachtingen, zonder schoonmaak, bedlinnen en belasting. Die platforms innen de toeristenbelasting zelf.</li>
+<li>Bij een <b>directe boeking</b> vul je de afgesproken prijs per nacht, schoonmaak en bedlinnen in. De app rekent uit wat de gast in totaal betaalt, met de toeristenbelasting apart.</li></ol>
+<p><b>Annuleren:</b> open de boeking en tik op <b>Boeking annuleren</b>. Hij blijft bewaard maar telt nergens meer mee. <b>Verwijderen</b> is alleen voor een boeking die per ongeluk is ingevoerd.</p>
+<h3>Hoe wordt de toeristenbelasting berekend?</h3>
+<p><b>Niet geclassificeerd</b> (geen sterren): 5% van de prijs per persoon per nacht, met een maximum, plus 10% toeslag van het departement. Dat bedrag betaalt elke volwassene per nacht.
+Voorbeeld: 700 euro voor 7 nachten, 3 volwassenen en 1 kind. Per nacht 100 euro, per persoon 25 euro. 5% is € 1,25, plus 10% is € 1,38. Maal 3 volwassenen en 7 nachten: € 28,98.</p>
+<p><b>Geclassificeerd</b> (met sterren): een vast bedrag per volwassene per nacht, bijvoorbeeld € 1,76 bij 3 sterren. De prijs doet dan niet mee.</p>
+<p>De tarieven staan bij <b>Huis en toeristenbelasting</b> en zijn per jaar aan te passen.</p>
+<h3>De aangifte</h3>
+<p>Elke maand vóór de 5e geef je de maand ervoor aan in het portaal van de Vallée de Kaysersberg (ccvk.consonanceweb.fr). Open in Verhuur <b>Aangifte toeristenbelasting</b>:</p>
+<ul><li>Per verblijf staan de waarden in de volgorde van het portaal: platform, begin, einde, personen (occupants), volwassenen (assujettis), kinderen (exonérés) en prijs. Tik op <b>Kopieer</b> en plak het in het portaal.</li>
+<li>Vul ook de verblijven via Booking.com en Airbnb in. Die tellen niet mee in het bedrag dat jij betaalt: dat platform draagt zelf af.</li>
+<li>Een verblijf over twee maanden staat bij de maand van aankomst. Vul de hele data in, het portaal verdeelt de nachten zelf.</li>
+<li>Geen gasten? De aangifte is toch verplicht: klik in het portaal op <b>Déclarer</b> zonder iets in te vullen.</li>
+<li>Klaar? Tik op <b>Aangifte gedaan</b>. Wordt daarna nog iets in die maand gewijzigd of geannuleerd, dan waarschuwt de app.</li></ul>
+<p><b>Wie mag wat?</b> Een <b>beheerder</b> van Verhuur ziet en wijzigt alles. Een <b>kijker</b> ziet alleen wie wanneer komt en met hoeveel personen, zonder bedragen en namen. De rol stel je in bij <b>Gezin → tik op iemand → Apps</b>.</p>`,
+  },
+  {
     slug: 'eggs-ronde', app: 'eggs', title: 'Een ronde lopen', updated: '2026-11-22', version: '2.8.0',
     body: `<p>Het tabblad <b>Ronde</b> toont de adressen van vandaag in loopvolgorde, met het afgesproken aantal eieren.</p>
 <ol><li>Tik op <b>Start ronde</b> (of <b>Verder bij …</b>).</li>

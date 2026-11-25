@@ -1601,6 +1601,122 @@ end $$;
 drop trigger if exists finance_member_left on public.team_members;
 create trigger finance_member_left after delete on public.team_members for each row execute function public.finance_member_left();
 
+-- ---------- Verhuur (v3.20.0) ----------
+-- Vakantiehuizen van het gezin: boekingen (platforms, direct, eigen gebruik) en de aangifte van de taxe de séjour.
+-- rental_houses           huis: naam, plaats, classement (stars; leeg = niet geclassificeerd), regels voor de
+--                         toeristenbelasting per jaar (tax, zie rentals/tax.js) en standaardprijzen (settings)
+-- rental_bookings         verblijf: kanaal (booking, airbnb, direct, own = eigen gebruik, other), status (booked,
+--                         option, expected, cancelled), data, personen en volwassenen, wie de taxe int (tax_by).
+--                         Voor iedereen met de app, ook de kijker (bijv. voor de schoonmaak): geen bedragen of namen.
+-- rental_booking_amounts  bedragen en naam van de gast per verblijf: alleen beheerders van de app.
+-- rental_declarations     maand waarvoor de aangifte van de taxe de séjour is gedaan (per huis)
+-- Rechten: lezen = has_app(team, 'rentals'); wijzigen = app_role(team, 'rentals') = 'admin' (de rol "Kijker" is
+-- member). Annuleren = status cancelled + cancelled_at: blijft bewaard. deleted = per ongeluk ingevoerd.
+create table if not exists public.rental_houses (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 60),
+  place text not null default '' check (length(place) <= 80),
+  stars smallint check (stars between 1 and 5),
+  tax jsonb not null default '{}'::jsonb check (jsonb_typeof(tax) = 'object'),
+  settings jsonb not null default '{}'::jsonb check (jsonb_typeof(settings) = 'object'),
+  sort int not null default 0,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists rental_houses_team on public.rental_houses(team_id);
+create table if not exists public.rental_bookings (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  house_id uuid not null references public.rental_houses(id) on delete cascade,
+  source text not null default 'direct' check (source in ('booking', 'airbnb', 'direct', 'own', 'other')),
+  status text not null default 'booked' check (status in ('booked', 'option', 'expected', 'cancelled')),
+  external_id text not null default '' check (length(external_id) <= 80),
+  arrival date not null,
+  departure date not null,
+  guests smallint not null default 1 check (guests between 0 and 50),
+  adults smallint not null default 1 check (adults between 0 and 50),
+  country text not null default '' check (length(country) <= 60),
+  tax_by text not null default 'host' check (tax_by in ('platform', 'host', 'none')),
+  notes text not null default '' check (length(notes) <= 1000),
+  cancelled_at timestamptz,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  check (departure > arrival),
+  check (adults <= guests)
+);
+create index if not exists rental_bookings_team on public.rental_bookings(team_id, arrival);
+create table if not exists public.rental_booking_amounts (
+  booking_id uuid primary key references public.rental_bookings(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  guest_name text not null default '' check (length(guest_name) <= 120),
+  accommodation numeric(10, 2),  -- huur voor het hele verblijf, zonder schoonmaak, bedlinnen en toeristenbelasting
+  night_price numeric(10, 2),    -- afgesproken prijs per nacht (directe boeking)
+  payout numeric(10, 2),         -- uitbetaling door het platform
+  cleaning numeric(10, 2),
+  linen numeric(10, 2),
+  tourist_tax numeric(10, 2),    -- geïnd (platform: wat het platform opgeeft; direct: wat de gast betaalt)
+  other_costs numeric(10, 2),    -- vaste kosten per boeking
+  commission numeric(10, 2),     -- verhuurmakelaar
+  updated_at timestamptz not null default now()
+);
+create index if not exists rental_booking_amounts_team on public.rental_booking_amounts(team_id);
+create table if not exists public.rental_declarations (
+  house_id uuid not null references public.rental_houses(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  month date not null check (extract(day from month) = 1),
+  declared_at timestamptz not null default now(),
+  declared_by uuid default auth.uid() references auth.users(id) on delete set null,
+  primary key (house_id, month)
+);
+
+-- Alles blijft binnen één gezin: een boeking hoort bij een huis van hetzelfde gezin, bedragen bij een boeking van
+-- hetzelfde gezin. Status geannuleerd zet cancelled_at (en terugzetten wist hem).
+create or replace function public.rental_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_table_name in ('rental_bookings', 'rental_declarations') then
+    if not exists (select 1 from public.rental_houses h where h.id = new.house_id and h.team_id = new.team_id) then
+      raise exception 'Dit huis hoort niet bij het gezin';
+    end if;
+  elsif tg_table_name = 'rental_booking_amounts' then
+    if not exists (select 1 from public.rental_bookings b where b.id = new.booking_id and b.team_id = new.team_id) then
+      raise exception 'Deze boeking hoort niet bij het gezin';
+    end if;
+  end if;
+  if tg_table_name = 'rental_bookings' then
+    if new.status = 'cancelled' then new.cancelled_at := coalesce(new.cancelled_at, now());
+    else new.cancelled_at := null; end if;
+  end if;
+  return new;
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['rental_houses', 'rental_bookings', 'rental_booking_amounts'] loop
+    execute format('drop trigger if exists rental_touch on public.%I', t);
+    execute format('create trigger rental_touch before insert or update on public.%I for each row execute function public.agenda_touch()', t);
+  end loop;
+  foreach t in array array['rental_bookings', 'rental_booking_amounts', 'rental_declarations'] loop
+    execute format('drop trigger if exists rental_guard on public.%I', t);
+    execute format('create trigger rental_guard before insert or update on public.%I for each row execute function public.rental_guard()', t);
+  end loop;
+  foreach t in array array['rental_houses', 'rental_bookings', 'rental_booking_amounts', 'rental_declarations'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists rental_read on public.%I', t);
+    execute format('drop policy if exists rental_admin on public.%I', t);
+    execute format('create policy rental_admin on public.%I for all using (public.app_role(team_id, ''rentals'') = ''admin'') with check (public.app_role(team_id, ''rentals'') = ''admin'')', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+  -- huizen en verblijven (zonder bedragen) mag iedereen met de app zien
+  foreach t in array array['rental_houses', 'rental_bookings'] loop
+    execute format('create policy rental_read on public.%I for select using (public.has_app(team_id, ''rentals''))', t);
+  end loop;
+end $$;
+
 -- ---------- Rechten voor de server (service role) ----------
 -- De Edge Functions (push, integrations) werken met de service role. In productie kreeg die rol geen rechten op
 -- tabellen in public (gezien op 22 nov 2026: "permission denied for table push_subscriptions/integrations"). De

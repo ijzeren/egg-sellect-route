@@ -391,3 +391,18 @@ Doe dit **vóór** je v3.19.0 pusht:
 Privacy: een rekening ziet alleen de eigenaar, tenzij die hem deelt met de beheerders van het gezin (`shared`).
 Het rekeningnummer staat er niet in, alleen de laatste 4 tekens en een sha256-hash van gezin + IBAN. Hoofdbeheer
 (`platform_*`) ziet niets van Financiën.
+
+## Nieuwe app Verhuur (v3.20.0)
+Doe dit **vóór** je v3.20.0 pusht (anders geeft de app een fout bij het laden):
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: de tabellen `rental_houses`,
+   `rental_bookings`, `rental_booking_amounts` en `rental_declarations`, met RLS: lezen met `has_app(team, 'rentals')`,
+   wijzigen alleen met `app_role(team, 'rentals') = 'admin'`. Bedragen, namen van gasten en de aangiftes zijn alleen
+   voor beheerders van de app; de kijker (rol `member`) ziet huizen en verblijven.
+2. Controle: `select tablename, rowsecurity from pg_tables where tablename like 'rental_%';` → vier rijen, alle `t`.
+3. Daarna in de app: **Gezin → Apps → Verhuur** aanzetten, en per lid de rol Beheerder of Kijker kiezen.
+
+Getest op de lokale database (25 nov 2026): schema twee keer achter elkaar, 17 rechtencontroles (beheerder maakt huis,
+boeking, bedragen en aangifte; lid ziet huis en boeking maar geen bedragen of aangifte en kan niets wijzigen;
+annuleren zet `cancelled_at`, terugzetten wist hem; `team_id` ligt vast; vertrek vóór aankomst en meer volwassenen dan
+personen worden geweigerd).
