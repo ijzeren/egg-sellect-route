@@ -384,7 +384,30 @@ De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeur
 <li>De beheerder van de app (hoofdbeheer) ziet geen bankgegevens van gezinnen.</li>
 <li>Het rekeningnummer zelf staat niet in de app, alleen de laatste 4 tekens.</li>
 <li>Heeft iemand anders in het gezin dezelfde rekening al ingelezen? Dan kun jij hem niet nog een keer toevoegen. Vraag diegene om hem te delen.</li>
-<li><b>Rekening verwijderen</b> wist alle transacties van die rekening. Verlaat je het gezin, dan worden jouw rekeningen in dat gezin ook gewist.</li></ul>`,
+<li><b>Rekening verwijderen</b> wist alle transacties van die rekening. Verlaat je het gezin, dan worden jouw rekeningen in dat gezin ook gewist.</li>
+<li><b>Verhuur</b>: koppel je een uitbetaling van Booking.com of Airbnb aan een boeking, dan zien de beheerders van Verhuur bij die boeking de datum en het bedrag. De rest van je rekening zien ze niet. Die uitbetaling blijft bij de boeking staan, ook als je de rekening later verwijdert.</li></ul>`,
+  },
+  {
+    slug: 'verhuur-uitbetalingen', app: 'finance', title: 'Uitbetalingen van Booking.com en Airbnb koppelen', updated: '2026-11-25', version: '3.21.0',
+    body: `<p>Booking.com en Airbnb maken het geld van een verhuur over naar je bankrekening. In Financiën koppel je die bijschrijving aan de boeking in Verhuur. Zo zie je welke boekingen betaald zijn en welke nog niet.</p>
+<h3>Wie kan dit?</h3>
+<ul><li>Wie <b>beheerder van Verhuur</b> is en de rekening ziet waar het geld op binnenkwam (je eigen rekening, of een rekening die met jou gedeeld is).</li>
+<li>Beheerders van Verhuur zien daarna bij de boeking de datum en het bedrag. De rest van de rekening zien ze niet.</li></ul>
+<h3>Zo werkt het</h3>
+<ol><li>Lees de nieuwste transacties in (zie <a href="?article=financien-inlezen">transacties inlezen</a>).</li>
+<li>Tik in Financiën op <b>Uitbetalingen verhuur</b>. De app herkent een uitbetaling aan “Airbnb” of “Booking.com” in de naam of omschrijving.</li>
+<li>Tik op een uitbetaling. Staat er een <b>Voorstel</b>? Tik op <b>Koppel</b>. Klopt het niet, kies dan <b>Andere boeking kiezen</b> en vink de juiste boeking(en) aan.</li></ol>
+<h3>Hoe komt de app aan het voorstel?</h3>
+<ul><li>Staat het boekingsnummer in de omschrijving, dan is het die boeking.</li>
+<li>Anders zoekt de app een boeking van hetzelfde platform waarvan de <b>uitbetaling</b> (in Verhuur, bij Bedragen) precies dit bedrag is.</li>
+<li>Booking.com betaalt vaak meerdere boekingen in één keer uit. Dan zoekt de app welke boekingen samen precies dit bedrag zijn.</li>
+<li>Geen voorstel? Vul in Verhuur bij de boekingen de uitbetaling in, of kies zelf.</li></ul>
+<h3>Goed om te weten</h3>
+<ul><li>Koppel je één boeking waar nog geen uitbetaling bij stond, dan vult de app die in Verhuur in.</li>
+<li>Meerdere boekingen: de app verdeelt het bedrag naar verhouding van wat je per boeking verwachtte.</li>
+<li>Een nog niet ingedeelde uitbetaling krijgt de soort <b>Verhuur</b>.</li>
+<li>In Verhuur staat bij <b>Nog niet uitbetaald</b> wat al binnen had moeten zijn: Airbnb 5 dagen na aankomst, Booking.com 35 dagen na vertrek.</li>
+<li>Een directe boeking die de gast overmaakte, kun je ook koppelen: open de bijschrijving en kies <b>Koppel aan een boeking in Verhuur</b>.</li></ul>`,
   },
 ];
 

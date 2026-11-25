@@ -1717,6 +1717,69 @@ begin
   end loop;
 end $$;
 
+-- ---------- Uitbetalingen van Booking.com en Airbnb gekoppeld aan boekingen (Thuis, v3.21) ----------
+-- rental_booking_payouts  welk deel van een bijschrijving in Financiën hoort bij welke boeking in Verhuur. Bedrag en
+--                         datum staan erin, zodat Verhuur "uitbetaald op …" kan tonen zonder de rekening te lezen.
+-- Rechten: lezen = beheerder van Verhuur. Koppelen, wijzigen en ontkoppelen = beheerder van Verhuur die de transactie
+-- ook mag zien (de subquery hieronder valt onder de rechten van finance_transactions: eigen of gedeelde rekening).
+-- Verdwijnt de transactie (rekening verwijderd, lid weg), dan blijft de uitbetaling bij de boeking staan.
+create table if not exists public.rental_booking_payouts (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  booking_id uuid not null references public.rental_bookings(id) on delete cascade,
+  transaction_id uuid references public.finance_transactions(id) on delete set null,
+  amount numeric(10, 2) not null check (amount > 0),
+  paid_on date not null,
+  matched_by text not null default 'manual' check (matched_by in ('manual', 'suggested')),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists rental_booking_payouts_link on public.rental_booking_payouts(booking_id, transaction_id);
+create index if not exists rental_booking_payouts_team on public.rental_booking_payouts(team_id);
+create index if not exists rental_booking_payouts_tx on public.rental_booking_payouts(transaction_id);
+
+-- Boeking en transactie van hetzelfde gezin; alleen bijschrijvingen; samen nooit meer dan het bedrag van de
+-- transactie; datum = boekdatum van de transactie.
+create or replace function public.rental_payout_guard() returns trigger
+language plpgsql as $$
+declare t record; used numeric;
+begin
+  if not exists (select 1 from public.rental_bookings b where b.id = new.booking_id and b.team_id = new.team_id) then
+    raise exception 'Deze boeking hoort niet bij het gezin';
+  end if;
+  if new.transaction_id is not null and (tg_op = 'INSERT' or new.transaction_id is distinct from old.transaction_id or new.amount <> old.amount) then
+    select id, team_id, amount, booked_on into t from public.finance_transactions where id = new.transaction_id;
+    if t.id is null or t.team_id <> new.team_id then raise exception 'Deze transactie hoort niet bij het gezin'; end if;
+    if t.amount <= 0 then raise exception 'Alleen een bijschrijving kan een uitbetaling zijn'; end if;
+    select coalesce(sum(p.amount), 0) into used from public.rental_booking_payouts p where p.transaction_id = new.transaction_id and p.id <> new.id;
+    if used + new.amount > t.amount + 0.005 then raise exception 'Samen meer dan het bedrag van de transactie'; end if;
+    new.paid_on := t.booked_on;
+  end if;
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; end if;
+  return new;
+end $$;
+drop trigger if exists rental_payout_guard on public.rental_booking_payouts;
+create trigger rental_payout_guard before insert or update on public.rental_booking_payouts for each row execute function public.rental_payout_guard();
+
+alter table public.rental_booking_payouts enable row level security;
+drop policy if exists rental_payout_read on public.rental_booking_payouts;
+drop policy if exists rental_payout_insert on public.rental_booking_payouts;
+drop policy if exists rental_payout_update on public.rental_booking_payouts;
+drop policy if exists rental_payout_delete on public.rental_booking_payouts;
+create policy rental_payout_read on public.rental_booking_payouts for select
+  using (public.app_role(team_id, 'rentals') = 'admin');
+create policy rental_payout_insert on public.rental_booking_payouts for insert
+  with check (public.app_role(team_id, 'rentals') = 'admin' and transaction_id is not null
+    and exists (select 1 from public.finance_transactions t where t.id = transaction_id));
+create policy rental_payout_update on public.rental_booking_payouts for update
+  using (public.app_role(team_id, 'rentals') = 'admin' and exists (select 1 from public.finance_transactions t where t.id = transaction_id))
+  with check (public.app_role(team_id, 'rentals') = 'admin' and exists (select 1 from public.finance_transactions t where t.id = transaction_id));
+create policy rental_payout_delete on public.rental_booking_payouts for delete
+  using (public.app_role(team_id, 'rentals') = 'admin'
+    and (transaction_id is null or exists (select 1 from public.finance_transactions t where t.id = transaction_id)));
+revoke all on public.rental_booking_payouts from anon;
+grant select, insert, update, delete on public.rental_booking_payouts to authenticated;
+
 -- ---------- Rechten voor de server (service role) ----------
 -- De Edge Functions (push, integrations) werken met de service role. In productie kreeg die rol geen rechten op
 -- tabellen in public (gezien op 22 nov 2026: "permission denied for table push_subscriptions/integrations"). De

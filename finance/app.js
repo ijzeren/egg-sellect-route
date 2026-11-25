@@ -5,9 +5,13 @@
 //     (rechten in de database: finance_can_see). Het rekeningnummer zelf bewaren we niet (alleen laatste 4 + hash).
 //   - soorten en regels zijn van het gezin; regels delen nieuwe transacties vanzelf in, zelf gekozen soorten blijven
 //   - rekenwerk (overzicht, regels, vaste lasten): money.js
+//   - fase 2: uitbetalingen van Booking.com en Airbnb koppelen aan boekingen in Verhuur (payouts.js), alleen voor
+//     beheerders van Verhuur; boekingen worden niet op de telefoon bewaard
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as M from './money.js';
+import * as P from './payouts.js';
 import { parseFile, period, ibanHash } from './import.js';
+import { sourceName } from '../rentals/tax.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -35,6 +39,27 @@ const accLabel = a => a ? `${a.name}${a.iban_last4 ? ' ••' + a.iban_last4 : 
 const visibleTxs = () => ui.acc ? data.txs.filter(t => t.account_id === ui.acc) : data.txs;
 const isTransfer = t => !!t.counterparty_hash && data.accounts.some(a => a.iban_hash === t.counterparty_hash);
 
+// Verhuur (fase 2): boekingen en gekoppelde uitbetalingen, alleen in het geheugen (niet op de telefoon bewaard).
+const rentAdmin = () => !!(me && me.apps && me.apps.rentals && me.apps.rentals.role === 'admin' && canUse('rentals'));
+let rent = null; // { houses, bookings, amounts: { booking_id: rij }, payouts }
+async function loadRent() {
+  if (!rentAdmin()) { rent = null; return; }
+  const [houses, bookings, amounts, payouts] = await Promise.all([
+    api(`/rest/v1/rental_houses?team_id=eq.${FAMILY}&deleted=is.false&select=id,name&order=sort,name`),
+    api(`/rest/v1/rental_bookings?team_id=eq.${FAMILY}&deleted=is.false&status=eq.booked&source=neq.own&select=id,house_id,source,status,arrival,departure,external_id,guests,deleted&order=arrival`),
+    api(`/rest/v1/rental_booking_amounts?team_id=eq.${FAMILY}&select=booking_id,payout,guest_name`),
+    api(`/rest/v1/rental_booking_payouts?team_id=eq.${FAMILY}&select=*`),
+  ]);
+  rent = { houses: houses || [], bookings: bookings || [], amounts: Object.fromEntries((amounts || []).map(a => [a.booking_id, a])), payouts: payouts || [] };
+}
+const txPayouts = id => (rent ? rent.payouts.filter(p => p.transaction_id === id) : []);
+const bkById = id => (rent && rent.bookings.find(b => b.id === id)) || null;
+const bkShort = b => (b ? `${sourceName(b.source)} ${M.shortDate(b.arrival)}` : 'boeking');
+const bkTitle = b => { if (!b) return 'Boeking (niet meer in Verhuur)'; const a = rent.amounts[b.id]; return `${esc(sourceName(b.source))} · ${M.shortDate(b.arrival)} – ${M.shortDate(b.departure)}${a && a.guest_name ? ` · ${esc(a.guest_name)}` : ''}`; };
+const bkHouse = b => (b && rent.houses.length > 1 ? esc((rent.houses.find(h => h.id === b.house_id) || {}).name || '') : '');
+const suggestFor = t => (rent ? P.suggest(t, P.candidates(t, rent.bookings, rent.amounts, rent.payouts)) : null);
+const openPayouts = () => data.txs.filter(t => P.platformOf(t) && !txPayouts(t.id).length);
+
 /* ---------- server ---------- */
 async function loadTxs() {
   const out = [];
@@ -54,6 +79,7 @@ async function load() {
       api(`/rest/v1/finance_accounts?team_id=eq.${FAMILY}&select=*&order=created_at`),
       api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name,role&order=joined_at`).catch(() => data.members),
       loadTxs(),
+      loadRent().catch(() => { rent = null; }),
     ]);
     if (!(cats || []).length) {
       await api('/rest/v1/rpc/finance_setup', { method: 'POST', body: { p_team: FAMILY } });
@@ -69,7 +95,7 @@ async function load() {
     offline = e instanceof TypeError || !navigator.onLine;
     if (!offline) toast(e.message, 'err');
   } finally { loading = false; }
-  if (!['tx', 'rule', 'account', 'import', 'cats'].includes(ui.view)) render();
+  if (!['tx', 'rule', 'account', 'import', 'cats', 'link'].includes(ui.view)) render();
 }
 // Kopie op de telefoon (alleen lezen zonder verbinding) en een kleine samenvatting voor de tegel in de hub.
 function persist() {
@@ -166,6 +192,7 @@ function vHome() {
   h += sec('', `<div class="grp">
     <button class="cell" data-a="list" data-cat="" data-m=""><span class="tx"><span class="tt">Alle transacties</span></span><span class="tr">${txs.length}</span>${ICON_CHEV}</button>
     <button class="cell" data-a="go" data-v="recurring"><span class="tx"><span class="tt">Vaste lasten</span><span class="st">Wat elke maand terugkomt</span></span>${ICON_CHEV}</button>
+    ${rent ? (() => { const n = openPayouts().length; return `<button class="cell" data-a="go" data-v="payouts"><span class="tx"><span class="tt">Uitbetalingen verhuur</span><span class="st">${n ? `${n} nog te koppelen aan een boeking` : 'Booking.com en Airbnb, gekoppeld aan Verhuur'}</span></span>${n ? `<span class="tr" style="color:var(--orange)">${n}</span>` : ''}${ICON_CHEV}</button>`; })() : ''}
     <button class="cell" data-a="go" data-v="rules"><span class="tx"><span class="tt">Regels en soorten</span><span class="st">Zo deelt de app vanzelf in</span></span><span class="tr">${data.rules.length}</span>${ICON_CHEV}</button>
     <button class="cell" data-a="go" data-v="accounts"><span class="tx"><span class="tt">Rekeningen</span></span><span class="tr">${data.accounts.length}</span>${ICON_CHEV}</button>
     <button class="cell tint" data-a="go" data-v="import"><span class="tx"><span class="tt">Bestand inlezen</span></span></button></div>`,
@@ -207,8 +234,91 @@ function vTx() {
   h += sec('Soort', `<div class="grp"><label class="cell field"><span class="fl">Soort</span><select id="tx-cat" data-ch="txcat" ${t.excluded ? 'disabled' : ''}>${catOptions(cat(t.category_id) ? t.category_id : '')}</select></label>
     ${cat(t.category_id) && !t.excluded ? `<button class="cell tint" data-a="newrule"><span class="tx"><span class="tt">Altijd zo indelen</span><span class="st">Maak een regel voor ${esc(M.suggestPattern(t.counterparty) || 'deze tegenpartij')}</span></span></button>` : ''}</div>`,
     t.excluded ? '' : t.category_by === 'rule' ? 'Ingedeeld door een regel. Kies je zelf een soort, dan blijft die staan.' : t.category_by === 'manual' ? 'Zelf gekozen. Regels veranderen dit niet meer.' : '');
+  if (rent && c > 0) h += txRent(t);
   h += sec('', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">Telt mee in de totalen</span><span class="st">${transfer ? 'Overboeking tussen eigen rekeningen' : 'Uit = bijvoorbeeld een terugbetaling of een overboeking'}</span></span><button class="toggle" role="switch" data-a="excl" aria-checked="${!t.excluded}" aria-label="Telt mee"></button></div></div>`);
   return h + '</main>';
+}
+
+// Bij een bijschrijving: aan welke boeking(en) in Verhuur hoort dit geld?
+function txRent(t) {
+  const links = txPayouts(t.id), plat = P.platformOf(t), isRent = (cat(t.category_id) || {}).name === 'Verhuur';
+  if (links.length) return sec('Verhuur', `<div class="grp">${links.map(p => { const b = bkById(p.booking_id); return `<div class="cell"><span class="tx"><span class="tt">${bkTitle(b)}</span>${bkHouse(b) ? `<span class="st">${bkHouse(b)}</span>` : ''}</span><span class="tr">${money(M.cents(p.amount))}</span></div>`; }).join('')}
+    <button class="cell tint" data-a="link"><span class="tx"><span class="tt">Koppeling wijzigen</span></span></button>
+    <button class="cell" data-a="unlink"><span class="tx"><span class="tt" style="color:var(--red)">Ontkoppelen</span></span></button></div>`,
+    'Beheerders van Verhuur zien bij de boeking dat dit bedrag op deze datum is uitbetaald. De rest van de rekening zien ze niet.');
+  if (!plat && !isRent) return sec('', `<div class="grp"><button class="cell" data-a="link"><span class="tx"><span class="tt">Koppel aan een boeking in Verhuur</span><span class="st">Bijvoorbeeld een directe boeking die de gast overmaakte</span></span>${ICON_CHEV}</button></div>`);
+  const s = suggestFor(t);
+  return sec(plat ? `Uitbetaling ${P.platformName(plat)}` : 'Verhuur', `<div class="grp">${s ? `<div class="cell"><span class="tx"><span class="tt">Voorstel</span><span class="st">${s.ids.map(id => bkTitle(bkById(id))).join('<br>')}</span></span></div>
+    <button class="cell tint" data-a="linksug"><span class="tx"><span class="tt">Koppel aan ${s.ids.length === 1 ? 'deze boeking' : `deze ${s.ids.length} boekingen`}</span></span></button>
+    <button class="cell" data-a="link"><span class="tx"><span class="tt">Andere boeking kiezen</span></span>${ICON_CHEV}</button>`
+    : `<button class="cell tint" data-a="link"><span class="tx"><span class="tt">Koppel aan een boeking</span><span class="st">Geen boeking gevonden met precies dit bedrag</span></span>${ICON_CHEV}</button>`}</div>`,
+    s ? (s.by === 'ref' ? 'Het boekingsnummer staat in de omschrijving.' : s.by === 'amount' ? 'Het bedrag is precies de uitbetaling die bij de boeking staat.' : 'Deze boekingen samen zijn precies dit bedrag.') : '');
+}
+
+function vPayouts() {
+  let h = navBar(backTo('home', 'Overzicht'), '') + '<main>' + lt('Uitbetalingen verhuur', 'Booking.com en Airbnb → Verhuur');
+  if (!rent) return h + `<div class="card"><p class="muted">${offline ? 'Geen verbinding. Probeer het straks opnieuw.' : 'Laden…'}</p></div></main>`;
+  const all = data.txs.filter(t => P.platformOf(t)), open = all.filter(t => !txPayouts(t.id).length), done = all.filter(t => txPayouts(t.id).length);
+  const cell = t => {
+    const links = txPayouts(t.id), s = links.length ? null : suggestFor(t), c = M.cents(t.amount);
+    const st = links.length ? '→ ' + links.map(p => bkShort(bkById(p.booking_id))).join(', ') : s ? `Voorstel: ${s.ids.map(id => bkShort(bkById(id))).join(' + ')}` : 'Nog geen voorstel';
+    return `<button class="cell tx" data-a="tx" data-id="${esc(t.id)}"><span class="tx"><span class="tt">${esc(P.platformName(P.platformOf(t)))} · ${M.shortDate(t.booked_on)}</span><span class="st">${esc(st)}</span></span><span class="tr">${money(c, { sign: true })}</span>${ICON_CHEV}</button>`;
+  };
+  h += sec(`Te koppelen${open.length ? ` · ${open.length}` : ''}`, `<div class="grp">${open.map(cell).join('') || '<div class="cell"><span class="tx muted">Alles is gekoppeld.</span></div>'}</div>`,
+    'De app herkent een uitbetaling aan “Airbnb” of “Booking.com” in de naam of omschrijving. Staat er een niet bij? Open de transactie en kies <b>Koppel aan een boeking</b>.');
+  const late = P.unpaid(rent.bookings, rent.payouts, TODAY());
+  if (late.length) h += sec(`Nog niet uitbetaald · ${late.length}`, `<div class="grp">${late.map(b => `<div class="cell"><span class="tx"><span class="tt">${bkTitle(b)}</span><span class="st">${rent.amounts[b.id] && rent.amounts[b.id].payout != null ? `verwacht ${M.fmt(M.cents(rent.amounts[b.id].payout))}` : 'uitbetaling onbekend'}${bkHouse(b) ? ` · ${bkHouse(b)}` : ''}</span></span></div>`).join('')}</div>`,
+    'Boekingen waarvan het geld er al had moeten zijn (Airbnb 5 dagen na aankomst, Booking.com 35 dagen na vertrek). Lees eerst de nieuwste transacties in; staat het er dan nog niet, kijk dan bij het platform.');
+  if (done.length) h += sec('Gekoppeld', `<div class="grp">${done.slice(0, 40).map(cell).join('')}</div>`);
+  return h + '</main>';
+}
+
+function vLink() {
+  const t = data.txs.find(x => x.id === ui.id); if (!t || !rent) return vTx();
+  const txC = M.cents(t.amount), cands = P.candidates(t, rent.bookings, rent.amounts, rent.payouts, ui.linkAll), sel = ui.sel;
+  for (const id of sel) if (!cands.some(c => c.booking.id === id)) { const b = bkById(id); if (b) cands.unshift(...P.candidates(t, [b], rent.amounts, rent.payouts, true)); }
+  let h = navBar(`<button class="nb" data-a="go" data-v="tx">Annuleer</button>`, 'Koppelen', `<button class="nb" data-a="savelink" style="font-weight:600">Bewaar</button>`) + '<main>';
+  h += lt('Bij welke boeking?', `${M.fmt(txC)} · ${esc(t.counterparty || '')} · ${M.shortDate(t.booked_on)}`);
+  h += sec('', `<div class="grp">${cands.map(c => { const on = sel.includes(c.booking.id); return `<button class="cell pick" data-a="pick" data-id="${esc(c.booking.id)}" aria-pressed="${on}"><span class="chk" aria-hidden="true">${on ? '✓' : ''}</span><span class="tx"><span class="tt">${bkTitle(c.booking)}</span>
+    <span class="st">${c.expectedC !== null ? `verwacht ${M.fmt(c.expectedC)}` : 'uitbetaling onbekend'}${c.paidC ? ` · al ${M.fmt(c.paidC)} binnen` : ''}${bkHouse(c.booking) ? ` · ${bkHouse(c.booking)}` : ''}</span></span></button>`; }).join('')
+    || `<div class="cell"><span class="tx muted">Geen boekingen rond ${M.shortDate(t.booked_on)}.</span></div>`}</div>`);
+  h += `<div style="margin-top:8px"><button class="btn plain" data-a="linkall">${ui.linkAll ? 'Alleen boekingen rond deze datum' : 'Toon alle boekingen'}</button></div>`;
+  if (sel.length) {
+    const exp = sel.map(id => { const c = cands.find(x => x.booking.id === id); return c ? (c.leftC !== null && c.leftC > 0 ? c.leftC : c.expectedC) : null; });
+    const parts = P.allocate(txC, exp), sum = exp.every(e => e !== null) ? exp.reduce((s, e) => s + e, 0) : null;
+    h += `<div class="card"><div class="sum">${sel.map((id, i) => `<span>${esc(bkShort(bkById(id)))}</span><span>${M.fmt(parts[i])}</span>`).join('')}<span class="tot">Samen</span><span class="tot">${M.fmt(txC)}</span></div>
+      ${sum !== null && sel.length > 1 && Math.abs(sum - txC) > sel.length ? `<p class="small muted" style="margin-top:8px">Verwacht samen ${M.fmt(sum)}, binnengekomen ${M.fmt(txC)}. De app verdeelt het verschil naar verhouding.</p>` : ''}
+      ${sel.length === 1 && exp[0] !== null && Math.abs(exp[0] - txC) > 1 ? `<p class="small muted" style="margin-top:8px">${M.fmt(Math.abs(txC - exp[0]))} ${txC < exp[0] ? 'minder' : 'meer'} dan verwacht.</p>` : ''}</div>`;
+  }
+  return h + '</main>';
+}
+
+// Koppeling bewaren: wat er bij deze transactie stond, wordt vervangen.
+async function saveLink(ids, by) {
+  need();
+  const t = data.txs.find(x => x.id === ui.id), txC = M.cents(t.amount);
+  const cands = P.candidates(t, rent.bookings, rent.amounts, rent.payouts, true);
+  const exp = ids.map(id => { const c = cands.find(x => x.booking.id === id); return c ? (c.leftC !== null && c.leftC > 0 ? c.leftC : c.expectedC) : null; });
+  const parts = P.allocate(txC, exp);
+  if (parts.some(x => x < 1)) throw new Error('Dit bedrag is te klein om te verdelen.');
+  await api(`/rest/v1/rental_booking_payouts?transaction_id=eq.${t.id}`, { method: 'DELETE' });
+  rent.payouts = rent.payouts.filter(p => p.transaction_id !== t.id);
+  if (!ids.length) return;
+  const out = await post('rental_booking_payouts', ids.map((id, i) => ({ team_id: FAMILY, booking_id: id, transaction_id: t.id, amount: parts[i] / 100, paid_on: t.booked_on, matched_by: by })));
+  rent.payouts.push(...(out || []));
+  // één boeking zonder bekende uitbetaling: vul hem in Verhuur in
+  if (ids.length === 1) {
+    const a = rent.amounts[ids[0]];
+    if (!a || a.payout === null || a.payout === undefined) {
+      const body = { payout: parts[0] / 100 };
+      const [row] = a ? await patch(`rental_booking_amounts?booking_id=eq.${ids[0]}&select=booking_id,payout,guest_name`, body)
+        : await post('rental_booking_amounts?select=booking_id,payout,guest_name', { booking_id: ids[0], team_id: FAMILY, ...body });
+      if (row) rent.amounts[ids[0]] = row;
+    }
+  }
+  // nog niet ingedeeld: soort Verhuur
+  const vc = data.cats.find(c => c.grp === 'income' && c.name === 'Verhuur');
+  if (vc && !t.excluded && !cat(t.category_id)) setLocalTx(await patch(`finance_transactions?id=eq.${t.id}&select=${TX_FIELDS}`, { category_id: vc.id, category_by: 'manual' }));
 }
 
 function vRules() {
@@ -382,7 +492,7 @@ async function doImport() {
   render();
 }
 
-const VIEWS = { home: vHome, list: vList, tx: vTx, rules: vRules, rule: vRule, cats: vCats, accounts: vAccounts, account: vAccount, recurring: vRecurring, import: vImport };
+const VIEWS = { home: vHome, list: vList, tx: vTx, rules: vRules, rule: vRule, cats: vCats, accounts: vAccounts, account: vAccount, recurring: vRecurring, import: vImport, payouts: vPayouts, link: vLink };
 function render() {
   const g = gate(), a = $('#app');
   a.innerHTML = g ? navBar(hubLink()) + '<main>' + lt('Financiën') + `<div class="card"><p>${g}</p></div></main>` : (VIEWS[ui.view] || vHome)();
@@ -480,6 +590,15 @@ document.addEventListener('click', ev => {
       });
       break;
     }
+    case 'link': { const t = data.txs.find(x => x.id === ui.id), links = txPayouts(t.id), sg = links.length ? null : suggestFor(t); go('link', { sel: links.length ? links.map(p => p.booking_id) : sg ? sg.ids : [], linkAll: false }); break; }
+    case 'pick': { const id = el.dataset.id; ui.sel = ui.sel.includes(id) ? ui.sel.filter(x => x !== id) : [...ui.sel, id]; const y = window.scrollY; render(); window.scrollTo(0, y); break; }
+    case 'linkall': ui.linkAll = !ui.linkAll; render(); break;
+    case 'linksug': run(el, async () => { await saveLink(suggestFor(data.txs.find(x => x.id === ui.id)).ids, 'suggested'); render(); toast('Gekoppeld aan Verhuur.'); }); break;
+    case 'savelink': run(el, async () => {
+      if (!ui.sel.length && !txPayouts(ui.id).length) throw new Error('Kies een boeking.');
+      await saveLink(ui.sel, 'manual'); go('tx'); toast(ui.sel.length ? 'Gekoppeld aan Verhuur.' : 'Ontkoppeld.');
+    }); break;
+    case 'unlink': if (confirm('Deze uitbetaling loskoppelen van de boeking(en)?')) run(el, async () => { await saveLink([], 'manual'); render(); toast('Ontkoppeld.'); }); break;
     case 'impkind': ui.imp.accounts[+el.dataset.i].kind = el.dataset.v; render(); break;
     case 'impcancel': ui.imp = null; render(); break;
     case 'doimport': run(el, async () => { el.textContent = 'Bezig met inlezen…'; try { await doImport(); window.scrollTo(0, 0); } finally { if (ui.view === 'import') render(); } }); break;
@@ -500,7 +619,7 @@ document.addEventListener('input', ev => {
   if (t.id === 'q') { ui.f.q = t.value; ui.limit = 150; const pos = t.selectionStart; render(); const q = $('#q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
   else if (t.id === 'r-pattern') { readRule(); const pos = t.selectionStart; render(); const p = $('#r-pattern'); if (p) { p.focus(); p.setSelectionRange(pos, pos); } }
 });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !busy && !['tx', 'rule', 'account', 'import', 'cats'].includes(ui.view)) load(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !busy && !['tx', 'rule', 'account', 'import', 'cats', 'link'].includes(ui.view)) load(); });
 addEventListener('online', () => load());
 
 render();

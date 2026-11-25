@@ -392,6 +392,20 @@ Privacy: een rekening ziet alleen de eigenaar, tenzij die hem deelt met de behee
 Het rekeningnummer staat er niet in, alleen de laatste 4 tekens en een sha256-hash van gezin + IBAN. Hoofdbeheer
 (`platform_*`) ziet niets van Financiën.
 
+## Uitbetalingen koppelen aan Verhuur (v3.21.0)
+Doe dit **vóór** je v3.21.0 pusht (anders geven Financiën en Verhuur een fout bij het laden van de uitbetalingen):
+
+1. **SQL Editor** (of `npx supabase db query --remote=<ref> --yes -f supabase/schema.sql`): voer
+   [`schema.sql`](schema.sql) opnieuw uit. Nieuw: tabel `rental_booking_payouts` met trigger `rental_payout_guard`
+   en vier policies. Lezen: beheerder van Verhuur. Koppelen, wijzigen, ontkoppelen: beheerder van Verhuur die de
+   transactie ook ziet. Verdwijnt de transactie, dan blijft de uitbetaling bij de boeking (`transaction_id` leeg).
+2. Controle: `select count(*) from pg_policies where tablename = 'rental_booking_payouts';` → 4.
+
+Getest op de lokale database (25 nov 2026): schema twee keer achter elkaar, 17 rechtencontroles
+(`scripts/test-payouts.mjs`): koppelen, te veel of een afschrijving geweigerd, kijker ziet niets, beheerder Verhuur
+zonder toegang tot de rekening ziet datum en bedrag maar kan niet koppelen of ontkoppelen, rekening weg = uitbetaling
+blijft.
+
 ## Nieuwe app Verhuur (v3.20.0)
 Doe dit **vóór** je v3.20.0 pusht (anders geeft de app een fout bij het laden):
 

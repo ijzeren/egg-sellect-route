@@ -4,9 +4,12 @@
 //   - rollen in de app: Beheerder (admin) ziet en wijzigt alles; Kijker (member) ziet wie wanneer komt, zonder
 //     bedragen en namen (dat regelt de database: de bedragen zijn alleen voor admin te lezen)
 //   - rekenwerk (nachten, taxe de séjour, aangifte per maand): tax.js
+//   - uitbetalingen: in Financiën gekoppeld aan een boeking (rental_booking_payouts); hier zie je ze en wat nog
+//     niet binnen is (finance/payouts.js)
 //   - fase 1: boekingen met de hand. Later: kosten en begroting, inventaris, Lodgify (zie docs/plan-rentals.md)
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as R from './tax.js';
+import * as P from '../finance/payouts.js';
 
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -36,7 +39,7 @@ const dec = x => x === null || x === undefined ? '' : Number(x).toFixed(2).repla
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const guestsText = b => `${plural(b.guests, 'persoon', 'personen')}${b.guests !== b.adults ? ` (${plural(b.adults, 'volwassene', 'volwassenen')})` : ''}`;
 
-// data = { houses, bookings, amounts: { booking_id: rij }, declarations, at }
+// data = { houses, bookings, amounts: { booking_id: rij }, declarations, payouts, at }
 let data = (FAMILY && storage.get(APP, DKEY)) || { houses: [], bookings: [], amounts: {}, declarations: [], at: null };
 let ui = { view: 'home', houseId: storage.get(APP, `${FAMILY}:house`) || null, id: null, draft: null, month: R.prevMonth(today().slice(0, 7)), year: today().slice(0, 4), cancelled: false };
 let loading = false, offline = false;
@@ -45,6 +48,9 @@ const house = () => data.houses.find(h => h.id === ui.houseId) || data.houses[0]
 const booking = id => data.bookings.find(b => b.id === id);
 const doneMonths = h => data.declarations.filter(d => d.house_id === h.id).map(d => d.month.slice(0, 7));
 const inHouse = () => { const h = house(); return h ? data.bookings.filter(b => b.house_id === h.id && !b.deleted) : []; };
+const payoutsOf = id => (data.payouts || []).filter(p => p.booking_id === id).sort((a, b) => a.paid_on.localeCompare(b.paid_on));
+// alleen tonen als Financiën aan staat: daar koppel je de uitbetalingen
+const unpaidList = () => (isAdmin() && canUse('finance') ? P.unpaid(inHouse(), data.payouts, today()) : []);
 
 /* ---------- server ---------- */
 async function load() {
@@ -52,13 +58,14 @@ async function load() {
   loading = true;
   try {
     const admin = isAdmin();
-    const [houses, bookings, amounts, declarations] = await Promise.all([
+    const [houses, bookings, amounts, declarations, payouts] = await Promise.all([
       api(`/rest/v1/rental_houses?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`),
       api(`/rest/v1/rental_bookings?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=arrival`),
       admin ? api(`/rest/v1/rental_booking_amounts?team_id=eq.${FAMILY}&select=*`) : [],
       admin ? api(`/rest/v1/rental_declarations?team_id=eq.${FAMILY}&select=*`) : [],
+      admin ? api(`/rest/v1/rental_booking_payouts?team_id=eq.${FAMILY}&select=id,booking_id,amount,paid_on`).catch(() => []) : [],
     ]);
-    data = { houses: houses || [], bookings: bookings || [], amounts: Object.fromEntries((amounts || []).map(a => [a.booking_id, a])), declarations: declarations || [], at: new Date().toISOString() };
+    data = { houses: houses || [], bookings: bookings || [], amounts: Object.fromEntries((amounts || []).map(a => [a.booking_id, a])), declarations: declarations || [], payouts: payouts || [], at: new Date().toISOString() };
     persist();
     offline = false;
   } catch (e) {
@@ -135,6 +142,7 @@ function vHome() {
   const dueText = !due.open ? `${monthName(due.month)}: gedaan` : due.late ? `${monthName(due.month)}: nog niet aangegeven (was vóór 5 ${MONL[dl.getMonth()]})` : `${monthName(due.month)}: vóór 5 ${MONL[dl.getMonth()]}`;
   html += sec('', `<div class="grp">
     ${admin ? `<button class="cell" data-a="decl" data-m="${due.month}"><span class="tx"><span class="tt">Aangifte toeristenbelasting</span><span class="st${due.late ? ' late' : ''}"${due.late ? ' style="color:var(--red)"' : ''}>${dueText}</span></span>${due.late || (due.open && +t.slice(8, 10) <= 5) ? '<span class="tr" style="color:var(--red)">●</span>' : ''}${ICON_CHEV}</button>` : ''}
+    ${unpaidList().length ? `<button class="cell" data-a="go" data-v="unpaid"><span class="tx"><span class="tt">Nog niet uitbetaald</span><span class="st">${plural(unpaidList().length, 'boeking', 'boekingen')} van Booking.com of Airbnb</span></span><span class="tr" style="color:var(--orange)">${unpaidList().length}</span>${ICON_CHEV}</button>` : ''}
     <button class="cell" data-a="go" data-v="list"><span class="tx"><span class="tt">Alle boekingen</span></span><span class="tr">${inHouse().filter(b => b.arrival.slice(0, 4) === t.slice(0, 4) && R.isStay(b)).length} in ${t.slice(0, 4)}</span>${ICON_CHEV}</button>
     ${admin ? `<button class="cell" data-a="edithouse"><span class="tx"><span class="tt">Huis en toeristenbelasting</span><span class="st">${h.stars ? `${h.stars} ★` : 'Niet geclassificeerd'}</span></span>${ICON_CHEV}</button>` : ''}
     <a class="cell" href="../?article=verhuur" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">Hoe werkt Verhuur?</span></span>${ICON_CHEV}</a></div>`,
@@ -160,7 +168,7 @@ function vList() {
 function vBooking() {
   const b = booking(ui.id); if (!b) return vHome();
   const h = house(), a = data.amounts[b.id] || {}, admin = isAdmin(), n = R.nights(b), past = b.departure <= today();
-  let html = navBar(backTo(ui.from || 'home', ui.from === 'list' ? 'Boekingen' : 'Verhuur'), '', admin ? '<button class="nb" data-a="edit">Wijzig</button>' : '')
+  let html = navBar(backTo(ui.from || 'home', ({ list: 'Boekingen', decl: 'Aangifte', unpaid: 'Terug' })[ui.from] || 'Verhuur'), '', admin ? '<button class="nb" data-a="edit">Wijzig</button>' : '')
     + '<main>' + lt(`${pill(b.source)} ${admin && a.guest_name ? esc(a.guest_name) : esc(fmtRange(b))}`, `${R.statusName(b.status)}${b.status === 'booked' && past ? ' · afgerond' : ''}${b.cancelled_at ? ` op ${fmtDay(b.cancelled_at.slice(0, 10))}` : ''}`);
   html += `<div class="grp">
     <div class="cell"><span class="tx"><span class="tt">${esc(fmtRange(b))}</span><span class="st">${plural(n, 'nacht', 'nachten')} · aankomst ${fmtFr(b.arrival)}, vertrek ${fmtFr(b.departure)}</span></span></div>
@@ -186,10 +194,26 @@ function vBooking() {
       b.source === 'own' ? 'Eigen gebruik telt niet mee in de aangifte.' : t
         ? `Berekende toeristenbelasting: ${eur(t.rate)} × ${plural(t.adults, 'volwassene', 'volwassenen')} × ${plural(t.nights, 'nacht', 'nachten')} = <b>${eur(t.amount)}</b>${R.num(a.tourist_tax) !== null && Math.abs(R.num(a.tourist_tax) - t.amount) > 0.05 ? ' (wijkt af van het ingevulde bedrag)' : ''}.`
         : h && !h.stars ? 'Vul de huur in om de toeristenbelasting te berekenen.' : '');
+    if (b.source !== 'own') {
+      const ps = payoutsOf(b.id), got = R.round2(ps.reduce((s, p) => s + Number(p.amount), 0)), exp = R.num(a.payout);
+      const late = P.lateFrom(b), isLate = b.status === 'booked' && late && late <= today();
+      html += sec('Uitbetaling', `<div class="grp">${ps.map(p => `<div class="cell"><span class="tx"><span class="tt">Ontvangen op ${fmtDay(p.paid_on)}</span>${p.paid_on.slice(0, 4) !== today().slice(0, 4) ? `<span class="st">${p.paid_on.slice(0, 4)}</span>` : ''}</span><span class="tr">${eur(Number(p.amount))}</span></div>`).join('')
+        || `<div class="cell"><span class="tx"><span class="tt"${isLate ? ' style="color:var(--orange)"' : ''}>${isLate ? 'Nog niet uitbetaald' : 'Nog niet binnen'}</span>${late && !isLate && b.status === 'booked' ? `<span class="st">Verwacht rond ${fmtDay(P.expectedOn(b))}</span>` : ''}</span></div>`}
+        ${canUse('finance') ? `<a class="cell" href="../finance/" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">${ps.length ? 'Bekijk in Financiën' : 'Koppelen in Financiën'}</span><span class="st">${ps.length ? 'Alleen als je die rekening ziet' : 'Bij de bijschrijving op de bank'}</span></span>${ICON_CHEV}</a>` : ''}</div>`,
+        ps.length && exp !== null && Math.abs(got - exp) > 0.01 ? `${eur(Math.abs(R.round2(got - exp)))} ${got < exp ? 'minder' : 'meer'} dan de uitbetaling bij deze boeking (${eur(exp)}).` : '');
+    }
     html += `<div class="sec">${b.status === 'cancelled' ? '<button class="btn sec" data-a="restore">Toch niet geannuleerd</button>' : '<button class="btn sec" data-a="cancelbk">Boeking annuleren</button>'}
       <p class="sec-f">Een geannuleerde boeking blijft bewaard, maar telt nergens meer mee.</p></div>
       <div style="margin-top:12px"><button class="btn danger" data-a="delbk">Verwijderen (per ongeluk ingevoerd)</button></div>`;
   }
+  return html + '</main>';
+}
+
+function vUnpaid() {
+  const list = unpaidList();
+  let html = navBar(backTo('home', 'Verhuur'), '') + '<main>' + lt('Nog niet uitbetaald', esc((house() || {}).name || ''));
+  html += sec('', `<div class="grp">${list.map(stayCell).join('') || '<div class="cell"><span class="tx muted">Alles is uitbetaald.</span></div>'}</div>`,
+    'Boekingen van Booking.com en Airbnb waarvan het geld er al had moeten zijn (Airbnb 5 dagen na aankomst, Booking.com 35 dagen na vertrek), en die nog niet aan een bijschrijving in Financiën hangen. Lees eerst de nieuwste transacties in en koppel ze daar.');
   return html + '</main>';
 }
 
@@ -360,10 +384,10 @@ async function saveHouse() {
 }
 
 /* ---------- algemeen ---------- */
-const VIEWS = { home: vHome, list: vList, booking: vBooking, edit: vEdit, decl: vDecl, house: vHouse };
+const VIEWS = { home: vHome, list: vList, booking: vBooking, edit: vEdit, decl: vDecl, house: vHouse, unpaid: vUnpaid };
 function render() {
   const g = gate(), a = $('#app');
-  const adminOnly = ['edit', 'decl', 'house'].includes(ui.view) && !isAdmin();
+  const adminOnly = ['edit', 'decl', 'house', 'unpaid'].includes(ui.view) && !isAdmin();
   a.innerHTML = g ? navBar(hubLink()) + '<main>' + lt('Verhuur') + `<div class="card"><p>${g}</p></div></main>` : (VIEWS[adminOnly ? 'home' : ui.view] || vHome)();
   onScroll();
 }
@@ -378,7 +402,7 @@ document.addEventListener('click', ev => {
   switch (a) {
     case 'go': go(el.dataset.v, { draft: null }); break;
     case 'pickhouse': ui.houseId = el.dataset.id; storage.set(APP, `${FAMILY}:house`, ui.houseId); render(); break;
-    case 'booking': go('booking', { id: el.dataset.id, from: v === 'list' ? 'list' : v === 'decl' ? 'decl' : 'home' }); break;
+    case 'booking': go('booking', { id: el.dataset.id, from: ['list', 'decl', 'unpaid'].includes(v) ? v : 'home' }); break;
     case 'new': go('edit', { draft: newDraft(), back: v }); break;
     case 'edit': go('edit', { draft: draftFrom(booking(ui.id)), back: 'booking' }); break;
     case 'cancel': go(v === 'edit' ? (ui.back || 'home') : 'home', { draft: null }); break;

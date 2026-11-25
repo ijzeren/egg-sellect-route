@@ -8,7 +8,13 @@
   `app.js`), database in `supabase/schema.sql` (sectie Financiën), rechtentest `scripts/test-finance.mjs`.
 - Zoals gebouwd, anders dan hieronder: soorten en regels worden in de app toegepast (één plek, getest), niet in de
   database; de hash van de tegenrekening heet `counterparty_hash`; geen aparte `share`-config maar `finance_accounts.shared`.
-- Nog niet: koppelen aan Verhuur (fase 2), Enable Banking (fase 3).
+- **3.21.0 gebouwd (fase 2)**: uitbetalingen van Booking.com en Airbnb koppelen aan boekingen in Verhuur. Tabel
+  `rental_booking_payouts` (boeking, transactie, bedrag, datum; lezen = beheerder Verhuur, koppelen = beheerder Verhuur
+  die de transactie ziet). Herkennen en voorstellen in `finance/payouts.js` (boekingsnummer in omschrijving, precies
+  bedrag, of een combinatie van boekingen die samen het bedrag is). Verhuur toont "ontvangen op …" en "Nog niet
+  uitbetaald". Rechtentest `scripts/test-payouts.mjs`. Nog te controleren met echte afschrijvingen: naam en
+  omschrijving van de uitbetalingen en het ritme van Booking.com.
+- Nog niet: Enable Banking (fase 3).
 
 Nieuwe app **Financiën** (`/finance/`, app-id `finance`): bij- en afschrijvingen van de eigen bankrekeningen binnenhalen,
 indelen in soorten (boodschappen, energie, verzekering, …) en uitbetalingen van Booking.com en Airbnb koppelen aan

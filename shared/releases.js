@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.21.0', date: '2026-11-25', title: 'Uitbetalingen van Booking.com en Airbnb',
+    notes: [
+      { app: 'finance', text: 'Uitbetalingen van Booking.com en Airbnb herkent de app nu. Koppel ze met één tik aan de boeking in Verhuur. Betaalt Booking.com meerdere boekingen in één keer uit, dan zoekt de app welke boekingen samen dat bedrag zijn.', kb: 'verhuur-uitbetalingen' },
+      { app: 'rentals', text: 'Bij een boeking zie je wanneer het geld binnenkwam, en of dat klopt met de uitbetaling die je verwachtte. Nieuw lijstje: Nog niet uitbetaald.', kb: 'verhuur-uitbetalingen' },
+      { app: 'finance', text: 'Beheerders van Verhuur zien bij de boeking alleen de datum en het bedrag van een uitbetaling, niet de rest van je rekening.', kb: 'financien-privacy' },
+    ],
+  },
+  {
     version: '3.20.0', date: '2026-11-25', title: 'Nieuwe app: Verhuur',
     notes: [
       { app: 'rentals', text: 'Nieuwe app Verhuur voor jullie vakantiehuis. Zet hem aan bij Gezin → Apps. Voer boekingen in van Booking.com, Airbnb of direct, en ook jullie eigen verblijven.', kb: 'verhuur' },

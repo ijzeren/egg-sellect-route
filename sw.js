@@ -1,7 +1,7 @@
 // Service worker van de familie-app (hub + alle apps eronder): offline werken en updates.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in eggs/index.html als Egg-sellent verandert).
 // Nieuw bestand toegevoegd? Zet het in ASSETS, anders werkt het niet offline.
-const VERSION = '3.20.0';
+const VERSION = '3.21.0';
 const CACHE = 'familie-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png',
@@ -12,7 +12,7 @@ const ASSETS = [
   './training/sports/pilates/figures.js', './training/sports/pilates/rig.js', './training/voice.js', './training/sports/biocircuit/index.js',
   './recipes/', './recipes/index.html', './recipes/recipes.css', './recipes/app.js', './recipes/recipe.js', './recipes/import.js',
   './agenda/', './agenda/index.html', './agenda/agenda.css', './agenda/app.js', './agenda/plan.js',
-  './finance/', './finance/index.html', './finance/finance.css', './finance/app.js', './finance/money.js', './finance/import.js',
+  './finance/', './finance/index.html', './finance/finance.css', './finance/app.js', './finance/money.js', './finance/import.js', './finance/payouts.js',
   './rentals/', './rentals/index.html', './rentals/rentals.css', './rentals/app.js', './rentals/tax.js',
 ];
 

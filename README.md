@@ -51,7 +51,7 @@ Engels, schermteksten in het Nederlands.
 | `scripts/recipe-scores.mjs`, `docs/recipe-scores.md` | de Assistent: geplande routine die gerechten een gezondheidsscore geeft |
 | `scripts/recipe-enrich.mjs`, `docs/recipe-enrich.md` | de Assistent: geplande routine die geïmporteerde gerechten afmaakt (stappen, tijden) |
 | `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
-| `finance/` | Financiën: `app.js` (schermen, inlezen, opslaan), `import.js` (Rabobank CSV en CAMT.053 lezen; testbaar), `money.js` (overzicht, regels, vaste lasten; testbaar). Plan: `docs/plan-finance.md` |
+| `finance/` | Financiën: `app.js` (schermen, inlezen, opslaan), `import.js` (Rabobank CSV en CAMT.053 lezen; testbaar), `money.js` (overzicht, regels, vaste lasten; testbaar), `payouts.js` (uitbetalingen Booking.com/Airbnb koppelen aan Verhuur; testbaar). Plan: `docs/plan-finance.md` |
 | `rentals/` | Verhuur: `app.js` (schermen, opslaan), `tax.js` (nachten, toeristenbelasting, aangifte per maand; testbaar). Plan en vervolg: `docs/plan-rentals.md` |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
