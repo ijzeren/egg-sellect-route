@@ -11,7 +11,7 @@ De huis-gezinsapp (voorheen "familie-app"). De apps van het gezin onder één ic
 | `/recipes/` | **Gerechten** — recepten van het gezin met bereidingsschema, sterren per lid en een gezondheidsscore |
 | `/agenda/` | **Agenda** — schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen |
 | `/finance/` | **Financiën** — bij- en afschrijvingen van de eigen bankrekeningen (export uit de bank), ingedeeld per soort; privé per rekening |
-| `/rentals/` | **Verhuur** — vakantiehuis: boekingen, eigen gebruik en de aangifte van de toeristenbelasting |
+| `/rentals/` | **Verhuur** — vakantiehuis: boekingen, eigen gebruik, de aangifte van de toeristenbelasting, kosten, begroting en jaaroverzicht |
 
 Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beheerder, lid, kind); aansluiten gaat
 met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
@@ -52,7 +52,7 @@ Engels, schermteksten in het Nederlands.
 | `scripts/recipe-enrich.mjs`, `docs/recipe-enrich.md` | de Assistent: geplande routine die geïmporteerde gerechten afmaakt (stappen, tijden) |
 | `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
 | `finance/` | Financiën: `app.js` (schermen, inlezen, opslaan), `import.js` (Rabobank CSV en CAMT.053 lezen; testbaar), `money.js` (overzicht, regels, vaste lasten; testbaar), `payouts.js` (uitbetalingen Booking.com/Airbnb koppelen aan Verhuur; testbaar). Plan: `docs/plan-finance.md` |
-| `rentals/` | Verhuur: `app.js` (schermen, opslaan), `tax.js` (nachten, toeristenbelasting, aangifte per maand; testbaar). Plan en vervolg: `docs/plan-rentals.md` |
+| `rentals/` | Verhuur: `app.js` (schermen, opslaan), `tax.js` (nachten, toeristenbelasting, aangifte per maand; testbaar), `year.js` (kosten per boeking, eigen gebruik, jaaroverzicht; testbaar). Eenmalige import van de oude spreadsheet: `scripts/rentals-import.mjs` (met `scripts/xlsx.mjs`). Plan en vervolg: `docs/plan-rentals.md` |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
 | `manifest.webmanifest`, `icon-*.png` | naam en icoon op het beginscherm |

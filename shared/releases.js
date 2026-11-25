@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.22.0', date: '2026-11-25', title: 'Verhuur: kosten, begroting en jaaroverzicht',
+    notes: [
+      { app: 'rentals', text: 'Nieuw in Verhuur: Jaaroverzicht. Per jaar de opbrengst, de kosten per boeking, de vaste lasten, het deel eigen gebruik en het resultaat. Ook hoeveel van de begroting de verhuur dekt.', kb: 'verhuur-kosten' },
+      { app: 'rentals', text: 'Kosten invoeren: elektra, stookolie (met liters), tuinman, reparaties en meer. Investeringen staan apart, zodat ze het resultaat niet vertekenen.', kb: 'verhuur-kosten' },
+      { app: 'rentals', text: 'Begroting per jaar per kostensoort. Neem met één tik de begroting van vorig jaar over.', kb: 'verhuur-kosten' },
+      { app: 'rentals', text: 'Bij een boeking zie je nu ook wat hij netto oplevert: na schoonmaak, bedlinnen, makelaar en vaste kosten.', kb: 'verhuur-kosten' },
+    ],
+  },
+  {
     version: '3.21.0', date: '2026-11-25', title: 'Uitbetalingen van Booking.com en Airbnb',
     notes: [
       { app: 'finance', text: 'Uitbetalingen van Booking.com en Airbnb herkent de app nu. Koppel ze met één tik aan de boeking in Verhuur. Betaalt Booking.com meerdere boekingen in één keer uit, dan zoekt de app welke boekingen samen dat bedrag zijn.', kb: 'verhuur-uitbetalingen' },

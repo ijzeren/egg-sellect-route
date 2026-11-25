@@ -60,6 +60,12 @@ test('aangifte: alleen verhuur die in de maand begint, platforms apart van te be
   assert.match(d.rows[1].issues.join(), /wijkt af/);
 });
 
+test('geïmporteerde boeking: volwassenen nakijken tot het is aangepast', () => {
+  const imp = { id: 'i', import_key: 'xlsx:1', guests: 4, adults: 4, notes: 'Volwassenen onbekend bij import: gelijk aan personen.' };
+  assert.match(R.declaration([bk(imp)], { i: { accommodation: 400 } }, house(), '2026-07').rows[0].issues.join(), /volwassenen nakijken/);
+  assert.equal(R.declaration([bk({ ...imp, adults: 3 })], { i: { accommodation: 400 } }, house(), '2026-07').rows[0].issues.length, 0);
+});
+
 test('verblijf tot de 1e van de volgende maand loopt niet door', () => {
   const d = R.declaration([bk({ id: 'x', arrival: '2026-07-28', departure: '2026-08-01' })], { x: { accommodation: 400 } }, house(), '2026-07');
   assert.equal(d.rows[0].endsLater, false);

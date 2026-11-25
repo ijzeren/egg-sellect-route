@@ -74,6 +74,8 @@ export function declaration(bookings, amounts, house, month) {
       const tax = entered !== null ? entered : t ? t.amount : null;
       const issues = [];
       if (!b.guests) issues.push('aantal personen ontbreekt');
+      // uit de oude spreadsheet: daar stond geen aantal volwassenen in (bij de import gelijk aan personen)
+      if (b.import_key && b.adults === b.guests && /Volwassenen onbekend/.test(b.notes || '')) issues.push('volwassenen nakijken (bij de import gelijk aan personen)');
       if (!house.stars && nightPrice(b, a) === null) issues.push('prijs ontbreekt');
       if (t && entered !== null && Math.abs(entered - t.amount) > 0.05) issues.push(`taxe wijkt af van berekend (${t.amount.toFixed(2).replace('.', ',')})`);
       return {

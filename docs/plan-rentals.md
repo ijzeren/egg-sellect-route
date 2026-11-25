@@ -1,7 +1,7 @@
 # Plan: Verhuur (overzicht per vakantiehuis)
 
-*Opgesteld 25 nov 2026. Status: **fase 1 gebouwd in v3.20.0** (boekingen met de hand, aangifte, rollen); fase 2–4
-volgen (zie Fasering). Open vragen staan onderaan. Versie: eerstvolgende vrije minor (3.18.0 is Pilates; zie `shared/releases.js`).*
+*Opgesteld 25 nov 2026. Status: **fase 1 gebouwd in v3.20.0** (boekingen met de hand, aangifte, rollen), **fase 2 in
+v3.22.0** (kosten, begroting, jaaroverzicht, import van de spreadsheet); fase 3–4 volgen (zie Fasering). Open vragen staan onderaan. Versie: eerstvolgende vrije minor (3.18.0 is Pilates; zie `shared/releases.js`).*
 
 Nieuwe app **Verhuur** (`/rentals/`, app-id `rentals`). Eerste huis: **Vacances au Bonhomme** (Le Bonhomme, Haut-Rhin,
 intercommunalité Vallée de Kaysersberg).
@@ -287,6 +287,18 @@ de repository) en na controle in Supabase zet. Eerst een droge run met een samen
 - Commissie makelaar: uitgangspunt **één keer btw**; definitief na controle van facturen.
 - Import: boekingen 2023–2026, begroting en facturen, inventaris, **met gastnamen** (alleen zichtbaar voor beheerders).
   Alles wat geïmporteerd is, blijft in de app aan te passen.
+
+**Fase 2 gebouwd (v3.22.0), keuzes bij de import van de spreadsheet**
+- Totaalprijs = huur (`accommodation`): de spreadsheet rekent er ook de prijs per nacht mee.
+- Volwassenen staan er niet in: bij de import volwassenen = personen (met een notitie). Oude aangiftes zijn al gedaan.
+- Direct zonder prijs = eigen gebruik; Optie/Verwacht zonder kanaal = kanaal "anders" (schatting).
+- Tabblad "Kosten" zonder jaar = begroting 2024. "Extra facturen" → kosten Onvoorzien (zonder datum in een voorbij jaar
+  op 31 december; in het lopende jaar zijn het begrotingsposten).
+- Belastingdienst - Kosten: Renovatie → investeringen, Onderhoud → onderhoud. **Niet** ingelezen: facturen van de
+  makelaar (type Verhuur; die bedragen zitten al in de boekingen) en geschatte vaste lasten zonder datum.
+- Fioul is een prijsverloop, geen aankoop: niet ingelezen.
+- Kosten per boeking zonder btw over schoonmaak en bedlinnen. Rekent de makelaar daar wel btw over, dan is het
+  resultaat te hoog (open vraag 7: facturen nakijken).
 
 **Voor de régie (taxedesejour@kaysersberg.com)**
 1. Plafond voor niet-geclassificeerd in 2026: € 3,00 of € 4,60?

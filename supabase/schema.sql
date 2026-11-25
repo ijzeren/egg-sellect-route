@@ -1780,6 +1780,104 @@ create policy rental_payout_delete on public.rental_booking_payouts for delete
 revoke all on public.rental_booking_payouts from anon;
 grant select, insert, update, delete on public.rental_booking_payouts to authenticated;
 
+-- ---------- Verhuur: kosten, begroting en jaaroverzicht (Thuis, v3.22) ----------
+-- rental_cost_categories  kostensoorten per huis (elk huis is anders geregeld). kind: fixed (vast), usage (verbruik),
+--                         tax (belasting), maintenance (onderhoud), other (overig/onvoorzien), investment (apart van
+--                         het resultaat), booking (komt uit de boekingen: from_booking = cleaning, linen, commission of
+--                         other_costs; daarvoor voer je geen facturen in). own_share: telt mee in het deel eigen gebruik.
+-- rental_costs            werkelijke kosten: datum, soort, bedrag, eventueel hoeveelheid (liters, m³), leverancier,
+--                         factuurnummer, betaald.
+-- rental_budgets          begroting per huis, jaar en kostensoort (bedrag per jaar).
+-- import_key              vaste sleutel van de eenmalige import uit de spreadsheet (scripts/rentals-import.mjs), zodat
+--                         die opnieuw kan zonder dubbele regels. Leeg bij alles wat in de app is ingevoerd.
+-- Rechten: alleen beheerders van Verhuur (app_role = admin); de kijker ziet geen bedragen.
+alter table public.rental_bookings add column if not exists import_key text check (length(import_key) <= 80);
+create unique index if not exists rental_bookings_import on public.rental_bookings(house_id, import_key);
+create table if not exists public.rental_cost_categories (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  house_id uuid not null references public.rental_houses(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 60),
+  kind text not null default 'other' check (kind in ('fixed', 'usage', 'tax', 'maintenance', 'other', 'investment', 'booking')),
+  from_booking text check (from_booking in ('cleaning', 'linen', 'commission', 'other_costs')),
+  own_share boolean not null default true,
+  sort int not null default 0,
+  active boolean not null default true,
+  deleted boolean not null default false,
+  updated_at timestamptz not null default now(),
+  check ((kind = 'booking') = (from_booking is not null))
+);
+create index if not exists rental_cost_categories_house on public.rental_cost_categories(house_id);
+create unique index if not exists rental_cost_categories_from on public.rental_cost_categories(house_id, from_booking) where not deleted;
+create table if not exists public.rental_costs (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  house_id uuid not null references public.rental_houses(id) on delete cascade,
+  category_id uuid not null references public.rental_cost_categories(id) on delete restrict,
+  date date not null,
+  amount numeric(10, 2) not null,
+  quantity numeric(10, 2),
+  unit text not null default '' check (length(unit) <= 12),
+  supplier text not null default '' check (length(supplier) <= 80),
+  description text not null default '' check (length(description) <= 300),
+  invoice_no text not null default '' check (length(invoice_no) <= 60),
+  paid boolean not null default true,
+  booking_id uuid references public.rental_bookings(id) on delete set null,
+  import_key text check (length(import_key) <= 80),
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists rental_costs_house on public.rental_costs(house_id, date);
+create unique index if not exists rental_costs_import on public.rental_costs(house_id, import_key);
+create table if not exists public.rental_budgets (
+  house_id uuid not null references public.rental_houses(id) on delete cascade,
+  team_id uuid not null references public.teams(id) on delete cascade,
+  year smallint not null check (year between 2000 and 2100),
+  category_id uuid not null references public.rental_cost_categories(id) on delete cascade,
+  amount numeric(10, 2) not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (house_id, year, category_id)
+);
+
+-- Alles binnen één huis van één gezin: soort, kosten en begroting bij een huis van het gezin; de kostensoort en de
+-- boeking van een kostenregel horen bij hetzelfde huis; voor soorten uit de boekingen voer je geen kosten in.
+create or replace function public.rental_cost_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then new.house_id := old.house_id; new.team_id := old.team_id; end if;
+  if not exists (select 1 from public.rental_houses h where h.id = new.house_id and h.team_id = new.team_id) then
+    raise exception 'Dit huis hoort niet bij het gezin';
+  end if;
+  if tg_table_name in ('rental_costs', 'rental_budgets') then
+    if not exists (select 1 from public.rental_cost_categories c where c.id = new.category_id and c.house_id = new.house_id
+        and (tg_table_name = 'rental_budgets' or c.kind <> 'booking')) then
+      raise exception 'Deze kostensoort hoort niet bij dit huis';
+    end if;
+  end if;
+  if tg_table_name = 'rental_costs' then  -- apart: new.booking_id bestaat alleen in rental_costs
+    if new.booking_id is not null and not exists (select 1 from public.rental_bookings b where b.id = new.booking_id and b.house_id = new.house_id) then
+      raise exception 'Deze boeking hoort niet bij dit huis';
+    end if;
+  end if;
+  return new;
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['rental_cost_categories', 'rental_costs', 'rental_budgets'] loop
+    execute format('drop trigger if exists rental_touch on public.%I', t);
+    execute format('create trigger rental_touch before insert or update on public.%I for each row execute function public.agenda_touch()', t);
+    execute format('drop trigger if exists rental_cost_guard on public.%I', t);
+    execute format('create trigger rental_cost_guard before insert or update on public.%I for each row execute function public.rental_cost_guard()', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists rental_admin on public.%I', t);
+    execute format('create policy rental_admin on public.%I for all using (public.app_role(team_id, ''rentals'') = ''admin'') with check (public.app_role(team_id, ''rentals'') = ''admin'')', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+
 -- ---------- Rechten voor de server (service role) ----------
 -- De Edge Functions (push, integrations) werken met de service role. In productie kreeg die rol geen rechten op
 -- tabellen in public (gezien op 22 nov 2026: "permission denied for table push_subscriptions/integrations"). De

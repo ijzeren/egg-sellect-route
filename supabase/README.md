@@ -392,6 +392,25 @@ Privacy: een rekening ziet alleen de eigenaar, tenzij die hem deelt met de behee
 Het rekeningnummer staat er niet in, alleen de laatste 4 tekens en een sha256-hash van gezin + IBAN. Hoofdbeheer
 (`platform_*`) ziet niets van Financiën.
 
+## Verhuur: kosten, begroting en jaaroverzicht (v3.22.0)
+Doe dit **vóór** je v3.22.0 pusht (anders geeft Verhuur een fout bij het laden):
+
+1. Voer [`schema.sql`](schema.sql) opnieuw uit (SQL Editor, of `npx supabase db query --remote=<ref> --yes -f supabase/schema.sql`).
+   Nieuw: tabellen `rental_cost_categories`, `rental_costs`, `rental_budgets` (trigger `rental_cost_guard`, RLS: alleen
+   `app_role(team, 'rentals') = 'admin'`) en kolom `rental_bookings.import_key` met een unieke index per huis. Bestaande
+   gegevens veranderen niet.
+2. Controle: `select tablename, rowsecurity from pg_tables where tablename in ('rental_cost_categories', 'rental_costs', 'rental_budgets');`
+   → drie rijen, alle `t`.
+3. Eenmalige import van de oude spreadsheet (pas na de push, het huis moet bestaan). Eerst droog en tegen productie
+   controleren, dan schrijven:
+   `node scripts/rentals-import.mjs <bestand.xlsx> --remote --house "Vacances au Bonhomme"` en daarna met `--write`.
+   Opnieuw draaien overschrijft alleen wat eerder geïmporteerd is (`import_key`), niet wat in de app is ingevoerd.
+
+Getest op de lokale database (25 nov 2026): schema twee keer achter elkaar, 15 rechtencontroles (beheerder maakt
+soorten, kosten en begroting; kijker ziet niets en mag niets; soort per boeking zonder bron of dubbel geweigerd; geen
+kosten op een soort uit de boekingen; soort of boeking van een ander huis geweigerd; huis van een kostenregel ligt vast),
+en de import lokaal twee keer achter elkaar (zelfde aantallen, geen dubbele regels).
+
 ## Uitbetalingen koppelen aan Verhuur (v3.21.0)
 Doe dit **vóór** je v3.21.0 pusht (anders geven Financiën en Verhuur een fout bij het laden van de uitbetalingen):
 

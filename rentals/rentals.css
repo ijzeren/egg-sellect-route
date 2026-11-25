@@ -40,3 +40,7 @@ body{--tint:var(--green)}
 textarea.ta{width:100%;min-height:4.5rem;border:0;background:none;font:inherit;line-height:1.45;resize:vertical;padding:8px 0;color:var(--label)}
 textarea.ta:focus{outline:none}
 .cell.field .fl{width:6.4rem}
+/* jaaroverzicht: hoeveel van de begroting de verhuur dekt */
+.meter{height:10px;border-radius:5px;background:var(--fill);overflow:hidden}
+.meter span{display:block;height:100%;background:var(--tint);border-radius:5px}
+.cell[disabled]{opacity:1}

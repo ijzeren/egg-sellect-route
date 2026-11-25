@@ -312,6 +312,27 @@ Voorbeeld: 700 euro voor 7 nachten, 3 volwassenen en 1 kind. Per nacht 100 euro,
 <p><b>Wie mag wat?</b> Een <b>beheerder</b> van Verhuur ziet en wijzigt alles. Een <b>kijker</b> ziet alleen wie wanneer komt en met hoeveel personen, zonder bedragen en namen. De rol stel je in bij <b>Gezin → tik op iemand → Apps</b>.</p>`,
   },
   {
+    slug: 'verhuur-kosten', app: 'rentals', title: 'Verhuur: kosten, begroting en jaaroverzicht', updated: '2026-11-25', version: '3.22.0',
+    body: `<p>Met <b>Kosten</b>, <b>Begroting</b> en het <b>Jaaroverzicht</b> zie je per jaar wat het vakantiehuis echt oplevert. Alleen een <b>beheerder</b> van Verhuur ziet dit; een kijker niet.</p>
+<ol><li><b>Kostensoorten:</b> tik de eerste keer op <b>Standaardsoorten aanmaken</b>. Je krijgt onder meer internet, verzekeringen, elektra, water, stookolie, brandhout, belastingen, onderhoud en onvoorzien. Elk huis is anders: voeg soorten toe of zet ze uit bij <b>Kostensoorten</b>.</li>
+<li><b>Begroting:</b> vul per soort het bedrag <b>per jaar</b> in. Volgend jaar neem je de begroting van vorig jaar met één tik over.</li>
+<li><b>Kosten:</b> tik op <b>+</b> en vul soort, bedrag en datum in. Bij verbruik (stookolie, brandhout) kun je ook de hoeveelheid invullen, bijvoorbeeld 1500 liter. Nog niet betaald? Zet <b>Betaald</b> uit.</li></ol>
+<h3>Kosten per boeking</h3>
+<p>Schoonmaak, bedlinnen, de verhuurmakelaar en de vaste kosten per boeking komen uit de <b>boekingen</b>. Die voer je dus niet als factuur in, anders tellen ze dubbel.</p>
+<ul><li><b>Makelaar:</b> een percentage over de uitbetaling min schoonmaak en bedlinnen, plus btw.</li>
+<li><b>Vaste kosten per boeking:</b> een vast bedrag per verhuring.</li>
+<li>Het percentage en de bedragen stel je in bij <b>Huis en toeristenbelasting → Kosten per boeking</b>. Wijkt het bij één boeking af? Vul het bedrag dan bij die boeking in.</li>
+<li>Is de uitbetaling nog niet bekend, dan schat de app die met een percentage van de huur (ook in te stellen bij het huis).</li></ul>
+<h3>Het jaaroverzicht</h3>
+<ul><li><b>Opbrengst:</b> de uitbetalingen van Booking.com en Airbnb, en bij een directe boeking huur, schoonmaak en bedlinnen. De toeristenbelasting telt niet mee: die draag je af.</li>
+<li><b>Resultaat</b> = opbrengst − kosten per boeking − vaste lasten + het deel voor eigen gebruik.</li>
+<li><b>Eigen gebruik:</b> de schoonmaak en het bedlinnen van jullie eigen verblijf, plus een deel van de vaste lasten naar rato van de nachten. Voorbeeld: 20 van de 100 nachten eigen gebruik, dan is 20% van elektra, water en verzekering voor jullie. De inkomstenbelasting telt niet mee.</li>
+<li><b>Investeringen</b> (renovatie, nieuwe keuken) staan apart en tellen niet mee in het resultaat.</li>
+<li><b>Kostendekkend:</b> wat de verhuur netto opbrengt (ook de verwachte boekingen en opties), gedeeld door de begrote vaste lasten. Daaronder: hoeveel er nog te dekken is.</li>
+<li>Een verblijf telt mee in het jaar van aankomst.</li></ul>
+<p>Staat er bij een soort wel een begroting maar nog geen enkele factuur, dan waarschuwt de app: het resultaat is dan te rooskleurig.</p>`,
+  },
+  {
     slug: 'eggs-ronde', app: 'eggs', title: 'Een ronde lopen', updated: '2026-11-22', version: '2.8.0',
     body: `<p>Het tabblad <b>Ronde</b> toont de adressen van vandaag in loopvolgorde, met het afgesproken aantal eieren.</p>
 <ol><li>Tik op <b>Start ronde</b> (of <b>Verder bij …</b>).</li>

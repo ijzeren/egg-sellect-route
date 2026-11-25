@@ -6,9 +6,12 @@
 //   - rekenwerk (nachten, taxe de séjour, aangifte per maand): tax.js
 //   - uitbetalingen: in Financiën gekoppeld aan een boeking (rental_booking_payouts); hier zie je ze en wat nog
 //     niet binnen is (finance/payouts.js)
-//   - fase 1: boekingen met de hand. Later: kosten en begroting, inventaris, Lodgify (zie docs/plan-rentals.md)
+//   - kosten, begroting en jaaroverzicht (rental_cost_categories, rental_costs, rental_budgets; rekenwerk: year.js),
+//     alleen voor beheerders
+//   - later: inventaris, Lodgify (zie docs/plan-rentals.md)
 import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
 import * as R from './tax.js';
+import * as Y from './year.js';
 import * as P from '../finance/payouts.js';
 
 applyTheme();
@@ -34,12 +37,12 @@ const fmtDay = s => { const d = pd(s); return `${DSH[d.getDay()]} ${d.getDate()}
 const fmtRange = b => `${fmtDay(b.arrival)} – ${fmtDay(b.departure)}${b.departure.slice(0, 4) !== today().slice(0, 4) ? ' ' + b.departure.slice(0, 4) : ''}`;
 const fmtFr = s => s.split('-').reverse().join('/'); // zoals het aangifteportaal (dd/mm/jjjj)
 const monthName = m => `${MONL[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
-const eur = x => x === null || x === undefined || Number.isNaN(x) ? '–' : `€ ${Number(x).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const eur = x => x === null || x === undefined || Number.isNaN(x) ? '–' : `${x < 0 ? '−\u00a0' : ''}€ ${Math.abs(Number(x)).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dec = x => x === null || x === undefined ? '' : Number(x).toFixed(2).replace('.', ',');
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const guestsText = b => `${plural(b.guests, 'persoon', 'personen')}${b.guests !== b.adults ? ` (${plural(b.adults, 'volwassene', 'volwassenen')})` : ''}`;
 
-// data = { houses, bookings, amounts: { booking_id: rij }, declarations, payouts, at }
+// data = { houses, bookings, amounts: { booking_id: rij }, declarations, payouts, categories, costs, budgets, at }
 let data = (FAMILY && storage.get(APP, DKEY)) || { houses: [], bookings: [], amounts: {}, declarations: [], at: null };
 let ui = { view: 'home', houseId: storage.get(APP, `${FAMILY}:house`) || null, id: null, draft: null, month: R.prevMonth(today().slice(0, 7)), year: today().slice(0, 4), cancelled: false };
 let loading = false, offline = false;
@@ -58,21 +61,24 @@ async function load() {
   loading = true;
   try {
     const admin = isAdmin();
-    const [houses, bookings, amounts, declarations, payouts] = await Promise.all([
+    const [houses, bookings, amounts, declarations, payouts, categories, costs, budgets] = await Promise.all([
       api(`/rest/v1/rental_houses?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`),
       api(`/rest/v1/rental_bookings?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=arrival`),
       admin ? api(`/rest/v1/rental_booking_amounts?team_id=eq.${FAMILY}&select=*`) : [],
       admin ? api(`/rest/v1/rental_declarations?team_id=eq.${FAMILY}&select=*`) : [],
       admin ? api(`/rest/v1/rental_booking_payouts?team_id=eq.${FAMILY}&select=id,booking_id,amount,paid_on`).catch(() => []) : [],
+      admin ? api(`/rest/v1/rental_cost_categories?team_id=eq.${FAMILY}&deleted=is.false&select=*`).catch(() => []) : [],
+      admin ? api(`/rest/v1/rental_costs?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=date`).catch(() => []) : [],
+      admin ? api(`/rest/v1/rental_budgets?team_id=eq.${FAMILY}&select=*`).catch(() => []) : [],
     ]);
-    data = { houses: houses || [], bookings: bookings || [], amounts: Object.fromEntries((amounts || []).map(a => [a.booking_id, a])), declarations: declarations || [], payouts: payouts || [], at: new Date().toISOString() };
+    data = { houses: houses || [], bookings: bookings || [], amounts: Object.fromEntries((amounts || []).map(a => [a.booking_id, a])), declarations: declarations || [], payouts: payouts || [], categories: categories || [], costs: costs || [], budgets: budgets || [], at: new Date().toISOString() };
     persist();
     offline = false;
   } catch (e) {
     offline = e instanceof TypeError || !navigator.onLine;
     if (!offline) toast(e.message, 'err');
   } finally { loading = false; }
-  if (!['edit', 'house'].includes(ui.view)) render();
+  if (!['edit', 'house', 'cost', 'budget', 'cat'].includes(ui.view)) render();
 }
 const persist = () => storage.set(APP, DKEY, data);
 const need = () => { if (!navigator.onLine) throw new Error('Geen verbinding. Probeer het straks opnieuw.'); };
@@ -144,6 +150,10 @@ function vHome() {
     ${admin ? `<button class="cell" data-a="decl" data-m="${due.month}"><span class="tx"><span class="tt">Aangifte toeristenbelasting</span><span class="st${due.late ? ' late' : ''}"${due.late ? ' style="color:var(--red)"' : ''}>${dueText}</span></span>${due.late || (due.open && +t.slice(8, 10) <= 5) ? '<span class="tr" style="color:var(--red)">●</span>' : ''}${ICON_CHEV}</button>` : ''}
     ${unpaidList().length ? `<button class="cell" data-a="go" data-v="unpaid"><span class="tx"><span class="tt">Nog niet uitbetaald</span><span class="st">${plural(unpaidList().length, 'boeking', 'boekingen')} van Booking.com of Airbnb</span></span><span class="tr" style="color:var(--orange)">${unpaidList().length}</span>${ICON_CHEV}</button>` : ''}
     <button class="cell" data-a="go" data-v="list"><span class="tx"><span class="tt">Alle boekingen</span></span><span class="tr">${inHouse().filter(b => b.arrival.slice(0, 4) === t.slice(0, 4) && R.isStay(b)).length} in ${t.slice(0, 4)}</span>${ICON_CHEV}</button>
+    ${admin ? `<button class="cell" data-a="toyear"><span class="tx"><span class="tt">Jaaroverzicht ${t.slice(0, 4)}</span><span class="st">${yearLine()}</span></span>${ICON_CHEV}</button>
+    <button class="cell" data-a="tocosts"><span class="tx"><span class="tt">Kosten</span><span class="st">Facturen en vaste lasten invoeren</span></span>${ICON_CHEV}</button>
+    <button class="cell" data-a="tobudget"><span class="tx"><span class="tt">Begroting ${t.slice(0, 4)}</span></span>${ICON_CHEV}</button>
+    <button class="cell" data-a="go" data-v="cats"><span class="tx"><span class="tt">Kostensoorten</span></span><span class="tr">${cats().length || ''}</span>${ICON_CHEV}</button>` : ''}
     ${admin ? `<button class="cell" data-a="edithouse"><span class="tx"><span class="tt">Huis en toeristenbelasting</span><span class="st">${h.stars ? `${h.stars} ★` : 'Niet geclassificeerd'}</span></span>${ICON_CHEV}</button>` : ''}
     <a class="cell" href="../?article=verhuur" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">Hoe werkt Verhuur?</span></span>${ICON_CHEV}</a></div>`,
     offline ? 'Geen verbinding: je ziet de laatst opgehaalde boekingen.' : '');
@@ -194,6 +204,16 @@ function vBooking() {
       b.source === 'own' ? 'Eigen gebruik telt niet mee in de aangifte.' : t
         ? `Berekende toeristenbelasting: ${eur(t.rate)} × ${plural(t.adults, 'volwassene', 'volwassenen')} × ${plural(t.nights, 'nacht', 'nachten')} = <b>${eur(t.amount)}</b>${R.num(a.tourist_tax) !== null && Math.abs(R.num(a.tourist_tax) - t.amount) > 0.05 ? ' (wijkt af van het ingevulde bedrag)' : ''}.`
         : h && !h.stars ? 'Vul de huur in om de toeristenbelasting te berekenen.' : '');
+    if (b.status !== 'cancelled') {
+      const m = Y.bookingMoney(b, a, h), r = [];
+      if (b.source !== 'own') r.push(sumRow(`Opbrengst${m.estimated ? ' (geschat)' : ''}`, eur(m.revenue)));
+      if (m.cleaning) r.push(sumRow('Schoonmaak', '− ' + eur(m.cleaning))); if (m.linen) r.push(sumRow('Bedlinnen', '− ' + eur(m.linen)));
+      if (m.commission) r.push(sumRow(`Verhuurmakelaar${R.num(a.commission) === null ? ' (berekend)' : ''}`, '− ' + eur(m.commission)));
+      if (m.other_costs) r.push(sumRow(`Vaste kosten${R.num(a.other_costs) === null ? ' (standaard)' : ''}`, '− ' + eur(m.other_costs)));
+      r.push(b.source === 'own' ? sumRow('Kosten eigen gebruik', eur(R.round2(m.costs - m.contribution)), 'tot') : sumRow('Netto', eur(m.net), 'tot'));
+      html += sec(b.source === 'own' ? 'Kosten' : 'Opbrengst en kosten', `<div class="card"><div class="sum">${r.join('')}</div></div>`,
+        m.estimated ? 'Geschat: de uitbetaling ontbreekt nog, dus de app rekent met een percentage van de huur (in te stellen bij het huis).' : '');
+    }
     if (b.source !== 'own') {
       const ps = payoutsOf(b.id), got = R.round2(ps.reduce((s, p) => s + Number(p.amount), 0)), exp = R.num(a.payout);
       const late = P.lateFrom(b), isLate = b.status === 'booked' && late && late <= today();
@@ -218,11 +238,11 @@ function vUnpaid() {
 }
 
 /* ---------- boeking invoeren ---------- */
-const MONEY = ['accommodation', 'night_price', 'payout', 'cleaning', 'linen', 'tourist_tax'];
+const MONEY = ['accommodation', 'night_price', 'payout', 'cleaning', 'linen', 'tourist_tax', 'commission', 'other_costs'];
 function newDraft() {
   const h = house(), s = (h && h.settings) || {}, t = today();
   return { id: null, source: 'direct', status: 'booked', arrival: t, departure: R.addDays(t, 2), guests: '', adults: '', country: '', external_id: '', notes: '', guest_name: '',
-    tax_by: 'host', accommodation: '', night_price: '', payout: '', cleaning: s.cleaning ?? '', linen: s.linen ?? '', tourist_tax: '', taxTouched: false };
+    tax_by: 'host', accommodation: '', night_price: '', payout: '', cleaning: s.cleaning ?? '', linen: s.linen ?? '', tourist_tax: '', commission: '', other_costs: '', taxTouched: false };
 }
 function draftFrom(b) {
   const a = data.amounts[b.id] || {}, d = { ...b, guests: String(b.guests), adults: String(b.adults), guest_name: a.guest_name || '', taxTouched: true };
@@ -270,6 +290,8 @@ function vEdit() {
     'Huur = wat de gast betaalt voor de overnachtingen, zonder schoonmaak, bedlinnen en toeristenbelasting. Daarmee rekent de app de gemiddelde nachtprijs uit.');
   if (direct) h += sec('Afgesproken prijs', `<div class="grp">${money('night_price', 'Per nacht')}${money('cleaning', 'Schoonmaak')}${money('linen', 'Bedlinnen')}</div>`);
   if (own) h += sec('Kosten', `<div class="grp">${money('cleaning', 'Schoonmaak')}${money('linen', 'Bedlinnen')}${money('accommodation', 'Bijdrage', 'als ze iets betalen')}</div>`);
+  else h += sec('Kosten voor jullie', `<div class="grp">${money('commission', 'Makelaar', 'berekend')}${money('other_costs', 'Vaste kosten', 'standaard')}</div>`,
+    'Leeg laten: de app rekent de makelaar uit met het percentage van het huis en neemt de standaard vaste kosten per boeking.');
   h += `<div class="card"><div class="sum" id="sum">${summary()}</div></div>`;
   h += sec('Notitie', `<div class="grp"><div class="cell"><textarea class="ta" id="f-notes" maxlength="1000" placeholder="bijv. late aankomst, hond mee">${esc(d.notes)}</textarea></div></div>`, 'De notitie ziet iedereen met Verhuur, ook de kijker.');
   return h + '</main>';
@@ -296,7 +318,7 @@ async function saveBooking() {
     country: (d.country || '').trim(), external_id: (d.external_id || '').trim(), notes: (d.notes || '').trim(), tax_by: d.source === 'own' ? 'none' : d.tax_by };
   const [row] = d.id ? await patch('rental_bookings', d.id, body) : await post('rental_bookings', { ...body, team_id: FAMILY });
   const [am] = await api('/rest/v1/rental_booking_amounts?on_conflict=booking_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: { booking_id: row.id, team_id: FAMILY, guest_name: (d.guest_name || '').trim(), accommodation: a.accommodation, night_price: a.night_price, payout: a.payout, cleaning: a.cleaning, linen: a.linen, tourist_tax: a.tourist_tax } });
+    body: { booking_id: row.id, team_id: FAMILY, guest_name: (d.guest_name || '').trim(), accommodation: a.accommodation, night_price: a.night_price, payout: a.payout, cleaning: a.cleaning, linen: a.linen, tourist_tax: a.tourist_tax, commission: d.source === 'own' ? null : a.commission, other_costs: d.source === 'own' ? null : a.other_costs } });
   data.amounts[row.id] = am; upsertLocal(row);
   return row.id;
 }
@@ -352,13 +374,17 @@ function vHouse() {
     : field('h-percent', 'Percentage', r.percent, '5') + field('h-cap', 'Maximum', r.cap, '4,60') + field('h-dept', 'Toeslag %', r.dept_percent, '10')}</div>`,
     'Standaard: de tarieven van de Vallée de Kaysersberg (Le Bonhomme). Niet geclassificeerd: 5% per persoon per nacht, maximum € 4,60, plus 10% departementale toeslag. Klopt het maximum niet voor dit jaar? Pas het hier aan.');
   h += sec('Standaardprijzen', `<div class="grp">${field('h-cleaning', 'Schoonmaak', d.cleaning, '0,00')}${field('h-linen', 'Bedlinnen', d.linen, '0,00')}</div>`, 'Worden alvast ingevuld bij een nieuwe boeking.');
+  const c = d.costs;
+  h += sec('Kosten per boeking', `<div class="grp">${field('h-cp', 'Makelaar %', c.commission_percent, '0')}${field('h-cv', 'Btw makelaar %', c.commission_vat, '20')}${field('h-oc', 'Vaste kosten', c.other_costs, '0,00')}${field('h-pp', 'Uitbetaling %', c.payout_percent, '85')}</div>`,
+    'Makelaar: percentage over (uitbetaling − schoonmaak − bedlinnen), plus btw. Vaste kosten: per verhuring. Uitbetaling %: om een boeking te schatten zolang de uitbetaling nog niet bekend is.');
   return h + '</main>';
 }
 function houseDraft(h) {
   const y = today().slice(0, 4), r = R.rulesFor(h, y), s = (h && h.settings) || {};
   return { id: h ? h.id : null, name: h ? h.name : 'Vacances au Bonhomme', place: h ? h.place : 'Le Bonhomme', stars: h ? h.stars : null, year: y,
     rules: { percent: dec(r.percent).replace(',00', ''), cap: dec(r.cap), dept_percent: dec(r.dept_percent).replace(',00', ''), fixed: Object.fromEntries(Object.entries(r.fixed).map(([k, v]) => [k, dec(v)])) },
-    cleaning: s.cleaning ?? '', linen: s.linen ?? '' };
+    cleaning: s.cleaning ?? '', linen: s.linen ?? '',
+    costs: Object.fromEntries(Object.entries(Y.costRules(h)).map(([k, v]) => [k, dec(v).replace(',00', '')])) };
 }
 function readHouse() {
   const d = ui.draft; if (!d) return;
@@ -367,6 +393,7 @@ function readHouse() {
   if (v('h-percent') !== undefined) d.rules.percent = v('h-percent'); if (v('h-cap') !== undefined) d.rules.cap = v('h-cap'); if (v('h-dept') !== undefined) d.rules.dept_percent = v('h-dept');
   if (v('h-fixed') !== undefined && d.stars) d.rules.fixed[d.stars] = v('h-fixed');
   if (v('h-cleaning') !== undefined) d.cleaning = v('h-cleaning'); if (v('h-linen') !== undefined) d.linen = v('h-linen');
+  for (const [id, k] of [['h-cp', 'commission_percent'], ['h-cv', 'commission_vat'], ['h-oc', 'other_costs'], ['h-pp', 'payout_percent']]) if (v(id) !== undefined) d.costs[k] = v(id);
 }
 async function saveHouse() {
   need();
@@ -376,18 +403,227 @@ async function saveHouse() {
   if (Object.values(rule).some(x => x === null) || Object.values(rule.fixed).some(x => x === null)) throw new Error('Vul de tarieven in als getal.');
   const money = x => (String(x).trim() ? R.num(x) : null);
   if ([d.cleaning, d.linen].some(x => String(x).trim() && R.num(x) === null)) throw new Error('Vul de standaardprijzen in als bedrag.');
+  const had = (old && old.settings && old.settings.costs) || {};
+  const all = Object.entries(d.costs).map(([k, x]) => [k, String(x).trim() ? R.num(x) : Y.DEFAULT_COSTS[k]]);
+  if (all.some(([, x]) => x === null)) throw new Error('Vul de kosten per boeking in als getal.');
+  // alleen bewaren wat afwijkt van de neutrale standaard (of al was ingesteld), zodat de import de rest nog kan invullen
+  const costs = Object.fromEntries(all.filter(([k, x]) => x !== Y.DEFAULT_COSTS[k] || had[k] !== undefined));
   const body = { name: d.name.trim(), place: d.place.trim(), stars: d.stars ? +d.stars : null, tax: { ...((old && old.tax) || {}), [d.year]: rule },
-    settings: { ...((old && old.settings) || {}), cleaning: money(d.cleaning), linen: money(d.linen) } };
+    settings: { ...((old && old.settings) || {}), cleaning: money(d.cleaning), linen: money(d.linen), costs } };
   const [row] = d.id ? await patch('rental_houses', d.id, body) : await post('rental_houses', { ...body, team_id: FAMILY, sort: data.houses.length });
   const i = data.houses.findIndex(x => x.id === row.id); if (i >= 0) data.houses[i] = row; else data.houses.push(row);
   ui.houseId = row.id; storage.set(APP, `${FAMILY}:house`, row.id); persist();
 }
 
+/* ---------- kosten, begroting en jaaroverzicht (alleen beheerder) ---------- */
+const cats = () => { const h = house(); return h ? (data.categories || []).filter(c => c.house_id === h.id && !c.deleted).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name)) : []; };
+const catById = id => (data.categories || []).find(c => c.id === id);
+const overview = y => Y.yearOverview({ house: house(), year: y, bookings: data.bookings, amounts: data.amounts, categories: data.categories || [], costs: data.costs || [], budgets: data.budgets || [] });
+const yearPager = y => `<div class="pager"><button class="nb" data-a="year" data-d="-1" aria-label="Vorig jaar">‹</button><button class="lbl" data-a="year" data-d="0"><b>${y}</b></button><button class="nb" data-a="year" data-d="1" aria-label="Volgend jaar">›</button></div>`;
+const noCats = () => `<div class="card"><h2>Nog geen kostensoorten</h2><p class="muted">Begin met de standaardsoorten (elektra, water, stookolie, schoonmaak, makelaar en meer). Je kunt ze daarna aanpassen.</p><button class="btn" data-a="seedcats" style="margin-top:12px">Standaardsoorten aanmaken</button></div>`;
+const sumRow = (k, v, cls = '') => `<span class="${cls}">${k}</span><span class="${cls}">${v}</span>`;
+const pct = x => `${Math.round(x)}%`;
+const yearLine = () => {
+  if (!cats().length) return 'Kosten en begroting instellen';
+  const o = overview(today().slice(0, 4));
+  return `Resultaat ${eur(o.result)}${o.coverage.pct !== null ? ` · ${o.coverage.pct}% kostendekkend` : ''}`;
+};
+
+function vYear() {
+  const y = ui.year, o = overview(y);
+  let html = navBar(backTo('home', 'Verhuur'), 'Jaaroverzicht') + '<main>' + lt(`Jaaroverzicht ${y}`, esc(house().name)) + yearPager(y);
+  if (!cats().length) return html + noCats() + '</main>';
+  html += sec('Resultaat', `<div class="card"><div class="sum">
+    ${sumRow(`Opbrengst verhuur (${plural(o.stays.rented, 'boeking', 'boekingen')})`, eur(o.revenue))}
+    ${sumRow('Kosten per boeking', '− ' + eur(o.bookingCosts))}
+    ${sumRow('Exploitatiekosten', '− ' + eur(o.operating.actual))}
+    ${o.ownUse.share ? sumRow('Deel eigen gebruik', '+ ' + eur(o.ownUse.share)) : ''}
+    ${sumRow('Resultaat', eur(o.result), 'tot')}</div></div>`,
+    [o.unbooked.count ? `${plural(o.unbooked.count, 'soort', 'soorten')} met een begroting ${o.unbooked.count === 1 ? 'heeft' : 'hebben'} nog geen kosten (samen begroot ${eur(o.unbooked.budget)}). Voer de facturen in, anders is het resultaat te rooskleurig.` : '',
+     o.missing ? `${plural(o.missing, 'boeking heeft', 'boekingen hebben')} nog geen bedrag.` : '', o.estimated ? 'Waar de uitbetaling nog ontbreekt, is die geschat.' : '', o.investments.actual ? `Investeringen (${eur(o.investments.actual)}) staan apart.` : ''].filter(Boolean).join(' '));
+  if (o.coverage.budget) {
+    const p = Math.max(0, Math.min(100, o.coverage.pct || 0));
+    html += sec('Begroting', `<div class="card"><div class="meter" role="img" aria-label="${pct(o.coverage.pct)} kostendekkend"><span style="width:${p}%"></span></div><div class="sum" style="margin-top:10px">
+      ${sumRow('Begrote exploitatiekosten', eur(o.coverage.budget))}
+      ${sumRow('Netto uit verhuur', eur(o.net))}
+      ${o.stays.expected ? sumRow(`Verwacht en optie (${o.stays.expected})`, '+ ' + eur(o.expected.net)) : ''}
+      ${sumRow('Kostendekkend', pct(o.coverage.pct), 'tot')}
+      ${sumRow('Nog te dekken', eur(o.coverage.toCover))}</div></div>`,
+      'Netto = opbrengst min schoonmaak, bedlinnen, makelaar en vaste kosten per boeking.');
+  }
+  html += sec('', `<div class="grp"><button class="cell" data-a="tobudget"><span class="tx"><span class="tt">Begroting ${y}</span><span class="st">${o.coverage.budget ? eur(o.coverage.budget) + ' exploitatie' : 'Nog niet ingevuld'}</span></span>${ICON_CHEV}</button>
+    <button class="cell" data-a="costsof" data-id=""><span class="tx"><span class="tt">Alle kosten ${y}</span></span>${ICON_CHEV}</button></div>`);
+  html += sec('Bezetting', `<div class="card"><div class="sum">
+    ${sumRow('Verhuurd', plural(o.nights.rented, 'nacht', 'nachten'))}${sumRow('Eigen gebruik', plural(o.nights.own, 'nacht', 'nachten'))}
+    ${o.nights.expected ? sumRow('Verwacht en optie', plural(o.nights.expected, 'nacht', 'nachten')) : ''}${sumRow('Leeg', plural(o.nights.empty, 'nacht', 'nachten'))}
+    ${sumRow('Bezettingsgraad', pct((o.nights.rented + o.nights.own) / o.nights.days * 100))}</div></div>`);
+  for (const [k, name] of Y.KINDS) {
+    const rows = o.rows.filter(r => r.kind === k && (r.actual || r.budget || r.expected));
+    if (!rows.length) continue;
+    html += sec(name, `<div class="grp">${rows.map(r => {
+      const sub = [r.budget ? `begroot ${eur(r.budget)}` : '', r.expected ? `verwacht + ${eur(r.expected)}` : '', k !== 'booking' && r.count ? plural(r.count, 'factuur', 'facturen') : ''].filter(Boolean).join(' · ');
+      const over = r.budget && r.actual > r.budget;
+      return `<button class="cell" ${k === 'booking' ? 'disabled' : `data-a="costsof" data-id="${esc(r.id)}"`}><span class="tx"><span class="tt">${esc(r.name)}</span>${sub ? `<span class="st">${sub}</span>` : ''}</span><span class="tr"${over ? ' style="color:var(--red)"' : ''}>${eur(r.actual)}</span>${k === 'booking' ? '' : ICON_CHEV}</button>`;
+    }).join('')}</div>`, k === 'booking' ? 'Uit de boekingen (verhuur en eigen gebruik). Hiervoor voer je geen facturen in.' : k === 'investment' ? 'Telt niet mee in het resultaat van de verhuur.' : '');
+  }
+  if (!o.rows.some(r => r.actual || r.budget || r.expected)) html += '<p class="sec-f">Nog geen kosten of begroting in dit jaar.</p>';
+  if (o.ownUse.nights) html += sec('Eigen gebruik', `<div class="card"><div class="sum">
+    ${sumRow('Directe kosten (schoonmaak, bedlinnen)', eur(o.ownUse.direct))}
+    ${sumRow(`Deel vaste kosten (${pct(o.ownUse.ratio * 100)} van de nachten)`, eur(o.ownUse.share))}
+    ${o.ownUse.contribution ? sumRow('Bijdrage', '− ' + eur(o.ownUse.contribution)) : ''}
+    ${sumRow(`Kosten eigen gebruik (${plural(o.ownUse.nights, 'nacht', 'nachten')})`, eur(o.ownUse.total), 'tot')}</div></div>`,
+    'Het deel naar rato telt alleen soorten die meetellen voor eigen gebruik (dus niet de inkomstenbelasting).');
+  if (o.channels.length) html += sec('Per kanaal', `<div class="grp">${o.channels.map(c => `<div class="cell"><span class="tx"><span class="tt">${pill(c.key)}</span><span class="st">${plural(c.count, 'boeking', 'boekingen')} · ${plural(c.nights, 'nacht', 'nachten')}</span></span><span class="tr">${eur(c.revenue)}</span></div>`).join('')}</div>`);
+  if (o.countries.some(c => c.key)) html += sec('Herkomst', `<div class="grp">${o.countries.map(c => `<div class="cell"><span class="tx"><span class="tt">${esc(c.key || 'Onbekend')}</span></span><span class="tr">${c.count}</span></div>`).join('')}</div>`);
+  html += sec('', `<div class="grp"><a class="cell" href="../?article=verhuur-kosten" style="text-decoration:none;color:inherit"><span class="tx"><span class="tt">Hoe werkt het jaaroverzicht?</span></span>${ICON_CHEV}</a></div>`);
+  return html + '</main>';
+}
+
+function vCosts() {
+  const y = ui.year, cs = cats(), f = ui.cat || '';
+  const all = (data.costs || []).filter(c => c.house_id === house().id && !c.deleted && c.date.slice(0, 4) === y).sort((a, b) => b.date.localeCompare(a.date));
+  const shown = f ? all.filter(c => c.category_id === f) : all, used = cs.filter(c => all.some(x => x.category_id === c.id));
+  let html = navBar(backTo(ui.from === 'year' ? 'year' : 'home', ui.from === 'year' ? 'Jaar' : 'Verhuur'), 'Kosten', cs.length ? plus('newcost', 'Kosten toevoegen') : '') + '<main>' + lt(`Kosten ${y}`, `${eur(R.round2(shown.reduce((s, c) => s + Number(c.amount), 0)))}${f ? ` · ${esc((catById(f) || {}).name || '')}` : ''}`) + yearPager(y);
+  if (!cs.length) return html + noCats() + '</main>';
+  if (used.length > 1 || f) html += `<div class="chips" role="group" aria-label="Kostensoort"><button data-a="catfilter" data-id="" aria-pressed="${!f}">Alle</button>${(f && !used.some(c => c.id === f) ? [catById(f), ...used] : used).map(c => `<button data-a="catfilter" data-id="${esc(c.id)}" aria-pressed="${c.id === f}">${esc(c.name)}</button>`).join('')}</div>`;
+  for (let m = 12; m >= 1; m--) {
+    const mm = `${y}-${String(m).padStart(2, '0')}`, rows = shown.filter(c => c.date.slice(0, 7) === mm);
+    if (rows.length) html += sec(MONL[m - 1], `<div class="grp">${rows.map(c => `<button class="cell" data-a="cost" data-id="${esc(c.id)}"><span class="tx"><span class="tt">${esc((catById(c.category_id) || {}).name || '')}${c.paid ? '' : ' <span class="pill">Nog betalen</span>'}</span><span class="st">${[fmtDay(c.date), c.supplier, c.description, c.quantity ? `${dec(c.quantity).replace(',00', '')} ${c.unit}` : ''].filter(Boolean).map(esc).join(' · ')}</span></span><span class="tr">${eur(Number(c.amount))}</span>${ICON_CHEV}</button>`).join('')}</div>`);
+  }
+  if (!shown.length) html += `<div class="grp"><div class="cell"><span class="tx muted">Geen kosten in ${y}.</span></div></div>`;
+  html += `<div class="sec"><button class="btn sec" data-a="newcost">Kosten toevoegen</button></div>`;
+  return html + '</main>';
+}
+
+function costDraft(c) {
+  const t = today(), y = ui.year === t.slice(0, 4) ? t : `${ui.year}-12-31`;
+  return c ? { ...c, amount: dec(c.amount), quantity: c.quantity === null ? '' : dec(c.quantity).replace(',00', '') }
+    : { id: null, category_id: ui.cat || '', date: y, amount: '', quantity: '', unit: '', supplier: '', description: '', invoice_no: '', paid: true };
+}
+function vCost() {
+  const d = ui.draft, c = catById(d.category_id), usage = c && c.kind === 'usage';
+  const groups = Y.KINDS.filter(([k]) => k !== 'booking').map(([k, n]) => { const list = cats().filter(x => x.kind === k && (x.active || x.id === d.category_id)); return list.length ? `<optgroup label="${n}">${list.map(x => `<option value="${esc(x.id)}"${x.id === d.category_id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : ''; }).join('');
+  let h = navBar(`<button class="nb" data-a="cancel">Annuleer</button>`, d.id ? 'Wijzig kosten' : 'Nieuwe kosten', `<button class="nb" data-a="savecost" style="font-weight:600">Bewaar</button>`) + '<main>';
+  h += sec('', `<div class="grp">
+    <label class="cell field"><span class="fl">Soort</span><select id="c-category_id"><option value="">Kies…</option>${groups}</select></label>
+    <label class="cell field"><span class="fl">Bedrag</span><input type="text" inputmode="decimal" id="c-amount" value="${esc(d.amount)}" placeholder="0,00"></label>
+    <label class="cell field"><span class="fl">Datum</span><input type="date" id="c-date" value="${esc(d.date)}"></label>
+    ${usage ? `<label class="cell field"><span class="fl">Hoeveelheid</span><input type="text" inputmode="decimal" id="c-quantity" value="${esc(d.quantity)}" placeholder="bijv. 1500"></label>
+    <label class="cell field"><span class="fl">Eenheid</span><input type="text" id="c-unit" value="${esc(d.unit)}" maxlength="12" placeholder="liter, m³, kWh"></label>` : ''}
+    <div class="cell"><span class="tx"><span class="tt">Betaald</span></span><button class="toggle" role="switch" data-a="paid" aria-checked="${!!d.paid}" aria-label="Betaald"></button></div></div>`);
+  h += sec('Factuur', `<div class="grp">
+    <label class="cell field"><span class="fl">Leverancier</span><input type="text" id="c-supplier" value="${esc(d.supplier)}" maxlength="80" placeholder="bijv. EDF"></label>
+    <label class="cell field"><span class="fl">Factuurnr.</span><input type="text" id="c-invoice_no" value="${esc(d.invoice_no)}" maxlength="60"></label>
+    <div class="cell"><textarea class="ta" id="c-description" maxlength="300" placeholder="omschrijving, bijv. nieuwe oven">${esc(d.description)}</textarea></div></div>`,
+    'Schoonmaak, bedlinnen en de makelaar komen uit de boekingen; die voer je hier niet in.');
+  if (d.id) h += `<div style="margin-top:12px"><button class="btn danger" data-a="delcost">Verwijderen</button></div>`;
+  return h + '</main>';
+}
+function readCost() {
+  const d = ui.draft; if (!d) return;
+  for (const k of ['category_id', 'amount', 'date', 'quantity', 'unit', 'supplier', 'invoice_no', 'description']) { const el = document.getElementById('c-' + k); if (el) d[k] = el.value; }
+}
+function upsertList(key, row) {
+  const list = data[key] || (data[key] = []), i = list.findIndex(x => x.id === row.id);
+  if (row.deleted) { if (i >= 0) list.splice(i, 1); } else if (i >= 0) list[i] = row; else list.push(row);
+  persist();
+}
+async function saveCost() {
+  need();
+  const d = ui.draft, amount = R.num(d.amount), q = String(d.quantity || '').trim() ? R.num(d.quantity) : null;
+  if (!d.category_id) throw new Error('Kies een soort.');
+  if (amount === null) throw new Error('Vul het bedrag in.');
+  if (!d.date) throw new Error('Vul de datum in.');
+  if (String(d.quantity || '').trim() && q === null) throw new Error('Vul de hoeveelheid in als getal.');
+  const body = { category_id: d.category_id, date: d.date, amount, quantity: q, unit: (d.unit || '').trim(), supplier: (d.supplier || '').trim(), description: (d.description || '').trim(), invoice_no: (d.invoice_no || '').trim(), paid: !!d.paid };
+  const [row] = d.id ? await patch('rental_costs', d.id, body) : await post('rental_costs', { ...body, house_id: house().id, team_id: FAMILY });
+  upsertList('costs', row); ui.year = row.date.slice(0, 4);
+}
+
+function vBudget() {
+  const d = ui.draft, y = d.year, list = cats().filter(c => c.kind !== 'booking');
+  let html = navBar(`<button class="nb" data-a="cancel">Annuleer</button>`, 'Begroting', `<button class="nb" data-a="savebudget" style="font-weight:600">Bewaar</button>`) + '<main>' + lt(`Begroting ${y}`, `Totaal ${eur(R.round2(list.filter(c => c.kind !== 'investment').reduce((s, c) => s + (R.num(d.values[c.id]) || 0), 0)))} per jaar, zonder investeringen`);
+  if (!cats().length) return html + noCats() + '</main>';
+  const prev = String(+y - 1), canCopy = (data.budgets || []).some(b => b.house_id === house().id && String(b.year) === prev && Number(b.amount));
+  if (canCopy && !list.some(c => R.num(d.values[c.id]))) html += `<div class="sec"><button class="btn sec" data-a="copybudget">Neem begroting ${prev} over</button></div>`;
+  for (const [k, name] of Y.KINDS) {
+    const rows = list.filter(c => c.kind === k && (c.active || R.num(d.values[c.id])));
+    if (rows.length) html += sec(name, `<div class="grp">${rows.map(c => `<label class="cell field"><span class="fl" style="width:auto;flex:1">${esc(c.name)}</span><input type="text" inputmode="decimal" id="b-${esc(c.id)}" value="${esc(d.values[c.id] || '')}" placeholder="0,00" style="max-width:7.5rem"></label>`).join('')}</div>`);
+  }
+  html += '<p class="sec-f">Bedragen per jaar. Per maand? Reken × 12. Kosten per boeking (schoonmaak, bedlinnen, makelaar) rekent de app uit de boekingen.</p>';
+  return html + '</main>';
+}
+function budgetDraft(y) {
+  const h = house(), values = {};
+  for (const b of (data.budgets || []).filter(b => b.house_id === h.id && String(b.year) === String(y))) values[b.category_id] = dec(b.amount);
+  return { year: String(y), values };
+}
+function readBudget() {
+  const d = ui.draft; if (!d) return;
+  for (const c of cats()) { const el = document.getElementById('b-' + c.id); if (el) d.values[c.id] = el.value; }
+}
+async function saveBudget() {
+  need();
+  const d = ui.draft, h = house(), rows = [];
+  for (const c of cats().filter(c => c.kind !== 'booking')) {
+    const raw = String(d.values[c.id] || '').trim(), v = raw ? R.num(raw) : 0;
+    if (v === null) throw new Error(`Geen geldig bedrag bij ${c.name}: ${raw}`);
+    const old = (data.budgets || []).find(b => b.house_id === h.id && String(b.year) === d.year && b.category_id === c.id);
+    if (old ? Number(old.amount) !== v : v) rows.push({ house_id: h.id, team_id: FAMILY, year: +d.year, category_id: c.id, amount: v });
+  }
+  if (!rows.length) return;
+  const saved = await api('/rest/v1/rental_budgets?on_conflict=house_id,year,category_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: rows });
+  data.budgets = [...(data.budgets || []).filter(b => !saved.some(s => s.house_id === b.house_id && String(s.year) === String(b.year) && s.category_id === b.category_id)), ...saved];
+  persist();
+}
+
+function vCats() {
+  let html = navBar(backTo('home', 'Verhuur'), 'Kostensoorten', cats().length ? plus('newcat', 'Kostensoort toevoegen') : '') + '<main>' + lt('Kostensoorten', esc(house().name));
+  if (!cats().length) return html + noCats() + '</main>';
+  for (const [k, name] of Y.KINDS) {
+    const rows = cats().filter(c => c.kind === k);
+    if (rows.length) html += sec(name, `<div class="grp">${rows.map(c => `<button class="cell" data-a="cat" data-id="${esc(c.id)}"><span class="tx"><span class="tt"${c.active ? '' : ' style="color:var(--label3)"'}>${esc(c.name)}</span>${!c.active ? '<span class="st">Niet meer in gebruik</span>' : k !== 'booking' && k !== 'investment' && !c.own_share ? '<span class="st">Telt niet mee voor eigen gebruik</span>' : ''}</span>${ICON_CHEV}</button>`).join('')}</div>`,
+      k === 'booking' ? 'Deze komen uit de bedragen bij de boekingen.' : '');
+  }
+  html += `<div class="sec"><button class="btn sec" data-a="newcat">Kostensoort toevoegen</button></div>`;
+  return html + '</main>';
+}
+const catDraft = c => c ? { ...c } : { id: null, name: '', kind: 'other', from_booking: null, own_share: true, active: true };
+function vCat() {
+  const d = ui.draft, booking = d.kind === 'booking';
+  let h = navBar(`<button class="nb" data-a="cancel">Annuleer</button>`, d.id ? 'Kostensoort' : 'Nieuwe soort', `<button class="nb" data-a="savecat" style="font-weight:600">Bewaar</button>`) + '<main>';
+  h += sec('', `<div class="grp"><label class="cell field"><span class="fl">Naam</span><input type="text" id="k-name" value="${esc(d.name)}" maxlength="60"></label></div>`);
+  if (booking) h += sec('Soort', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">Per boeking: ${esc((Y.FROM_BOOKING.find(x => x[0] === d.from_booking) || [, ''])[1])}</span><span class="st">Komt uit de bedragen bij de boekingen</span></span></div></div>`);
+  else {
+    h += sec('Soort', `<div class="grp"><div class="cell stack">${quick(Y.KINDS.filter(([k]) => k !== 'booking'), d.kind, 'catkind')}</div></div>`, d.kind === 'investment' ? 'Investeringen (renovatie, nieuwe keuken) tellen niet mee in het jaarresultaat.' : '');
+    if (d.kind !== 'investment') h += sec('', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">Telt mee voor eigen gebruik</span><span class="st">Deel naar rato van de nachten</span></span><button class="toggle" role="switch" data-a="ownshare" aria-checked="${!!d.own_share}" aria-label="Telt mee voor eigen gebruik"></button></div></div>`);
+  }
+  if (d.id) h += sec('', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">In gebruik</span><span class="st">Uit: verdwijnt uit de keuzes, oude kosten blijven</span></span><button class="toggle" role="switch" data-a="catactive" aria-checked="${!!d.active}" aria-label="In gebruik"></button></div></div>`);
+  return h + '</main>';
+}
+function readCat() { const d = ui.draft, el = document.getElementById('k-name'); if (d && el) d.name = el.value; }
+async function saveCat() {
+  need();
+  const d = ui.draft; if (!d.name.trim()) throw new Error('Geef de soort een naam.');
+  const body = { name: d.name.trim(), own_share: d.kind === 'investment' ? false : !!d.own_share, active: !!d.active, ...(d.kind === 'booking' ? {} : { kind: d.kind }) };
+  const [row] = d.id ? await patch('rental_cost_categories', d.id, body) : await post('rental_cost_categories', { ...body, house_id: house().id, team_id: FAMILY, sort: Math.max(0, ...cats().map(c => c.sort)) + 1 });
+  upsertList('categories', row);
+}
+async function seedCats() {
+  need();
+  const h = house(), have = new Set(cats().map(c => c.name.toLowerCase()));
+  const rows = Y.DEFAULT_CATEGORIES.filter(c => !have.has(c.name.toLowerCase()) && !(c.from_booking && cats().some(x => x.from_booking === c.from_booking)))
+    .map(c => ({ ...c, house_id: h.id, team_id: FAMILY }));
+  if (!rows.length) return;
+  const saved = await post('rental_cost_categories', rows);
+  data.categories = [...(data.categories || []), ...saved]; persist();
+}
+
 /* ---------- algemeen ---------- */
-const VIEWS = { home: vHome, list: vList, booking: vBooking, edit: vEdit, decl: vDecl, house: vHouse, unpaid: vUnpaid };
+const VIEWS = { home: vHome, list: vList, booking: vBooking, edit: vEdit, decl: vDecl, house: vHouse, unpaid: vUnpaid, year: vYear, costs: vCosts, cost: vCost, budget: vBudget, cats: vCats, cat: vCat };
 function render() {
   const g = gate(), a = $('#app');
-  const adminOnly = ['edit', 'decl', 'house', 'unpaid'].includes(ui.view) && !isAdmin();
+  const adminOnly = ['edit', 'decl', 'house', 'unpaid', 'year', 'costs', 'cost', 'budget', 'cats', 'cat'].includes(ui.view) && !isAdmin();
   a.innerHTML = g ? navBar(hubLink()) + '<main>' + lt('Verhuur') + `<div class="card"><p>${g}</p></div></main>` : (VIEWS[adminOnly ? 'home' : ui.view] || vHome)();
   onScroll();
 }
@@ -398,14 +634,33 @@ addEventListener('scroll', onScroll, { passive: true });
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-a]'); if (!el || el.disabled) return;
   const a = el.dataset.a, v = ui.view;
-  if (v === 'edit') readDraft(); else if (v === 'house') readHouse();
+  if (v === 'edit') readDraft(); else if (v === 'house') readHouse(); else if (v === 'cost') readCost(); else if (v === 'budget') readBudget(); else if (v === 'cat') readCat();
   switch (a) {
     case 'go': go(el.dataset.v, { draft: null }); break;
     case 'pickhouse': ui.houseId = el.dataset.id; storage.set(APP, `${FAMILY}:house`, ui.houseId); render(); break;
     case 'booking': go('booking', { id: el.dataset.id, from: ['list', 'decl', 'unpaid'].includes(v) ? v : 'home' }); break;
     case 'new': go('edit', { draft: newDraft(), back: v }); break;
     case 'edit': go('edit', { draft: draftFrom(booking(ui.id)), back: 'booking' }); break;
-    case 'cancel': go(v === 'edit' ? (ui.back || 'home') : 'home', { draft: null }); break;
+    case 'cancel': go(v === 'edit' ? (ui.back || 'home') : v === 'cost' ? 'costs' : v === 'budget' ? (ui.from === 'year' ? 'year' : 'home') : v === 'cat' ? 'cats' : 'home', { draft: null }); break;
+    case 'toyear': go('year', { year: today().slice(0, 4) }); break;
+    case 'tocosts': go('costs', { year: today().slice(0, 4), cat: '', from: 'home' }); break;
+    case 'costsof': go('costs', { cat: el.dataset.id, from: 'year' }); break;
+    case 'catfilter': ui.cat = el.dataset.id; render(); break;
+    case 'newcost': go('cost', { draft: costDraft(null) }); break;
+    case 'cost': go('cost', { draft: costDraft((data.costs || []).find(c => c.id === el.dataset.id)) }); break;
+    case 'paid': ui.draft.paid = !ui.draft.paid; render(); break;
+    case 'savecost': run(el, async () => { await saveCost(); go('costs', { draft: null }); toast('Bewaard.'); }); break;
+    case 'delcost': if (confirm('Deze kosten verwijderen?')) run(el, async () => { need(); upsertList('costs', (await patch('rental_costs', ui.draft.id, { deleted: true }))[0]); go('costs', { draft: null }); toast('Verwijderd.'); }); break;
+    case 'tobudget': go('budget', { draft: budgetDraft(v === 'year' ? ui.year : today().slice(0, 4)), from: v }); break;
+    case 'copybudget': { const d = ui.draft; for (const b of Y.copyBudget(data.budgets || [], house().id, +d.year - 1, d.year)) d.values[b.category_id] = dec(b.amount); render(); break; }
+    case 'savebudget': run(el, async () => { await saveBudget(); go(ui.from === 'year' ? 'year' : 'home', { draft: null, year: ui.draft.year }); toast('Begroting bewaard.'); }); break;
+    case 'seedcats': run(el, async () => { await seedCats(); render(); toast('Kostensoorten aangemaakt.'); }); break;
+    case 'newcat': go('cat', { draft: catDraft(null) }); break;
+    case 'cat': go('cat', { draft: catDraft(catById(el.dataset.id)) }); break;
+    case 'catkind': ui.draft.kind = el.dataset.v; render(); break;
+    case 'ownshare': ui.draft.own_share = !ui.draft.own_share; render(); break;
+    case 'catactive': ui.draft.active = !ui.draft.active; render(); break;
+    case 'savecat': run(el, async () => { await saveCat(); go('cats', { draft: null }); toast('Bewaard.'); }); break;
     case 'source': {
       const d = ui.draft; d.source = el.dataset.v; d.tax_by = R.defaultTaxBy(d.source);
       if (d.source === 'own') d.status = 'booked';
@@ -463,6 +718,8 @@ document.addEventListener('input', ev => {
   readDraft(); if (ev.target.id === 'f-tourist_tax') ui.draft.taxTouched = true;
   const s = $('#sum'); if (s) s.innerHTML = summary();
 });
+// andere soort gekozen: opnieuw tekenen (verbruik vraagt ook om de hoeveelheid)
+document.addEventListener('change', ev => { if (ui.view === 'cost' && ev.target.id === 'c-category_id') { readCost(); render(); } });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
 addEventListener('online', () => load());
 
