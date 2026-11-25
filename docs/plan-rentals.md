@@ -274,12 +274,19 @@ de repository) en na controle in Supabase zet. Eerst een droge run met een samen
 3. Bedlinnen: vast bedrag per verblijf, per persoon of per set? Schoonmaak: vast bedrag?
 4. Moet de app bij een directe boeking ook iets doen in Lodgify (data blokkeren), of doe je dat zelf?
 5. Komen er later meer huizen bij (andere gemeente = andere regels)? Het model ondersteunt het al.
-6. Kostensoorten: alleen de gevraagde tien, of ook die uit de spreadsheet (internet, belastingen, verzekeringen, …)?
-7. Eigen gebruik: alleen directe kosten (schoonmaak, bedlinnen), of ook een deel van energie en vaste lasten naar
-   rato van de nachten?
-8. Verdiensten: is de dubbele btw op de makelaarscommissie een fout? Wat is de juiste berekening?
-9. Wat is "vaste kosten" per boeking (nu een vast bedrag, soms hoger)?
-10. Import: welke tabbladen, en gastnamen meenemen of niet? Leningen en projecten (hottub, zwembad, tuin) in de app?
+6. Wat is "vaste kosten" per boeking (nu een vast bedrag, soms hoger)?
+7. Commissie makelaar: waarschijnlijk één keer btw (zie Besluiten). Bevestigen met een paar facturen van de makelaar;
+   die worden aangeleverd en geïnventariseerd.
+8. Leningen en projecten (hottub, zwembad, tuin): in de app of niet?
+
+**Besluiten (25 nov 2026)**
+- Kostensoorten Bonhomme: de gevraagde tien, plus internet, verzekeringen, belastingen (taxe foncière, taxe
+  d'habitation, inkomstenbelasting), onderhoud (riool, ketelcontrole, schoorsteenveger) en **onvoorzien**
+  (incidentele reparaties, kapotte oven, enz.). **Investeringen/renovaties apart**, buiten het jaarresultaat.
+- Eigen gebruik: **directe kosten plus een deel van energie en vaste lasten naar rato van de nachten**.
+- Commissie makelaar: uitgangspunt **één keer btw**; definitief na controle van facturen.
+- Import: boekingen 2023–2026, begroting en facturen, inventaris, **met gastnamen** (alleen zichtbaar voor beheerders).
+  Alles wat geïmporteerd is, blijft in de app aan te passen.
 
 **Voor de régie (taxedesejour@kaysersberg.com)**
 1. Plafond voor niet-geclassificeerd in 2026: € 3,00 of € 4,60?
