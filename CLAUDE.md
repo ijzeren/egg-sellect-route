@@ -1,7 +1,7 @@
 # Thuis — werkafspraken
 
 Eén PWA voor gezinnen: een hub op `/` met apps eronder (`/eggs/` Egg-sellent, `/training/` Training, `/recipes/` Gerechten,
-`/agenda/` Agenda).
+`/agenda/` Agenda, `/finance/` Financiën).
 Geen build: GitHub Pages publiceert `main` zoals het is (elke push naar `main` gaat direct naar alle telefoons).
 Backend: Supabase (zie `supabase/`). Overzicht van bestanden: `README.md`.
 

@@ -8,7 +8,8 @@
 - **3.17.0 gebouwd**: **Gezondheid** (gewicht en stappen) via Opdrachten, voor iedereen die toestemming geeft (kinderen:
   eerst een beheerder); privé tenzij je deelt; zichtbaar in Training. Type `apple_health`, modus `ingest` met een
   persoonlijk token (gehasht op de server).
-- Later: Google Agenda (werkt al als agendalink, type `ical`), huiswerk uit Magister, boodschappen (docs/plan-groceries.md, 3.18+).
+- Later: Google Agenda (werkt al als agendalink, type `ical`), huiswerk uit Magister, boodschappen (docs/plan-groceries.md, 3.18+),
+  bankrekeningen via PSD2 (docs/plan-finance.md, type `bank`).
 
 **Zoals gebouwd (wijkt af van de eerste opzet hieronder)**
 - Eén Edge Function `integrations` (modi `cron`, `sync`, later `ingest`) in plaats van twee.

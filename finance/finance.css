@@ -1,0 +1,43 @@
+/* Financiën — bovenop shared/theme.css en shared/ui.css. Eigen accentkleur: groen. */
+body{--tint:var(--green)}
+.card{background:var(--cell);border-radius:12px;padding:16px;margin:12px 0}
+.card h2{font-size:1.06rem;font-weight:700;margin:0 0 4px}
+.card p+p{margin-top:6px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chips::-webkit-scrollbar{display:none}
+.chips button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:99px;background:var(--cell);font-weight:500;white-space:nowrap;color:var(--label);max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.chips button[aria-pressed=true]{background:var(--tint);color:var(--on-tint)}
+.pager{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin:4px 0 10px}
+.pager .nb{font-size:1.8rem;font-weight:300}
+.pager .nb:disabled{opacity:.25}
+.pager .lbl{display:flex;flex-direction:column;align-items:center;min-height:44px;justify-content:center}
+.pager .lbl span{font-size:.82rem;color:var(--label2)}
+/* bij / af / over: drie vakjes naast elkaar, ook op 320 px (hele euro's) */
+.tot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tot>div{background:var(--cell);border-radius:12px;padding:10px 10px 12px;min-width:0}
+.tot span{display:block;font-size:.765rem;color:var(--label2);text-transform:uppercase;letter-spacing:.02em}
+.tot b{display:block;font-size:1rem;margin-top:4px;overflow-wrap:anywhere}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt.pos{color:var(--green)}
+.cell .tr .amt{color:var(--label)}
+.cell .tr .amt.pos{color:var(--green)}
+.open{color:var(--orange);font-weight:500}
+.late{color:var(--red);font-weight:600}
+.banner.orange{background:var(--orange-s)}
+.sec-h.wk{margin-top:18px}
+.days>.sec-h:first-child{margin-top:6px}
+.search input{width:100%;min-height:40px;border:0;border-radius:10px;background:var(--fill);padding:8px 12px;font-size:1rem;color:var(--label);-webkit-appearance:none;appearance:none}
+.search{margin:2px 0 8px}
+.hero{text-align:center;padding:18px 8px 6px}
+.hero>.amt{font-size:2rem;font-weight:700;white-space:normal;overflow-wrap:anywhere}
+.hero .tt{font-size:1.1rem;font-weight:600;margin-top:6px;overflow-wrap:anywhere}
+.hero .small{margin-top:4px}
+.cell.field .fl{width:4.6rem}
+.cell.field select{text-align:right;color:var(--label2);text-overflow:ellipsis}
+.cell.stack input[type=text]{min-height:40px;border:0;border-radius:9px;background:var(--fill);padding:8px 10px;font-size:1rem;color:var(--label)}
+.cell.stack .row{gap:8px}
+select.sel{border:0;background:var(--fill);border-radius:9px;font:inherit;color:var(--label);padding:8px 10px;min-height:40px;-webkit-appearance:none;appearance:none}
+.filebtn{position:relative;overflow:hidden;margin-top:8px}
+.filebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.article ol{margin:0 0 8px}

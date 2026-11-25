@@ -377,3 +377,17 @@ Geen databasewijziging. Wel de functie opnieuw uitrollen, **vóór** de push (de
 De opdracht mag nu per soort een eigen datum meesturen (`weight_date`, `steps_date`, ook `gewicht_datum`/`weightDate`;
 ISO 8601 mag). Een leeg veld (geen meting in Gezondheid) is geen fout meer. Het antwoord noemt de datum per meting,
 en bij "Geen getal gevonden" ook wat er binnenkwam (alleen in het antwoord aan de telefoon, niet in de database).
+
+## Update naar Financiën (v3.19.0)
+Doe dit **vóór** je v3.19.0 pusht:
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `finance_accounts`, `finance_transactions`,
+   `finance_categories`, `finance_rules`, de functies `finance_can_see` en `finance_setup`, en een trigger op
+   `team_members` (wie het gezin verlaat, neemt zijn rekeningen mee). Er verandert niets aan bestaande tabellen of
+   gegevens. Controle: `select count(*) from finance_accounts;` → 0.
+2. Na de push: een beheerder zet **Financiën** aan bij Gezin → Apps. Bij de eerste keer openen maakt de app de
+   standaardsoorten aan (`finance_setup`).
+
+Privacy: een rekening ziet alleen de eigenaar, tenzij die hem deelt met de beheerders van het gezin (`shared`).
+Het rekeningnummer staat er niet in, alleen de laatste 4 tekens en een sha256-hash van gezin + IBAN. Hoofdbeheer
+(`platform_*`) ziet niets van Financiën.

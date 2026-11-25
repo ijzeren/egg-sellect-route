@@ -1391,6 +1391,216 @@ end $$;
 drop trigger if exists health_member_left on public.team_members;
 create trigger health_member_left after delete on public.team_members for each row execute function public.health_member_left();
 
+-- ---------- Financiën: bankrekeningen en transacties (Thuis, v3.19) ----------
+-- Fase 1: een export uit de bank (Rabobank CSV of CAMT.053) inlezen; later ook ophalen via PSD2 (docs/plan-finance.md).
+-- Strenger dan andere apps:
+-- - een rekening heeft een eigenaar (user_id); alleen de eigenaar ziet hem, tenzij die hem deelt (shared) met de
+--   beheerders van het gezin. Leden en kinderen zien nooit de rekening van een ander.
+-- - het rekeningnummer staat er niet leesbaar in: alleen de laatste 4 tekens en een hash (sha256 van gezin + IBAN),
+--   om dezelfde rekening te herkennen. Ook van de tegenrekening bewaren we alleen een hash (eigen overboekingen herkennen).
+-- - verwijderen van een rekening wist alle transacties; wie het gezin verlaat, neemt zijn rekeningen mee (gewist).
+-- - soorten (categorieën) en regels zijn van het gezin: iedereen met Financiën gebruikt dezelfde indeling.
+create table if not exists public.finance_accounts (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 40),
+  kind text not null default 'current' check (kind in ('current', 'savings')),
+  iban_last4 text not null default '' check (iban_last4 ~ '^[A-Z0-9]{0,4}$'),
+  iban_hash text not null check (iban_hash ~ '^[0-9a-f]{64}$'),
+  currency text not null default 'EUR' check (currency ~ '^[A-Z]{3}$'),
+  shared boolean not null default false,
+  balance numeric(14, 2),
+  balance_on date,
+  imported_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (team_id, iban_hash)
+);
+create table if not exists public.finance_categories (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 40),
+  grp text not null default 'other' check (grp in ('income', 'fixed', 'household', 'transport', 'leisure', 'savings', 'other')),
+  icon text not null default '' check (length(icon) <= 8),
+  sort int not null default 0,
+  deleted boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+create index if not exists finance_categories_team on public.finance_categories(team_id);
+create table if not exists public.finance_rules (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  field text not null default 'counterparty' check (field in ('counterparty', 'description')),
+  pattern text not null check (length(trim(pattern)) between 2 and 80),
+  direction text not null default '' check (direction in ('', 'in', 'out')),
+  category_id uuid not null references public.finance_categories(id) on delete cascade,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists finance_rules_team on public.finance_rules(team_id);
+-- ext_id: uniek per rekening (Rabobank CSV: volgnummer; CAMT.053: referentie van de bank, anders een hash van de regel).
+-- Opnieuw inlezen voegt alleen nieuwe regels toe en laat een gekozen soort staan.
+-- category_by: '' = niet ingedeeld, 'rule' = door een regel, 'manual' = zelf gekozen (regels blijven daar af).
+-- excluded: telt niet mee in de totalen (overboeking tussen eigen rekeningen, of zelf uitgezet).
+create table if not exists public.finance_transactions (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  account_id uuid not null references public.finance_accounts(id) on delete cascade,
+  ext_id text not null check (length(ext_id) between 1 and 120),
+  booked_on date not null,
+  amount numeric(14, 2) not null,
+  currency text not null default 'EUR' check (currency ~ '^[A-Z]{3}$'),
+  counterparty text not null default '' check (length(counterparty) <= 140),
+  counterparty_hash text not null default '' check (counterparty_hash ~ '^([0-9a-f]{64})?$'),
+  description text not null default '' check (length(description) <= 500),
+  code text not null default '' check (length(code) <= 20),
+  balance_after numeric(14, 2),
+  category_id uuid references public.finance_categories(id) on delete set null,
+  category_by text not null default '' check (category_by in ('', 'rule', 'manual')),
+  excluded boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (account_id, ext_id)
+);
+create index if not exists finance_transactions_account on public.finance_transactions(account_id, booked_on);
+create index if not exists finance_transactions_team on public.finance_transactions(team_id, booked_on);
+
+-- Mag de ingelogde gebruiker deze rekening zien (en er transacties van inlezen en indelen)?
+create or replace function public.finance_can_see(p_account uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from finance_accounts a where a.id = p_account and public.has_app(a.team_id, 'finance')
+    and (a.user_id = auth.uid() or (a.shared and public.is_admin(a.team_id))));
+$$;
+revoke all on function public.finance_can_see(uuid) from public, anon;
+grant execute on function public.finance_can_see(uuid) to authenticated;
+
+create or replace function public.finance_touch() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+-- Rekening: eigenaar, naam, soort en delen wijzigt alleen de eigenaar; wie meekijkt, mag alleen het saldo bijwerken (inlezen).
+create or replace function public.finance_accounts_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then
+    new.team_id := old.team_id; new.iban_hash := old.iban_hash; new.iban_last4 := old.iban_last4; new.created_at := old.created_at;
+    if auth.uid() is not null and old.user_id <> auth.uid()
+      and (new.user_id <> old.user_id or new.name <> old.name or new.kind <> old.kind or new.shared <> old.shared) then
+      raise exception 'Alleen de eigenaar van de rekening kan dit wijzigen';
+    end if;
+    new.user_id := old.user_id;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists finance_accounts_guard on public.finance_accounts;
+create trigger finance_accounts_guard before insert or update on public.finance_accounts for each row execute function public.finance_accounts_guard();
+-- Transactie: gezin altijd dat van de rekening; bedrag, datum en omschrijving komen uit de bank en veranderen niet.
+create or replace function public.finance_transactions_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then
+    new.account_id := old.account_id; new.ext_id := old.ext_id; new.booked_on := old.booked_on; new.amount := old.amount;
+    new.currency := old.currency; new.counterparty := old.counterparty; new.counterparty_hash := old.counterparty_hash;
+    new.description := old.description; new.code := old.code; new.balance_after := old.balance_after; new.created_at := old.created_at;
+  end if;
+  select a.team_id into new.team_id from public.finance_accounts a where a.id = new.account_id;
+  if new.category_id is not null and not exists (select 1 from public.finance_categories c where c.id = new.category_id and c.team_id = new.team_id) then
+    raise exception 'Onbekende soort';
+  end if;
+  if new.category_id is null then new.category_by := ''; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists finance_transactions_guard on public.finance_transactions;
+create trigger finance_transactions_guard before insert or update on public.finance_transactions for each row execute function public.finance_transactions_guard();
+create or replace function public.finance_rules_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; end if;
+  if not exists (select 1 from public.finance_categories c where c.id = new.category_id and c.team_id = new.team_id) then
+    raise exception 'Onbekende soort';
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists finance_rules_guard on public.finance_rules;
+create trigger finance_rules_guard before insert or update on public.finance_rules for each row execute function public.finance_rules_guard();
+drop trigger if exists finance_touch on public.finance_categories;
+create trigger finance_touch before insert or update on public.finance_categories for each row execute function public.finance_touch();
+
+alter table public.finance_accounts enable row level security;
+alter table public.finance_transactions enable row level security;
+alter table public.finance_categories enable row level security;
+alter table public.finance_rules enable row level security;
+drop policy if exists finance_accounts_read on public.finance_accounts;
+-- Rechtstreeks op de kolommen (niet via finance_can_see): zo ziet een insert … returning zijn eigen nieuwe rij.
+create policy finance_accounts_read on public.finance_accounts for select to authenticated
+  using (public.has_app(team_id, 'finance') and (user_id = auth.uid() or (shared and public.is_admin(team_id))));
+drop policy if exists finance_accounts_insert on public.finance_accounts;
+create policy finance_accounts_insert on public.finance_accounts for insert to authenticated
+  with check (user_id = auth.uid() and public.has_app(team_id, 'finance'));
+drop policy if exists finance_accounts_update on public.finance_accounts;
+create policy finance_accounts_update on public.finance_accounts for update to authenticated
+  using (public.has_app(team_id, 'finance') and (user_id = auth.uid() or (shared and public.is_admin(team_id)))) with check (public.has_app(team_id, 'finance'));
+drop policy if exists finance_accounts_delete on public.finance_accounts;
+create policy finance_accounts_delete on public.finance_accounts for delete to authenticated
+  using (user_id = auth.uid() and public.has_app(team_id, 'finance'));
+drop policy if exists finance_transactions_rw on public.finance_transactions;
+create policy finance_transactions_rw on public.finance_transactions for all to authenticated
+  using (public.finance_can_see(account_id)) with check (public.finance_can_see(account_id));
+do $$
+declare t text;
+begin
+  foreach t in array array['finance_categories', 'finance_rules'] loop
+    execute format('drop policy if exists team_data on public.%I', t);
+    execute format('create policy team_data on public.%I for all to authenticated using (public.has_app(team_id, ''finance'')) with check (public.has_app(team_id, ''finance''))', t);
+  end loop;
+  foreach t in array array['finance_accounts', 'finance_transactions', 'finance_categories', 'finance_rules'] loop
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+
+-- Standaardsoorten voor een gezin dat Financiën voor het eerst opent (alleen als er nog geen soorten zijn).
+create or replace function public.finance_setup(p_team uuid)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.has_app(p_team, 'finance') then raise exception 'Financiën staat niet aan voor jou'; end if;
+  perform pg_advisory_xact_lock(hashtext('finance_setup:' || p_team::text));
+  if exists (select 1 from finance_categories where team_id = p_team) then return 0; end if;
+  insert into finance_categories(team_id, grp, icon, name, sort)
+  select p_team, x.grp, x.icon, x.name, x.sort from (values
+    ('income', '💶', 'Salaris', 10), ('income', '🏛️', 'Toeslagen en teruggave', 11), ('income', '🏡', 'Verhuur', 12), ('income', '➕', 'Overig inkomen', 13),
+    ('fixed', '🏠', 'Wonen', 20), ('fixed', '⚡', 'Energie en water', 21), ('fixed', '🛡️', 'Verzekeringen', 22), ('fixed', '📱', 'Telefoon en internet', 23),
+    ('fixed', '🔁', 'Abonnementen', 24), ('fixed', '🧾', 'Belastingen', 25), ('fixed', '🎒', 'School en opvang', 26),
+    ('household', '🛒', 'Boodschappen', 30), ('household', '💊', 'Drogist en zorg', 31), ('household', '👕', 'Kleding', 32), ('household', '🔨', 'Huis en tuin', 33),
+    ('transport', '🚗', 'Auto en brandstof', 40), ('transport', '🚆', 'OV en parkeren', 41),
+    ('leisure', '🍽️', 'Uit eten en afhalen', 50), ('leisure', '✈️', 'Uitjes en vakantie', 51), ('leisure', '⚽', 'Sport en hobby', 52), ('leisure', '🎁', 'Cadeaus', 53),
+    ('savings', '🐷', 'Sparen en beleggen', 60),
+    ('other', '🏧', 'Geld opnemen', 70), ('other', '❔', 'Overig', 71)
+  ) as x(grp, icon, name, sort);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.finance_setup(uuid) from public, anon;
+grant execute on function public.finance_setup(uuid) to authenticated;
+
+-- Wie het gezin verlaat (of verwijderd wordt): zijn of haar rekeningen in dat gezin gaan weg, met alle transacties.
+create or replace function public.finance_member_left() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from finance_accounts where team_id = old.team_id and user_id = old.user_id;
+  return old;
+end $$;
+drop trigger if exists finance_member_left on public.team_members;
+create trigger finance_member_left after delete on public.team_members for each row execute function public.finance_member_left();
+
 -- ---------- Rechten voor de server (service role) ----------
 -- De Edge Functions (push, integrations) werken met de service role. In productie kreeg die rol geen rechten op
 -- tabellen in public (gezien op 22 nov 2026: "permission denied for table push_subscriptions/integrations"). De

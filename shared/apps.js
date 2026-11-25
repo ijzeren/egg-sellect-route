@@ -109,4 +109,18 @@ export const APPS = [
       return { line, sub: [plural(items.length, 'afspraak', 'afspraken') + ' vandaag', hw].filter(Boolean).join(' · '), today: !!next };
     },
   },
+  {
+    id: 'finance',
+    name: 'Financiën',
+    route: 'finance/',
+    icon: '💶',
+    about: 'Bij- en afschrijvingen van je bankrekeningen, vanzelf ingedeeld. Alleen jij ziet je rekening, tenzij je hem deelt.',
+    // Uit de samenvatting op de telefoon (finance/app.js). Bewust zonder bedragen op het startscherm.
+    status({ account, storage }) {
+      const t = account && account.teamId ? storage.get('finance', `${account.teamId}:tile`) : null;
+      if (!t || !t.accounts) return { line: 'Lees een export van je bank in', sub: 'Rabobank CSV of CAMT.053' };
+      const sub = t.imported ? `Laatst ingelezen ${short(t.imported.slice(0, 10))}` : '';
+      return t.open ? { line: `${plural(t.open, 'transactie', 'transacties')} nog in te delen`, sub } : { line: 'Alles ingedeeld', sub };
+    },
+  },
 ];

@@ -319,6 +319,50 @@ De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeur
 <p>Aan de deur: kies je een aantal eieren (of <b>Zoals afgesproken</b>), dan vraagt de app <b>Afrekenen in SumUp?</b> met het aantal en de doosjes (bijvoorbeeld 16 eieren: 1×10 + 1×6). Tik je op <b>Open SumUp</b>, dan opent SumUp. Het bedrag en de artikelen kies je in SumUp; daar staan de prijzen. Daarna ga je zelf terug naar Egg-sellent. Later afrekenen kan met de knop <b>Afrekenen in SumUp</b> bij het huis.</p>
 <p>Gaat SumUp niet open? Dan meldt de app dat. Controleer of de SumUp-app op de telefoon staat. Egg-sellent houdt niet bij of er betaald is; dat zie je in SumUp.</p>`,
   },
+  {
+    slug: 'financien-inlezen', app: 'finance', title: 'Financiën: transacties van je bank inlezen', updated: '2026-11-25', version: '3.19.0',
+    body: `<p>Financiën haalt (nog) niet zelf je transacties op bij de bank. Je downloadt ze één keer als bestand en leest dat in. Daarna kun je af en toe een nieuw bestand inlezen.</p>
+<h3>Rabobank</h3>
+<ol><li>Log in bij <b>Rabo Online Bankieren</b>, het liefst op de computer. In de Rabo-app kan downloaden niet altijd.</li>
+<li>Zoek in het menu <b>Downloaden transacties</b>.</li>
+<li>Kies de rekening(en). Meerdere rekeningen in één bestand kan, ook je spaarrekening.</li>
+<li>Kies de periode, bijvoorbeeld vanaf 1 januari, en het formaat <b>CSV</b>.</li>
+<li>Open in Thuis <b>Financiën → Bestand inlezen</b> en kies het bestand. Controleer de naam van een nieuwe rekening en tik op <b>Inlezen</b>.</li></ol>
+<h3>Andere banken</h3>
+<p>Kies bij je bank het formaat <b>CAMT.053</b> (soms "XML" of "afschrift"). Bijna elke Nederlandse bank heeft dat.</p>
+<h3>Goed om te weten</h3>
+<ul><li>Hetzelfde bestand of een overlappende periode opnieuw inlezen kan geen kwaad: wat er al staat, slaat de app over. Een soort die je zelf hebt gekozen, blijft staan.</li>
+<li>Een overboeking tussen twee rekeningen die je allebei hebt ingelezen, telt niet mee in de totalen. Die vind je onder <b>Telt niet mee</b>.</li>
+<li>Creditcards en pdf-afschriften kunnen (nog) niet.</li>
+<li>Het rekeningnummer zelf bewaart de app niet, alleen de laatste 4 tekens.</li></ul>`,
+  },
+  {
+    slug: 'financien-indelen', app: 'finance', title: 'Financiën: soorten, regels en vaste lasten', updated: '2026-11-25', version: '3.19.0',
+    body: `<p>Elke transactie krijgt een <b>soort</b>, zoals Boodschappen of Energie en water. Zo zie je per maand waar het geld heen gaat.</p>
+<h3>Zelf indelen</h3>
+<ol><li>Tik op het overzicht op <b>nog niet ingedeeld</b>.</li><li>Tik op een transactie en kies de soort.</li>
+<li>Komt deze winkel of partij vaker terug? Tik op <b>Altijd zo indelen</b>. Dat maakt een regel.</li></ol>
+<h3>Regels</h3>
+<ul><li>Een regel zegt bijvoorbeeld: als de naam "Albert Heijn" bevat, dan is het Boodschappen. Je kunt kiezen voor alleen afschrijvingen of alleen bijschrijvingen.</li>
+<li>Regels werken voor alles wat er al staat en voor alles wat je later inleest.</li>
+<li>Passen er twee regels? Dan wint de regel met de langste tekst.</li>
+<li>Kies je zelf een soort bij een transactie, dan blijft die staan. Regels veranderen dat niet meer.</li>
+<li>Regels en soorten zijn van het hele gezin. Iedereen met Financiën deelt dezelfde indeling.</li></ul>
+<h3>Vaste lasten</h3>
+<p>De app zoekt zelf naar afschrijvingen die elke maand terugkomen, met ongeveer hetzelfde bedrag (minstens 3 van de laatste 6 maanden). Je ziet rond welke dag ze komen en wanneer de volgende verwacht wordt.</p>
+<h3>Telt niet mee</h3>
+<p>Een terugbetaling of een overboeking naar je eigen spaarrekening is geen uitgave. Zet bij die transactie <b>Telt mee in de totalen</b> uit.</p>`,
+  },
+  {
+    slug: 'financien-privacy', app: 'finance', title: 'Financiën: wie ziet mijn bankgegevens?', updated: '2026-11-25', version: '3.19.0',
+    body: `<ul><li><b>Alleen jij</b> ziet een rekening die jij inleest. Ook de beheerders van het gezin zien hem niet.</li>
+<li>Je kunt een rekening <b>delen met de beheerders</b> van het gezin, bijvoorbeeld de gezamenlijke rekening. Ga naar <b>Rekeningen</b>, tik op de rekening en zet <b>Delen met de beheerders</b> aan. Zij zien dan alle transacties van die rekening en kunnen ze ook inlezen en indelen.</li>
+<li><b>Leden en kinderen</b> zien nooit de rekening van een ander.</li>
+<li>De beheerder van de app (hoofdbeheer) ziet geen bankgegevens van gezinnen.</li>
+<li>Het rekeningnummer zelf staat niet in de app, alleen de laatste 4 tekens.</li>
+<li>Heeft iemand anders in het gezin dezelfde rekening al ingelezen? Dan kun jij hem niet nog een keer toevoegen. Vraag diegene om hem te delen.</li>
+<li><b>Rekening verwijderen</b> wist alle transacties van die rekening. Verlaat je het gezin, dan worden jouw rekeningen in dat gezin ook gewist.</li></ul>`,
+  },
 ];
 
 export const kbBySlug = slug => KB.find(a => a.slug === slug);

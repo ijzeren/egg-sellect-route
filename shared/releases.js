@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.19.0', date: '2026-11-25', title: 'Nieuwe app: Financiën',
+    notes: [
+      { app: 'finance', text: 'Nieuw: Financiën. Download je transacties in Rabo Online Bankieren als CSV en lees ze in. Je ziet per maand wat er binnenkwam en wat eruit ging, per soort: boodschappen, energie, verzekeringen en zo verder.', kb: 'financien-inlezen' },
+      { app: 'finance', text: 'Regels delen vanzelf in: kies bij een transactie een soort en tik op Altijd zo indelen. Vaste lasten herkent de app zelf.', kb: 'financien-indelen' },
+      { app: 'finance', text: 'Een rekening die jij inleest, ziet alleen jij. Je kunt hem delen met de beheerders van het gezin, bijvoorbeeld de gezamenlijke rekening. Leden en kinderen zien nooit de rekening van een ander.', kb: 'financien-privacy' },
+      { app: 'hub', text: 'Een beheerder zet Financiën aan bij Gezin → Apps.' },
+    ],
+  },
+  {
     version: '3.18.0', date: '2026-11-24', title: 'Pilates: uitleg met voorbeeld en een stem',
     notes: [
       { app: 'training', text: 'Nieuw bij Pilates: bij elke oefening een bewegend voorbeeld en uitleg stap voor stap. Hoe kom je in de beginhouding, waar voel je het, waar let je op en wat is een makkelijkere variant.', kb: 'pilates-beginnen' },

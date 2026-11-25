@@ -10,6 +10,7 @@ De huis-gezinsapp (voorheen "familie-app"). De apps van het gezin onder één ic
 | `/training/` | **Training** — Pilates 30 (30 lessen) en Bio-circuit (30 min op de toestellen, gewicht per toestel), op je vaste trainingsdagen, samen of apart |
 | `/recipes/` | **Gerechten** — recepten van het gezin met bereidingsschema, sterren per lid en een gezondheidsscore |
 | `/agenda/` | **Agenda** — schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen |
+| `/finance/` | **Financiën** — bij- en afschrijvingen van de eigen bankrekeningen (export uit de bank), ingedeeld per soort; privé per rekening |
 
 Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beheerder, lid, kind); aansluiten gaat
 met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
@@ -49,6 +50,7 @@ Engels, schermteksten in het Nederlands.
 | `scripts/recipe-scores.mjs`, `docs/recipe-scores.md` | de Assistent: geplande routine die gerechten een gezondheidsscore geeft |
 | `scripts/recipe-enrich.mjs`, `docs/recipe-enrich.md` | de Assistent: geplande routine die geïmporteerde gerechten afmaakt (stappen, tijden) |
 | `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
+| `finance/` | Financiën: `app.js` (schermen, inlezen, opslaan), `import.js` (Rabobank CSV en CAMT.053 lezen; testbaar), `money.js` (overzicht, regels, vaste lasten; testbaar). Plan: `docs/plan-finance.md` |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
 | `manifest.webmanifest`, `icon-*.png` | naam en icoon op het beginscherm |
