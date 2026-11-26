@@ -205,3 +205,24 @@ export async function ibanHash(team, iban) {
   const buf = await crypto.subtle.digest('SHA-256', data);
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+// Ontdubbelen. Nieuw is een rij als (1) zijn sleutel er nog niet is en (2) er geen rij uit een andere bron is
+// (export "rabo:"/"camt:" tegenover bank "eb:") met dezelfde datum en hetzelfde bedrag die nog niet "gebruikt" is.
+// Zelfde code in supabase/functions/integrations/bank.mjs (tests/bank.test.mjs controleert dat ze hetzelfde doen).
+export function dropKnown(rows, existing) {
+  const src = id => String(id).split(':')[0];
+  const have = new Set((existing || []).map(e => e.ext_id));
+  const pool = new Map();
+  for (const e of existing || []) { const k = `${src(e.ext_id)}|${e.booked_on}|${Math.round(Number(e.amount) * 100)}`; pool.set(k, (pool.get(k) || 0) + 1); }
+  const srcs = [...new Set((existing || []).map(e => src(e.ext_id)))];
+  return (rows || []).filter(r => {
+    if (have.has(r.ext_id)) return false;
+    const c = Math.round(Number(r.amount) * 100);
+    for (const s of srcs) {
+      if (s === src(r.ext_id)) continue;
+      const k = `${s}|${r.booked_on}|${c}`;
+      if (pool.get(k) > 0) { pool.set(k, pool.get(k) - 1); return false; }
+    }
+    return true;
+  });
+}

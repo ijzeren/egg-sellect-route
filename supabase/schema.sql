@@ -1096,7 +1096,7 @@ create table if not exists public.integrations (
   updated_at timestamptz not null default now()
 );
 alter table public.integrations drop constraint if exists integrations_type_check;
-alter table public.integrations add constraint integrations_type_check check (type in ('ical', 'apple_health'));
+alter table public.integrations add constraint integrations_type_check check (type in ('ical', 'apple_health', 'bank'));
 create index if not exists integrations_team on public.integrations(team_id);
 alter table public.integrations enable row level security;
 -- Zien: leden van het gezin die de app mogen gebruiken waar de koppeling in uitkomt (agendalinks: Agenda). Wijzigen alleen via de functies hieronder.
@@ -1106,6 +1106,8 @@ create policy integrations_read on public.integrations for select to authenticat
     when 'ical' then public.has_app(team_id, 'agenda')
     -- gezondheid: alleen je eigen, of van wie het zelf deelt met het gezin (en dan alleen voor wie Training gebruikt)
     when 'apple_health' then user_id = auth.uid() or (coalesce((config->>'share')::boolean, false) and public.has_app(team_id, 'training'))
+    -- bankkoppeling (Financiën, v3.22): alleen wie hem heeft gemaakt
+    when 'bank' then user_id = auth.uid() and public.has_app(team_id, 'finance')
     else false end);
 revoke all on public.integrations from anon;
 grant select on public.integrations to authenticated;
@@ -1483,11 +1485,26 @@ begin
   return new;
 end $$;
 -- Rekening: eigenaar, naam, soort en delen wijzigt alleen de eigenaar; wie meekijkt, mag alleen het saldo bijwerken (inlezen).
+-- Bankkoppeling (v3.22): welke rekening komt binnen via Enable Banking. finance_bank_accounts is alleen voor de server
+-- (uid van de rekening bij Enable Banking, geldig zolang de sessie loopt); de sessie zelf staat in integration_secrets.
+alter table public.finance_accounts add column if not exists integration_id uuid references public.integrations(id) on delete set null;
+create table if not exists public.finance_bank_accounts (
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  account_id uuid not null references public.finance_accounts(id) on delete cascade,
+  uid text not null check (length(uid) between 1 and 100),
+  primary key (integration_id, uid)
+);
+create index if not exists finance_bank_accounts_account on public.finance_bank_accounts(account_id);
+alter table public.finance_bank_accounts enable row level security;
+revoke all on public.finance_bank_accounts from anon, authenticated;
+
 create or replace function public.finance_accounts_guard() returns trigger
 language plpgsql as $$
 begin
   if tg_op = 'UPDATE' then
     new.team_id := old.team_id; new.iban_hash := old.iban_hash; new.iban_last4 := old.iban_last4; new.created_at := old.created_at;
+    -- de bankkoppeling zet alleen de server (service role, zonder gebruiker)
+    if auth.uid() is not null then new.integration_id := old.integration_id; end if;
     if auth.uid() is not null and old.user_id <> auth.uid()
       and (new.user_id <> old.user_id or new.name <> old.name or new.kind <> old.kind or new.shared <> old.shared) then
       raise exception 'Alleen de eigenaar van de rekening kan dit wijzigen';
@@ -1595,6 +1612,8 @@ grant execute on function public.finance_setup(uuid) to authenticated;
 create or replace function public.finance_member_left() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  -- bankkoppeling stopt (de toestemming bij de bank verloopt vanzelf; intrekken kan alleen de server)
+  delete from integrations where team_id = old.team_id and user_id = old.user_id and type = 'bank';
   delete from finance_accounts where team_id = old.team_id and user_id = old.user_id;
   return old;
 end $$;

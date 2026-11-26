@@ -120,7 +120,8 @@ export const APPS = [
     status({ account, storage }) {
       const t = account && account.teamId ? storage.get('finance', `${account.teamId}:tile`) : null;
       if (!t || !t.accounts) return { line: 'Lees een export van je bank in', sub: 'Rabobank CSV of CAMT.053' };
-      const sub = t.imported ? `Laatst ingelezen ${short(t.imported.slice(0, 10))}` : '';
+      const sub = t.imported ? `${t.bank === 'ok' ? 'Laatst bijgewerkt' : 'Laatst ingelezen'} ${short(t.imported.slice(0, 10))}` : '';
+      if (t.bank === 'renew') return { line: 'Bankkoppeling vernieuwen', sub, today: true };
       return t.open ? { line: `${plural(t.open, 'transactie', 'transacties')} nog in te delen`, sub } : { line: 'Alles ingedeeld', sub };
     },
   },

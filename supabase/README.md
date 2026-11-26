@@ -392,6 +392,31 @@ Privacy: een rekening ziet alleen de eigenaar, tenzij die hem deelt met de behee
 Het rekeningnummer staat er niet in, alleen de laatste 4 tekens en een sha256-hash van gezin + IBAN. Hoofdbeheer
 (`platform_*`) ziet niets van Financiën.
 
+## Rabobank koppelen in Financiën (v3.23.0)
+In deze volgorde. Stap 1 en 3 doet de eigenaar zelf (account en privésleutel).
+
+1. **Enable Banking** (https://enablebanking.com, Control Panel): account maken, een **productie**-app registreren
+   (sleutelpaar laten maken, de `.pem` bewaren, nooit in de repository), als redirect-adres
+   `https://ijzeren.github.io/egg-sellect-route/finance/` toevoegen, en **Activate by linking accounts** met de eigen
+   Rabobank-rekeningen (beperkte modus). Controleer daar dat de beperkte modus niets kost ("Restriction of Use" in de
+   voorwaarden); kost het iets, stop dan hier (besluit 25 nov 2026: dan blijft het bij inlezen).
+2. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: type `bank` in `integrations` (alleen zichtbaar
+   voor wie hem maakte), kolom `finance_accounts.integration_id` (alleen de server zet hem), tabel
+   `finance_bank_accounts` (alleen de server), en `finance_member_left` wist ook de bankkoppeling.
+3. **Secrets** (terminal, in deze map; vul het app-id en het pad naar de `.pem` in):
+   ```bash
+   npx supabase secrets set --project-ref istqegonfkfrkyddfajd EB_APP_ID=<app-id> EB_TEAM_IDS=<team-id van het gezin> EB_REDIRECT_URLS=https://ijzeren.github.io/egg-sellect-route/finance/
+   npx supabase secrets set --project-ref istqegonfkfrkyddfajd EB_PRIVATE_KEY="$(cat <pad-naar-sleutel.pem>)"
+   ```
+4. **Functie**: `npx supabase functions deploy integrations --project-ref istqegonfkfrkyddfajd` (de cron in
+   `cron.sql` roept hem al elk half uur aan; de bank komt één keer per 20 uur aan de beurt).
+5. Pushen. Daarna in de app: Financiën → Rekeningen → **Rabobank-rekening koppelen**.
+
+Lokaal getest (25 nov 2026) met een nepbank: `node scripts/mock-enablebanking.mjs <map>` en
+`npx supabase functions serve integrations --no-verify-jwt --env-file <map>/functions.env`: koppelen, terug van de bank,
+weigeren, vernieuwen (oude sessie dicht), nu bijwerken, 's nachts ophalen (één keer), ontkoppelen, waarschuwing bij
+verlopen. Rechten: `scripts/test-bank.mjs` (11 controles). Schema twee keer achter elkaar.
+
 ## Verhuur: kosten, begroting en jaaroverzicht (v3.22.0)
 Doe dit **vóór** je v3.22.0 pusht (anders geeft Verhuur een fout bij het laden):
 

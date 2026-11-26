@@ -10,6 +10,15 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.23.0', date: '2026-11-26', title: 'Rabobank koppelen in Financiën',
+    notes: [
+      { app: 'finance', text: 'Koppel je Rabobank-rekening: nieuwe transacties komen dan elke nacht vanzelf binnen, met het saldo. Geen export meer nodig.', kb: 'financien-bank' },
+      { app: 'finance', text: 'De toestemming bij de bank geldt 180 dagen. Twee weken ervoor vraagt de app je om te vernieuwen.', kb: 'financien-bank' },
+      { app: 'finance', text: 'Lees je daarna toch nog een export in, dan slaat de app over wat de bank al bracht (en andersom).', kb: 'financien-inlezen' },
+      { app: 'hub', text: 'Rabobank koppelen kan voorlopig alleen in ons eigen gezin. Inlezen van een export kan iedereen.' },
+    ],
+  },
+  {
     version: '3.22.0', date: '2026-11-25', title: 'Verhuur: kosten, begroting en jaaroverzicht',
     notes: [
       { app: 'rentals', text: 'Nieuw in Verhuur: Jaaroverzicht. Per jaar de opbrengst, de kosten per boeking, de vaste lasten, het deel eigen gebruik en het resultaat. Ook hoeveel van de begroting de verhuur dekt.', kb: 'verhuur-kosten' },

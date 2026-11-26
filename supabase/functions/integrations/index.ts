@@ -3,6 +3,12 @@
 // Aanroepen (POST, JSON):
 //   { "mode": "cron" }               elke 30 min via pg_cron (cron.sql): alle agendalinks die aan de beurt zijn
 //   { "mode": "sync", "id": "…" }    "Nu bijwerken" in de app (ingelogd; alleen een koppeling die je mag zien)
+//   { "mode": "bank_info", "team" }            Financiën: mag dit gezin een bankrekening koppelen? (ingelogd)
+//   { "mode": "bank_start", "team", "redirect", "id"? }  koppelen of vernieuwen: geeft de link naar de bank (ingelogd)
+//   { "mode": "bank_finish", "code", "state" }  terug van de bank: sessie maken, rekeningen koppelen, eerste keer ophalen.
+//                                    Zonder login: de state (eenmalig, 30 min) bewijst wie het is. Op de iPhone komt
+//                                    de bank vaak terug in Safari, waar de app niet is ingelogd.
+//   { "mode": "bank_unlink", "id" }  ontkoppelen (ingelogd, alleen je eigen koppeling); transacties blijven
 //   POST …/integrations?t=<token>    Gezondheid: de opdracht op de iPhone stuurt { steps, weight, date? } (zie health.mjs);
 //                                    antwoord is gewone tekst, zodat Opdrachten het kan tonen
 //
@@ -12,9 +18,13 @@
 // dus vaker aanroepen doet niets extra.
 // Privacy: de link (integration_secrets) komt nooit in een antwoord, foutmelding of logboek.
 // Lokaal testen met http-links: INTEGRATIONS_ALLOW_HTTP=1 (zie supabase/README.md).
+// Bank (Enable Banking, zie bank.mjs): secrets EB_APP_ID, EB_PRIVATE_KEY (PEM), EB_TEAM_IDS (gezinnen die het mogen,
+// komma's: de gratis "beperkte modus" werkt alleen voor rekeningen van de eigenaar van de Enable Banking-app),
+// EB_REDIRECT_URLS (toegestane terugkeeradressen, komma's). EB_API_URL alleen voor lokaal testen met een nepbank.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { parseICal, toAgendaRows, cleanUrl, localParts } from "./ical.mjs";
 import { parseHealthBody } from "./health.mjs";
+import * as EB from "./bank.mjs";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
@@ -54,7 +64,8 @@ async function fetchCalendar(id: string): Promise<string> {
 }
 
 // Eén koppeling ophalen en de afspraken bijwerken. Geeft { ok, count, error? } terug.
-async function syncOne(it: Integration) {
+async function syncOne(it: Integration, psu?: Record<string, string>) {
+  if (it.type === "bank") return syncBank(it, psu);
   const started = Date.now();
   let added = 0, changed = 0, removed = 0, skipped = 0;
   try {
@@ -126,7 +137,15 @@ async function cron() {
   if (await platformOff("ical")) return { checked: 0, off: true };
   const list = (data || []) as Integration[];
   const results: any[] = [];
-  for (let i = 0; i < list.length; i += 4) results.push(...await Promise.all(list.slice(i, i + 4).map(syncOne)));
+  for (let i = 0; i < list.length; i += 4) results.push(...await Promise.all(list.slice(i, i + 4).map((x) => syncOne(x))));
+  // bankrekeningen: één keer per dag (zonder de gebruiker erbij mag het maar 4 keer per dag); na een fout pas morgen weer
+  if (EB_APP && !(await platformOff("bank"))) {
+    const bankDue = new Date(Date.now() - BANK_DUE_HOURS * 3600000).toISOString();
+    const { data: banks } = await db.from("integrations").select("id, team_id, user_id, type, label, enabled, config, last_sync_at, teams!inner(disabled_at)")
+      .eq("type", "bank").eq("enabled", true).is("teams.disabled_at", null)
+      .or(`last_sync_at.is.null,last_sync_at.lt.${bankDue}`).order("last_sync_at", { ascending: true, nullsFirst: true }).limit(20);
+    for (const b of (banks || []) as Integration[]) if (b.config?.valid_until && EB_TEAMS.includes(b.team_id)) results.push(await syncBank(b));
+  }
   // logboek kort houden: 30 dagen
   await db.from("integration_runs").delete().lt("at", new Date(Date.now() - 30 * 864e5).toISOString());
   return { checked: list.length, ok: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length };
@@ -141,7 +160,201 @@ async function syncForUser(req: Request, id: string) {
   if (!it) return json({ error: "Onbekende koppeling." }, 404);
   if (await platformOff(it.type)) return json({ error: "Deze koppeling staat (tijdelijk) uit voor iedereen." }, 409);
   if (!it.enabled) return json({ error: "Deze link staat uit." }, 409);
-  return json(await syncOne(it as Integration));
+  if (it.type === "bank" && it.last_sync_at && Date.now() - Date.parse(it.last_sync_at) < 10 * 60000) return json({ error: "Net bijgewerkt. Probeer het over 10 minuten opnieuw." }, 429);
+  return json(await syncOne(it as Integration, it.type === "bank" ? psuHeaders(req) : undefined));
+}
+
+/* ---------- Financiën: bankrekeningen via Enable Banking ---------- */
+const EB_API = env("EB_API_URL") || EB.API;
+const EB_APP = env("EB_APP_ID");
+const EB_KEY = env("EB_PRIVATE_KEY");
+const EB_TEAMS = env("EB_TEAM_IDS").split(",").map((x) => x.trim()).filter(Boolean);
+const EB_REDIRECTS = env("EB_REDIRECT_URLS").split(",").map((x) => x.trim()).filter(Boolean);
+const BANK_DUE_HOURS = 20;
+const PENDING_MINUTES = 30;
+
+// De gebruiker is erbij (Nu bijwerken, terug van de bank): dat mag de bank weten; telt niet mee voor de 4 per dag.
+function psuHeaders(req: Request): Record<string, string> {
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  const ua = req.headers.get("user-agent") || "";
+  return { ...(ip ? { "Psu-Ip-Address": ip } : {}), ...(ua ? { "Psu-User-Agent": ua.slice(0, 200) } : {}) };
+}
+async function eb(path: string, opts: { method?: string; body?: unknown; psu?: Record<string, string> } = {}) {
+  const jwt = await EB.signJwt(EB_APP, EB_KEY);
+  let res: Response;
+  try {
+    res = await fetch(EB_API + path, { method: opts.method || "GET", headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json", "Content-Type": "application/json", ...(opts.psu || {}) },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body), signal: AbortSignal.timeout(30000) });
+  } catch {
+    throw new Fail("De bank was niet bereikbaar. De app probeert het later opnieuw.");
+  }
+  const raw = await res.text();
+  let data: any = null; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+  if (!res.ok) {
+    const kind = EB.errorKind(res.status, data);
+    console.error("bank", path.split("?")[0].replace(/[0-9a-f-]{36}/g, ":id"), res.status, data?.error ?? "");
+    throw Object.assign(new Fail(EB.ERROR_TEXT[kind as keyof typeof EB.ERROR_TEXT]), { kind });
+  }
+  return data;
+}
+async function asUser(req: Request) {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const client = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
+  const { data } = await client.auth.getUser(token);
+  return data?.user ? { id: data.user.id, client } : null;
+}
+async function bankAllowed(u: { client: any }, team: string) {
+  if (!EB_APP || !EB_KEY || !EB_TEAMS.includes(team) || await platformOff("bank")) return false;
+  const { data } = await u.client.rpc("has_app", { t: team, a: "finance" });
+  return data === true;
+}
+
+async function bankInfo(req: Request, team: string) {
+  const u = await asUser(req);
+  if (!u) return json({ error: "Log eerst in." }, 401);
+  return json({ available: await bankAllowed(u, team) });
+}
+
+async function bankStart(req: Request, body: any) {
+  const u = await asUser(req);
+  if (!u) return json({ error: "Log eerst in." }, 401);
+  const team = String(body.team || ""), redirect = String(body.redirect || "");
+  if (!(await bankAllowed(u, team))) return json({ error: "Bankrekeningen koppelen kan (nog) niet in dit gezin." }, 403);
+  if (!EB_REDIRECTS.includes(redirect)) return json({ error: "Dit adres mag niet als terugkeeradres. Open Financiën via de gewone app." }, 400);
+  try {
+    const bank = EB.findAspsp(await eb("/aspsps?country=NL&psu_type=personal&service=AIS"));
+    if (!bank) throw new Fail("Rabobank staat niet in de lijst van Enable Banking.");
+    // één bankkoppeling per persoon per gezin; opnieuw koppelen gebruikt dezelfde
+    let { data: it } = await db.from("integrations").select("id, config").eq("team_id", team).eq("user_id", u.id).eq("type", "bank").maybeSingle();
+    if (body.id && (!it || it.id !== body.id)) return json({ error: "Onbekende koppeling." }, 404);
+    const state = EB.randomToken();
+    const auth = await eb("/auth", { method: "POST", psu: psuHeaders(req), body: {
+      access: { valid_until: EB.validUntil(Date.now(), bank.maximum_consent_validity), balances: true, transactions: true },
+      aspsp: { name: bank.name, country: bank.country }, state, redirect_url: redirect, psu_type: "personal", language: "nl",
+    } });
+    const config = { ...(it?.config || {}), aspsp: bank.name, psu_headers: bank.required_psu_headers || [], pending: await EB.sha256(state), pending_at: new Date().toISOString() };
+    if (it) await db.from("integrations").update({ config, updated_at: new Date().toISOString() }).eq("id", it.id);
+    else {
+      const { error } = await db.from("integrations").insert({ team_id: team, user_id: u.id, type: "bank", label: bank.name.slice(0, 40), config });
+      if (error) throw error;
+    }
+    return json({ url: auth.url });
+  } catch (e) {
+    if (e instanceof Fail) return json({ error: e.message }, 400);
+    throw e;
+  }
+}
+
+async function bankFinish(req: Request, body: any) {
+  const code = String(body.code || ""), state = String(body.state || "");
+  if (!code || !/^[0-9a-f]{64}$/.test(state)) return json({ error: "Deze link klopt niet. Probeer het koppelen opnieuw." }, 400);
+  const { data: it } = await db.from("integrations").select("id, team_id, user_id, type, label, enabled, config, last_sync_at").eq("type", "bank").eq("config->>pending", await EB.sha256(state)).maybeSingle();
+  if (!it || !it.config?.pending_at || Date.now() - Date.parse(it.config.pending_at) > PENDING_MINUTES * 60000) return json({ error: "Het koppelen duurde te lang of is al afgerond. Probeer het opnieuw." }, 400);
+  if (!EB_TEAMS.includes(it.team_id)) return json({ error: "Bankrekeningen koppelen kan (nog) niet in dit gezin." }, 403);
+  const { pending, pending_at, ...rest } = it.config;
+  try {
+    const session = await eb("/sessions", { method: "POST", body: { code }, psu: psuHeaders(req) });
+    const accounts = EB.sessionAccounts(session);
+    // oude sessie bij de bank sluiten (vernieuwen)
+    const { data: old } = await db.from("integration_secrets").select("secret").eq("integration_id", it.id).maybeSingle();
+    if (old?.secret && old.secret !== session.session_id) await eb(`/sessions/${old.secret}`, { method: "DELETE" }).catch(() => {});
+    await db.from("integration_secrets").upsert({ integration_id: it.id, secret: session.session_id, updated_at: new Date().toISOString() });
+    await db.from("finance_bank_accounts").delete().eq("integration_id", it.id);
+    // rekeningen: bestaande van deze persoon koppelen, nieuwe aanmaken; die van een ander overslaan
+    const { data: have } = await db.from("finance_accounts").select("id, user_id, iban_hash, name").eq("team_id", it.team_id);
+    const linked: string[] = [], skipped: string[] = [];
+    for (const a of accounts) {
+      const hash = await EB.ibanHash(it.team_id, a.iban), last4 = a.iban.slice(-4).replace(/[^A-Z0-9]/g, "");
+      let acc = (have || []).find((x: any) => x.iban_hash === hash);
+      if (acc && acc.user_id !== it.user_id) { skipped.push(`••${last4}`); continue; }
+      if (!acc) {
+        const { data: row, error } = await db.from("finance_accounts").insert({ team_id: it.team_id, user_id: it.user_id, name: (a.name || `Rabobank ${last4}`).slice(0, 40), kind: a.kind, iban_last4: last4, iban_hash: hash, currency: a.currency, integration_id: it.id }).select("id, name").single();
+        if (error) throw error;
+        acc = row;
+      } else await db.from("finance_accounts").update({ integration_id: it.id }).eq("id", acc.id);
+      await db.from("finance_bank_accounts").insert({ integration_id: it.id, account_id: acc.id, uid: a.uid });
+      linked.push(acc.name);
+    }
+    if (!linked.length) throw new Fail(skipped.length ? `${skipped.join(", ")} heeft iemand anders in het gezin al toegevoegd. Vraag diegene om de rekening te koppelen en met je te delen.` : EB.ERROR_TEXT.noaccounts);
+    const config = { ...rest, valid_until: session.access?.valid_until || null, accounts: linked.length };
+    await db.from("integrations").update({ config, enabled: true, status: "new", last_error: "", last_sync_at: null, updated_at: new Date().toISOString() }).eq("id", it.id);
+    const sync = linked.length ? await syncBank({ ...it, config } as Integration, psuHeaders(req)) : null;
+    return json({ ok: true, linked, skipped, sync });
+  } catch (e) {
+    if (!(e instanceof Fail)) throw e;
+    await db.from("integrations").update({ config: rest }).eq("id", it.id);
+    return json({ error: e.message }, 400);
+  }
+}
+
+async function bankUnlink(req: Request, id: string) {
+  const u = await asUser(req);
+  if (!u) return json({ error: "Log eerst in." }, 401);
+  const { data: it } = await u.client.from("integrations").select("id, type, user_id").eq("id", id).maybeSingle();
+  if (!it || it.type !== "bank" || it.user_id !== u.id) return json({ error: "Onbekende koppeling." }, 404);
+  const { data: sec } = await db.from("integration_secrets").select("secret").eq("integration_id", id).maybeSingle();
+  if (sec?.secret && EB_APP) await eb(`/sessions/${sec.secret}`, { method: "DELETE" }).catch(() => {});
+  await db.from("integrations").delete().eq("id", id);
+  return json({ ok: true });
+}
+
+// Alle rekeningen van één bankkoppeling bijwerken: transacties sinds de laatste (een week overlap) en het saldo.
+async function syncBank(it: Integration, psu?: Record<string, string>) {
+  const started = Date.now();
+  let added = 0, skipped = 0;
+  try {
+    if (!EB_APP || !EB_KEY) throw new Fail(EB.ERROR_TEXT.app);
+    if (!it.config?.valid_until) throw new Fail("Nog niet gekoppeld bij de bank.");
+    if (Date.parse(it.config.valid_until) < Date.now()) throw new Fail("De toestemming bij de bank is verlopen. Koppel de rekening opnieuw.");
+    if (!psu && (it.config.psu_headers || []).length) throw new Fail(EB.ERROR_TEXT.psu);
+    const { data: links } = await db.from("finance_bank_accounts").select("account_id, uid").eq("integration_id", it.id);
+    if (!links?.length) throw new Fail("Er is geen rekening gekoppeld. Koppel opnieuw en kies je rekening(en).");
+    const { data: own } = await db.from("finance_accounts").select("iban_hash").eq("team_id", it.team_id);
+    const ownHashes = new Set((own || []).map((x: any) => x.iban_hash));
+    const today = localParts(Date.now()).date;
+    for (const l of links) {
+      const { data: last } = await db.from("finance_transactions").select("booked_on").eq("account_id", l.account_id).order("booked_on", { ascending: false }).limit(1).maybeSingle();
+      const from = EB.dateFrom(last?.booked_on || null, today);
+      const all: any[] = [];
+      let key = "";
+      for (let page = 0; page < 30; page++) {
+        const q = new URLSearchParams({ date_from: from, ...(key ? { continuation_key: key } : {}) });
+        const r = await eb(`/accounts/${encodeURIComponent(l.uid)}/transactions?${q}`, { psu });
+        all.push(...(r?.transactions || []));
+        key = r?.continuation_key || "";
+        if (!key) break;
+      }
+      const rows = EB.mapTransactions(all);
+      const { data: existing } = await db.from("finance_transactions").select("ext_id, booked_on, amount").eq("account_id", l.account_id).gte("booked_on", from);
+      const fresh = EB.dropKnown(rows, existing || []);
+      skipped += rows.length - fresh.length;
+      const hashes = new Map<string, string>();
+      const out = [];
+      for (const r of fresh as any[]) {
+        const { counterparty_iban, ...row } = r;
+        if (counterparty_iban && !hashes.has(counterparty_iban)) hashes.set(counterparty_iban, await EB.ibanHash(it.team_id, counterparty_iban));
+        const h = counterparty_iban ? hashes.get(counterparty_iban)! : "";
+        out.push({ ...row, team_id: it.team_id, account_id: l.account_id, counterparty_hash: h, excluded: !!h && ownHashes.has(h) });
+      }
+      for (let i = 0; i < out.length; i += 500) {
+        const { error } = await db.from("finance_transactions").upsert(out.slice(i, i + 500), { onConflict: "account_id,ext_id", ignoreDuplicates: true });
+        if (error) throw error;
+      }
+      added += out.length;
+      const bal = EB.pickBalance(await eb(`/accounts/${encodeURIComponent(l.uid)}/balances`, { psu }), today);
+      await db.from("finance_accounts").update({ imported_at: new Date().toISOString(), ...(bal ? { balance: bal.amount, balance_on: bal.on } : {}) }).eq("id", l.account_id);
+    }
+    await db.from("integrations").update({ status: "ok", last_sync_at: new Date().toISOString(), last_error: "", last_count: added }).eq("id", it.id);
+    await db.from("integration_runs").insert({ integration_id: it.id, team_id: it.team_id, ok: true, added, skipped });
+    return { ok: true, added, skipped, ms: Date.now() - started };
+  } catch (e) {
+    const msg = e instanceof Fail ? e.message : "Er ging iets mis bij het bijwerken. De app probeert het later opnieuw.";
+    if (!(e instanceof Fail)) console.error("bank", it.id, (e as any)?.code ?? "", String((e as any)?.message ?? e).slice(0, 300));
+    await db.from("integrations").update({ status: "error", last_sync_at: new Date().toISOString(), last_error: msg }).eq("id", it.id);
+    await db.from("integration_runs").insert({ integration_id: it.id, team_id: it.team_id, ok: false, added, skipped, error: msg });
+    return { ok: false, error: msg };
+  }
 }
 
 /* ---------- Gezondheid: ontvangen van de iPhone ---------- */
@@ -185,6 +398,10 @@ Deno.serve(async (req) => {
     if (token) return await ingest(token, body);
     if (body?.mode === "cron") return json(await cron());
     if (body?.mode === "sync" && typeof body.id === "string") return await syncForUser(req, body.id);
+    if (body?.mode === "bank_info" && typeof body.team === "string") return await bankInfo(req, body.team);
+    if (body?.mode === "bank_start") return await bankStart(req, body);
+    if (body?.mode === "bank_finish") return await bankFinish(req, body);
+    if (body?.mode === "bank_unlink" && typeof body.id === "string") return await bankUnlink(req, body.id);
     return json({ error: "Onbekende opdracht" }, 400);
   } catch (e) {
     console.error("integrations", String((e as any)?.message ?? e).replace(/https?:\/\/\S+/g, "[link]").slice(0, 300));

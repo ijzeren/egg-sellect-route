@@ -5,12 +5,14 @@
 //     (rechten in de database: finance_can_see). Het rekeningnummer zelf bewaren we niet (alleen laatste 4 + hash).
 //   - soorten en regels zijn van het gezin; regels delen nieuwe transacties vanzelf in, zelf gekozen soorten blijven
 //   - rekenwerk (overzicht, regels, vaste lasten): money.js
+//   - fase 3: bankkoppeling via Enable Banking (PSD2): koppelen, elke dag ophalen op de server (Edge Function
+//     integrations, type bank); hier alleen knoppen, de status en de terugkeer van de bank (?code=…&state=…)
 //   - fase 2: uitbetalingen van Booking.com en Airbnb koppelen aan boekingen in Verhuur (payouts.js), alleen voor
 //     beheerders van Verhuur; boekingen worden niet op de telefoon bewaard
-import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD } from '../shared/family.js';
+import { storage, account, api, applyTheme, esc, registerSW, canUse, CLOUD, CFG } from '../shared/family.js';
 import * as M from './money.js';
 import * as P from './payouts.js';
-import { parseFile, period, ibanHash } from './import.js';
+import { parseFile, period, ibanHash, dropKnown } from './import.js';
 import { sourceName } from '../rentals/tax.js';
 
 applyTheme();
@@ -26,9 +28,19 @@ const ICON_CHEV = '<svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><p
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const TX_FIELDS = 'id,account_id,ext_id,booked_on,amount,counterparty,counterparty_hash,description,code,category_id,category_by,excluded';
 
-// data = { accounts, cats, rules, txs, members, at }
-let data = (FAMILY && storage.get(APP, DKEY)) || { accounts: [], cats: [], rules: [], txs: [], members: [], at: null };
-let ui = { view: 'home', m: M.month(TODAY()), acc: storage.get(APP, `${FAMILY}:acc`) || '', f: { m: '', cat: '', q: '' }, id: null, draft: null, back: 'home', imp: null, limit: 150 };
+// data = { accounts, cats, rules, txs, members, banks, at }  (banks = mijn bankkoppelingen, zonder geheimen)
+let data = (FAMILY && storage.get(APP, DKEY)) || { accounts: [], cats: [], rules: [], txs: [], members: [], banks: [], at: null };
+data.banks = data.banks || [];
+
+// Terug van de bank (Rabobank via Enable Banking): ?code=…&state=… of ?error=…&state=…. Meteen uit het adres halen.
+const Q = new URLSearchParams(location.search);
+const bankReturn = Q.get('state') && (Q.get('code') || Q.get('error')) ? { code: Q.get('code'), state: Q.get('state'), error: Q.get('error') } : null;
+if (bankReturn) history.replaceState(null, '', location.pathname);
+let bankAvail = null; // mag dit gezin een rekening koppelen? (vraagt de server, één keer)
+const BANK_WARN_DAYS = 14;
+const daysLeft = b => (b.config && b.config.valid_until ? Math.floor((Date.parse(b.config.valid_until) - Date.now()) / 864e5) : null);
+const bankNeedsCare = b => b.status === 'error' || (daysLeft(b) !== null && daysLeft(b) <= BANK_WARN_DAYS) || !(b.config && b.config.valid_until);
+let ui = { view: bankReturn ? 'bankdone' : 'home', bankDone: null, m: M.month(TODAY()), acc: storage.get(APP, `${FAMILY}:acc`) || '', f: { m: '', cat: '', q: '' }, id: null, draft: null, back: 'home', imp: null, limit: 150 };
 let loading = false, offline = false;
 
 const cat = id => data.cats.find(c => c.id === id && !c.deleted);
@@ -73,6 +85,7 @@ async function load() {
   if (!FAMILY || loading || gate()) return;
   loading = true;
   try {
+    let banks;
     let [cats, rules, accounts, members, txs] = await Promise.all([
       api(`/rest/v1/finance_categories?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`),
       api(`/rest/v1/finance_rules?team_id=eq.${FAMILY}&select=*&order=updated_at`),
@@ -80,12 +93,14 @@ async function load() {
       api(`/rest/v1/team_members?team_id=eq.${FAMILY}&select=user_id,name,role&order=joined_at`).catch(() => data.members),
       loadTxs(),
       loadRent().catch(() => { rent = null; }),
-    ]);
+      api(`/rest/v1/integrations?team_id=eq.${FAMILY}&type=eq.bank&select=id,label,config,status,last_sync_at,last_error,enabled&order=created_at`).catch(() => data.banks),
+    ]).then(r => { banks = r[6]; return r; });
     if (!(cats || []).length) {
       await api('/rest/v1/rpc/finance_setup', { method: 'POST', body: { p_team: FAMILY } });
       cats = await api(`/rest/v1/finance_categories?team_id=eq.${FAMILY}&deleted=is.false&select=*&order=sort,name`);
     }
-    data = { accounts: accounts || [], cats: cats || [], rules: rules || [], txs: txs || [], members: members || [], at: new Date().toISOString() };
+    data = { accounts: accounts || [], cats: cats || [], rules: rules || [], txs: txs || [], members: members || [], banks: (banks || []).map(b => ({ ...b, config: { valid_until: b.config && b.config.valid_until, accounts: b.config && b.config.accounts } })), at: new Date().toISOString() };
+    if (data.banks.length) bankAvail = true;
     if (ui.acc && !acct(ui.acc)) ui.acc = '';
     // eerste keer openen: de maand van de laatste transactie als deze maand nog leeg is
     if (!data.txs.some(t => M.month(t.booked_on) === ui.m) && data.txs.length && !ui.touched) ui.m = M.month(data.txs[0].booked_on);
@@ -95,14 +110,26 @@ async function load() {
     offline = e instanceof TypeError || !navigator.onLine;
     if (!offline) toast(e.message, 'err');
   } finally { loading = false; }
-  if (!['tx', 'rule', 'account', 'import', 'cats', 'link'].includes(ui.view)) render();
+  if (!['tx', 'rule', 'account', 'import', 'cats', 'link', 'bankdone'].includes(ui.view)) { render(); autoRules(); }
+}
+// Wat de bank 's nachts binnenbracht, is nog niet ingedeeld: regels erop (alleen nog niet ingedeelde transacties).
+async function autoRules() {
+  if (!data.banks.length || busy || !navigator.onLine) return;
+  const open = new Set(data.txs.filter(t => !t.category_by && !t.excluded).map(t => t.id));
+  const ch = M.ruleChanges(data.rules, data.txs).filter(c => open.has(c.id) && c.category_id);
+  if (!ch.length) return;
+  busy = true;
+  try { const by = new Map(); for (const c of ch) { if (!by.has(c.category_id)) by.set(c.category_id, []); by.get(c.category_id).push(c.id); } for (const [k, ids] of by) await patchTxs(ids, { category_id: k, category_by: 'rule' }); }
+  catch (e) { /* volgende keer opnieuw */ } finally { busy = false; }
+  if (['home', 'list'].includes(ui.view)) render();
 }
 // Kopie op de telefoon (alleen lezen zonder verbinding) en een kleine samenvatting voor de tegel in de hub.
 function persist() {
   const live = new Set(data.cats.map(c => c.id)), from = M.addMonths(M.month(TODAY()), -1);
   const open = data.txs.filter(t => !t.excluded && !live.has(t.category_id) && M.month(t.booked_on) >= from).length;
   const imported = data.accounts.map(a => a.imported_at).filter(Boolean).sort().pop() || null;
-  storage.set(APP, `${FAMILY}:tile`, { accounts: data.accounts.length, open, imported });
+  const care = data.banks.filter(bankNeedsCare).length;
+  storage.set(APP, `${FAMILY}:tile`, { accounts: data.accounts.length, open, imported, bank: care ? 'renew' : data.banks.length ? 'ok' : '' });
   if (!storage.set(APP, DKEY, data)) storage.remove(APP, DKEY); // te groot voor de telefoon: dan alleen online
 }
 const need = () => { if (!navigator.onLine) throw new Error('Geen verbinding. Probeer het straks opnieuw.'); };
@@ -168,6 +195,7 @@ function vHome() {
   if (!data.accounts.length) {
     h += `<div class="card"><h2>Begin met een export uit je bank</h2><p class="muted">Download in Rabo Online Bankieren je transacties als CSV-bestand en lees dat hier in. De app deelt ze in: boodschappen, energie, verzekeringen en zo verder.</p>
       <button class="btn" data-a="go" data-v="import" style="margin-top:12px">Bestand inlezen</button><p class="small muted" style="margin-top:10px"><a href="../?article=financien-inlezen">Hoe download ik mijn transacties?</a></p></div>
+      ${bankSection()}
       <div class="card"><h2>Alleen jij ziet je rekening</h2><p class="muted">Een rekening die jij inleest, is privé. Je kunt hem zelf delen met de beheerders van het gezin, bijvoorbeeld de gezamenlijke rekening. <a href="../?article=financien-privacy">Wie ziet wat?</a></p></div>`;
     return h + (loading ? '<p class="sec-f">Laden…</p>' : '') + '</main>';
   }
@@ -176,6 +204,10 @@ function vHome() {
   const now = M.month(TODAY());
   h += `<div class="pager"><button class="nb" data-a="month" data-d="-1" aria-label="Vorige maand">‹</button><button class="lbl" data-a="thismonth"><b>${M.monthName(ui.m)}</b>${ui.m === now ? '<span>deze maand</span>' : ''}</button><button class="nb" data-a="month" data-d="1" aria-label="Volgende maand" ${ui.m >= now ? 'disabled' : ''}>›</button></div>`;
   h += `<div class="tot"><div><span>Bij</span><b>${money(s.inC, { whole: true, sign: true })}</b></div><div><span>Af</span><b>${money(s.outC, { whole: true })}</b></div><div><span>Over</span><b>${money(s.netC, { whole: true, sign: true })}</b></div></div>`;
+  for (const b of data.banks.filter(bankNeedsCare)) {
+    const d = daysLeft(b);
+    h += `<button class="banner ${b.status === 'error' || (d !== null && d < 0) ? 'red' : 'orange'}" data-a="go" data-v="accounts" style="width:100%;text-align:left;margin-top:10px"><span>🏦</span><span><b>${d !== null && d < 0 ? 'Bankkoppeling verlopen' : b.status === 'error' ? 'Bankkoppeling werkt niet' : d !== null ? `Bankkoppeling verloopt over ${d} ${d === 1 ? 'dag' : 'dagen'}` : 'Bankkoppeling niet afgemaakt'}</b><br>${b.status === 'error' && b.last_error ? esc(b.last_error) : 'Tik om de toestemming bij de bank te vernieuwen.'}</span></button>`;
+  }
   if (s.open) h += `<button class="banner orange" data-a="list" data-cat="open" data-m="${ui.m}" style="width:100%;text-align:left;margin-top:10px"><span>🏷️</span><span><b>${s.open} ${s.open === 1 ? 'transactie' : 'transacties'} nog niet ingedeeld</b><br>Tik om ze een soort te geven.</span></button>`;
   const groups = M.byGroup(s);
   if (!groups.length && !s.open) h += `<div class="card"><p class="muted">Geen transacties in ${M.monthName(ui.m)}.</p></div>`;
@@ -374,6 +406,53 @@ function vAccounts() {
   }).join('') || '<div class="cell"><span class="tx muted">Nog geen rekeningen.</span></div>'}
   <button class="cell tint" data-a="go" data-v="import"><span class="tx"><span class="tt">Bestand inlezen</span><span class="st">Een nieuwe rekening komt er vanzelf bij</span></span></button></div>`,
     'Het rekeningnummer zelf bewaart de app niet, alleen de laatste 4 tekens. <a href="../?article=financien-privacy">Wie ziet wat?</a>');
+  h += bankSection();
+  return h + '</main>';
+}
+
+// Bankkoppeling: alleen je eigen koppeling staat hier (de server en de database laten niets anders zien).
+function bankSection() {
+  if (bankAvail === null && navigator.onLine) { bankAvail = false; api('/functions/v1/integrations', { method: 'POST', body: { mode: 'bank_info', team: FAMILY } }).then(r => { bankAvail = !!(r && r.available); if (bankAvail && ['accounts', 'home'].includes(ui.view)) render(); }).catch(e => { bankAvail = e && e.status ? false : null; }); }
+  if (!data.banks.length && !bankAvail) return '';
+  const cells = data.banks.map(b => {
+    const d = daysLeft(b), until = b.config && b.config.valid_until ? M.shortDate(b.config.valid_until.slice(0, 10)) : '';
+    const st = b.status === 'error' ? `<span class="st" style="color:var(--red)">${esc(b.last_error)}</span>` : `<span class="st">${until ? `toestemming tot ${until}` : 'nog niet afgemaakt'}${b.last_sync_at ? ` · bijgewerkt ${M.shortDate(b.last_sync_at.slice(0, 10))}` : ''}${b.config && b.config.accounts ? ` · ${b.config.accounts} ${b.config.accounts === 1 ? 'rekening' : 'rekeningen'}` : ''}</span>`;
+    return `<div class="cell"><span class="ico" aria-hidden="true">🏦</span><span class="tx"><span class="tt">${esc(b.label)}</span>${st}</span></div>
+      ${b.config && b.config.valid_until && (d === null || d >= 0) ? `<button class="cell" data-a="banksync" data-id="${esc(b.id)}"><span class="tx"><span class="tt">Nu bijwerken</span></span></button>` : ''}
+      <button class="cell${bankNeedsCare(b) ? ' tint' : ''}" data-a="bankstart" data-id="${esc(b.id)}"><span class="tx"><span class="tt">${b.config && b.config.valid_until ? 'Toestemming vernieuwen' : 'Koppelen afmaken'}</span><span class="st">Inloggen bij de bank, weer voor 180 dagen</span></span></button>
+      <button class="cell" data-a="bankunlink" data-id="${esc(b.id)}"><span class="tx"><span class="tt" style="color:var(--red)">Ontkoppelen</span></span></button>`;
+  }).join('');
+  return sec('Bankkoppeling', `<div class="grp">${cells || `<button class="cell tint" data-a="bankstart"><span class="ico" aria-hidden="true">🏦</span><span class="tx"><span class="tt">Rabobank-rekening koppelen</span><span class="st">Nieuwe transacties komen dan elke dag vanzelf binnen</span></span></button>`}</div>`,
+    'Je logt in bij Rabobank en kiest welke rekeningen. De toestemming geldt 180 dagen; daarna vraagt de app je om te vernieuwen. Alleen jij ziet je koppeling. <a href="../?article=financien-bank">Hoe werkt het?</a>');
+}
+async function bankStart(id) {
+  need();
+  const r = await api('/functions/v1/integrations', { method: 'POST', body: { mode: 'bank_start', team: FAMILY, redirect: location.origin + location.pathname.replace(/index\.html$/, ''), ...(id ? { id } : {}) } });
+  if (!r || !r.url) throw new Error('De bank gaf geen link terug. Probeer het later opnieuw.');
+  location.href = r.url;
+}
+async function bankFinish() {
+  ui.bankDone = { busy: true }; render();
+  if (bankReturn.error) { ui.bankDone = { error: bankReturn.error === 'access_denied' ? 'Je hebt bij de bank geen toestemming gegeven. Er is niets gekoppeld.' : 'Het koppelen bij de bank is afgebroken. Probeer het opnieuw.' }; render(); return; }
+  try {
+    const res = await fetch(`${CFG.supabaseUrl}/functions/v1/integrations`, { method: 'POST', headers: { apikey: CFG.supabaseKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'bank_finish', code: bankReturn.code, state: bankReturn.state }) });
+    const d = await res.json().catch(() => ({}));
+    ui.bankDone = res.ok ? d : { error: d.error || 'Het koppelen lukte niet. Probeer het opnieuw.' };
+  } catch (e) { ui.bankDone = { error: 'Geen verbinding. Probeer het koppelen opnieuw.' }; }
+  render();
+  if (me && FAMILY && !ui.bankDone.error) load();
+}
+function vBankDone() {
+  const d = ui.bankDone || { busy: true };
+  let h = navBar(me && FAMILY ? backTo('accounts', 'Rekeningen') : '', '') + '<main>';
+  if (d.busy) return h + lt('Bezig met koppelen…') + '<div class="card"><p class="muted">Even geduld: de app haalt je rekeningen en de transacties van de afgelopen 90 dagen op.</p></div></main>';
+  if (d.error) return h + lt('Niet gekoppeld') + `<div class="card"><p>${esc(d.error)}</p></div>${me && FAMILY ? '<div style="margin-top:12px"><button class="btn" data-a="go" data-v="accounts">Naar Rekeningen</button></div>' : ''}</main>`;
+  h += lt('Gekoppeld');
+  h += sec('', `<div class="grp">${(d.linked || []).map(n => `<div class="cell"><span class="ico" aria-hidden="true">✓</span><span class="tx"><span class="tt">${esc(n)}</span></span></div>`).join('')}</div>`,
+    `${d.sync && d.sync.ok ? `${d.sync.added} ${d.sync.added === 1 ? 'transactie' : 'transacties'} opgehaald${d.sync.skipped ? `; ${d.sync.skipped} stonden er al (uit een export)` : ''}.` : d.sync && d.sync.error ? esc(d.sync.error) : ''}
+     ${(d.skipped || []).length ? ` ${d.skipped.join(', ')} ${d.skipped.length === 1 ? 'is' : 'zijn'} al toegevoegd door iemand anders in het gezin en ${d.skipped.length === 1 ? 'is' : 'zijn'} overgeslagen.` : ''}`);
+  h += me && FAMILY ? '<div style="margin-top:12px"><button class="btn" data-a="go" data-v="home">Naar het overzicht</button></div>'
+    : '<div class="card"><p class="muted">Ga terug naar de app Thuis op je telefoon. Daar staan de transacties nu ook.</p></div>';
   return h + '</main>';
 }
 
@@ -387,6 +466,7 @@ function vAccount() {
     <div class="cell stack">${seg([['current', 'Betaalrekening'], ['savings', 'Spaarrekening']], d.kind, 'acckind', own ? '' : 'disabled')}</div></div>`);
   h += sec('Wie ziet deze rekening', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">Delen met de beheerders</span><span class="st">${d.shared ? (admins.length ? 'Zichtbaar voor ' + admins.join(', ') : 'Er is nog geen andere beheerder') : 'Alleen jij ziet deze rekening'}</span></span><button class="toggle" role="switch" data-a="accshare" aria-checked="${!!d.shared}" aria-label="Delen met de beheerders" ${own ? '' : 'disabled'}></button></div></div>`,
     'Leden en kinderen zien nooit de rekening van een ander. Wie meekijkt, ziet alle transacties van deze rekening.');
+  if (a.integration_id) h += `<div class="banner blue mb"><span>🏦</span><span>Deze rekening komt elke dag vanzelf binnen via de bankkoppeling.</span></div>`;
   h += sec('', `<div class="grp"><div class="cell"><span class="tx"><span class="tt">${p.count} transacties</span><span class="st">${p.count ? `${M.shortDate(p.from)} – ${M.shortDate(p.to)}` : 'Nog niets ingelezen'}${a.imported_at ? ` · laatst ingelezen ${M.shortDate(a.imported_at.slice(0, 10))}` : ''}</span></span></div>
     <button class="cell tint" data-a="go" data-v="import"><span class="tx"><span class="tt">Nieuwe transacties inlezen</span></span></button></div>`);
   if (own) h += `<div style="margin-top:18px"><button class="btn danger" data-a="delaccount">Rekening verwijderen</button></div><p class="sec-f">Verwijderen wist ook alle transacties van deze rekening. Dat kan niet ongedaan worden.</p>`;
@@ -475,9 +555,11 @@ async function doImport() {
       rows.push({ team_id: FAMILY, account_id: acc.id, ext_id: r.ext_id, booked_on: r.booked_on, amount: r.amount, currency: r.currency || 'EUR', counterparty: r.counterparty,
         counterparty_hash: h, description: r.description, code: r.code, balance_after: r.balance_after, category_id: c, category_by: c ? 'rule' : '', excluded });
     }
+    // al binnen via de bankkoppeling (zelfde datum en bedrag)? Dan niet nog een keer.
+    const fresh = dropKnown(rows, data.txs.filter(t => t.account_id === acc.id));
     let added = 0, ruled = 0;
-    for (let i = 0; i < rows.length; i += 400) {
-      const out = await post('finance_transactions?on_conflict=account_id,ext_id&select=id,category_id', rows.slice(i, i + 400), 'resolution=ignore-duplicates,return=representation');
+    for (let i = 0; i < fresh.length; i += 400) {
+      const out = await post('finance_transactions?on_conflict=account_id,ext_id&select=id,category_id', fresh.slice(i, i + 400), 'resolution=ignore-duplicates,return=representation');
       added += (out || []).length; ruled += (out || []).filter(x => x.category_id).length;
     }
     const body = { imported_at: new Date().toISOString() };
@@ -492,9 +574,9 @@ async function doImport() {
   render();
 }
 
-const VIEWS = { home: vHome, list: vList, tx: vTx, rules: vRules, rule: vRule, cats: vCats, accounts: vAccounts, account: vAccount, recurring: vRecurring, import: vImport, payouts: vPayouts, link: vLink };
+const VIEWS = { bankdone: vBankDone, home: vHome, list: vList, tx: vTx, rules: vRules, rule: vRule, cats: vCats, accounts: vAccounts, account: vAccount, recurring: vRecurring, import: vImport, payouts: vPayouts, link: vLink };
 function render() {
-  const g = gate(), a = $('#app');
+  const g = ui.view === 'bankdone' ? '' : gate(), a = $('#app');
   a.innerHTML = g ? navBar(hubLink()) + '<main>' + lt('Financiën') + `<div class="card"><p>${g}</p></div></main>` : (VIEWS[ui.view] || vHome)();
   onScroll();
 }
@@ -599,6 +681,15 @@ document.addEventListener('click', ev => {
       await saveLink(ui.sel, 'manual'); go('tx'); toast(ui.sel.length ? 'Gekoppeld aan Verhuur.' : 'Ontkoppeld.');
     }); break;
     case 'unlink': if (confirm('Deze uitbetaling loskoppelen van de boeking(en)?')) run(el, async () => { await saveLink([], 'manual'); render(); toast('Ontkoppeld.'); }); break;
+    case 'bankstart': run(el, () => bankStart(el.dataset.id)); break;
+    case 'banksync': run(el, async () => {
+      need(); const r = await api('/functions/v1/integrations', { method: 'POST', body: { mode: 'sync', id: el.dataset.id } });
+      await load(); render(); toast(r && r.ok ? `Bijgewerkt: ${r.added} nieuw.` : (r && r.error) || 'Bijwerken lukte niet.', r && r.ok ? '' : 'err');
+    }); break;
+    case 'bankunlink': if (confirm('De bankkoppeling stoppen? Er komen geen nieuwe transacties meer binnen. Wat er al is, blijft staan.')) run(el, async () => {
+      need(); await api('/functions/v1/integrations', { method: 'POST', body: { mode: 'bank_unlink', id: el.dataset.id } });
+      await load(); render(); toast('Ontkoppeld.');
+    }); break;
     case 'impkind': ui.imp.accounts[+el.dataset.i].kind = el.dataset.v; render(); break;
     case 'impcancel': ui.imp = null; render(); break;
     case 'doimport': run(el, async () => { el.textContent = 'Bezig met inlezen…'; try { await doImport(); window.scrollTo(0, 0); } finally { if (ui.view === 'import') render(); } }); break;
@@ -623,4 +714,4 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 addEventListener('online', () => load());
 
 render();
-load();
+if (bankReturn) bankFinish(); else load();

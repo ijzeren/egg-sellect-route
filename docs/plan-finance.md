@@ -14,7 +14,14 @@
   bedrag, of een combinatie van boekingen die samen het bedrag is). Verhuur toont "ontvangen op …" en "Nog niet
   uitbetaald". Rechtentest `scripts/test-payouts.mjs`. Nog te controleren met echte afschrijvingen: naam en
   omschrijving van de uitbetalingen en het ritme van Booking.com.
-- Nog niet: Enable Banking (fase 3).
+- **3.23.0 gebouwd (fase 3)**: Rabobank koppelen via Enable Banking. Edge Function `integrations` (type `bank`):
+  `bank_info`, `bank_start`, `bank_finish` (zonder login: de eenmalige state bewijst wie het is, want op de iPhone komt
+  de bank vaak terug in Safari), `bank_unlink`, `sync` en elke nacht via `cron` (één keer per 20 uur). Rekenwerk in
+  `supabase/functions/integrations/bank.mjs` (JWT RS256, omzetten, saldo, ontdubbelen tegen een export op datum +
+  bedrag, ook in `finance/import.js`). Sessie in `integration_secrets`, rekening-uid in `finance_bank_accounts` (alleen
+  server). Alleen gezinnen in secret `EB_TEAM_IDS`. Getest met een nepbank (`scripts/mock-enablebanking.mjs`) en
+  `scripts/test-bank.mjs`. Nog niet getest met de echte Rabobank: punten 1 tot en met 3 hieronder.
+- Later: fase 4 (begroting, spaardoelen, meer banken).
 
 Nieuwe app **Financiën** (`/finance/`, app-id `finance`): bij- en afschrijvingen van de eigen bankrekeningen binnenhalen,
 indelen in soorten (boodschappen, energie, verzekering, …) en uitbetalingen van Booking.com en Airbnb koppelen aan

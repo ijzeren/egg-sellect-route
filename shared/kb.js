@@ -406,6 +406,7 @@ De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeur
 <li>Het rekeningnummer zelf staat niet in de app, alleen de laatste 4 tekens.</li>
 <li>Heeft iemand anders in het gezin dezelfde rekening al ingelezen? Dan kun jij hem niet nog een keer toevoegen. Vraag diegene om hem te delen.</li>
 <li><b>Rekening verwijderen</b> wist alle transacties van die rekening. Verlaat je het gezin, dan worden jouw rekeningen in dat gezin ook gewist.</li>
+<li><b>Bankkoppeling</b>: alleen jij ziet je koppeling met de bank. De sleutel van de bank staat alleen op de server, nooit op je telefoon of in de app.</li>
 <li><b>Verhuur</b>: koppel je een uitbetaling van Booking.com of Airbnb aan een boeking, dan zien de beheerders van Verhuur bij die boeking de datum en het bedrag. De rest van je rekening zien ze niet. Die uitbetaling blijft bij de boeking staan, ook als je de rekening later verwijdert.</li></ul>`,
   },
   {
@@ -429,6 +430,23 @@ De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeur
 <li>Een nog niet ingedeelde uitbetaling krijgt de soort <b>Verhuur</b>.</li>
 <li>In Verhuur staat bij <b>Nog niet uitbetaald</b> wat al binnen had moeten zijn: Airbnb 5 dagen na aankomst, Booking.com 35 dagen na vertrek.</li>
 <li>Een directe boeking die de gast overmaakte, kun je ook koppelen: open de bijschrijving en kies <b>Koppel aan een boeking in Verhuur</b>.</li></ul>`,
+  },
+  {
+    slug: 'financien-bank', app: 'finance', title: 'Financiën: Rabobank koppelen', updated: '2026-11-26', version: '3.23.0',
+    body: `<p>Koppel je Rabobank-rekening, dan komen nieuwe transacties en het saldo elke nacht vanzelf binnen. Je hoeft dan geen export meer te downloaden.</p>
+<h3>Koppelen</h3>
+<ol><li>Open <b>Financiën → Rekeningen</b> en tik op <b>Rabobank-rekening koppelen</b>.</li>
+<li>Je gaat naar Rabobank (via Enable Banking, een Europese partij met een vergunning om rekeningen te lezen). Log in en kies welke rekeningen.</li>
+<li>Daarna kom je terug in Thuis. De app haalt de transacties van de afgelopen 90 dagen op.</li></ol>
+<p>Op de iPhone kom je na het inloggen soms terug in Safari in plaats van in de app. Dat is goed: er staat <b>Gekoppeld</b>, en in de app zie je alles ook.</p>
+<h3>Goed om te weten</h3>
+<ul><li>De app kan alleen <b>lezen</b>. Betalen of geld overmaken kan niet.</li>
+<li>De toestemming geldt <b>180 dagen</b>. Twee weken ervoor zie je in Financiën en op het startscherm <b>Bankkoppeling vernieuwen</b>. Tik erop en log opnieuw in bij Rabobank.</li>
+<li>Ouder dan 90 dagen haalt de bank niet op. Wil je het hele jaar? Lees één keer een export in (zie <a href="?article=financien-inlezen">transacties inlezen</a>). Wat in beide zit, telt de app maar één keer.</li>
+<li><b>Nu bijwerken</b> haalt meteen op. Verder doet de app het elke nacht zelf.</li>
+<li><b>Ontkoppelen</b> stopt het ophalen. Wat er al is, blijft staan.</li>
+<li>Rekeningen die je koppelt, zijn privé, net als bij inlezen. Delen met de beheerders kan bij de rekening.</li>
+<li>Voorlopig kan dit alleen in ons eigen gezin: de gratis versie van Enable Banking werkt alleen voor de rekeningen van de eigenaar van de app.</li></ul>`,
   },
 ];
 
