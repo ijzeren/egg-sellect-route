@@ -10,6 +10,14 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.25.0', date: '2026-11-28', title: 'Voorraad klopt weer, en functies aan of uit',
+    notes: [
+      { app: 'eggs', text: 'Voorraad: een telling direct na een levering telt nu als "vóór de ronde". Wat je daarna verkoopt, gaat er meteen af. Daardoor stond de voorraad sinds 25 november 334 eieren te hoog; dat is hersteld.', kb: 'eggs-voorraad' },
+      { app: 'eggs', text: 'Nieuw: Voorraad corrigeren (eieren erbij of eraf, met een reden) en Voorraad per dag. Leveringen, tellingen en correcties kun je achteraf wijzigen.', kb: 'eggs-voorraad' },
+      { app: 'eggs', text: 'Nieuw: Instellingen → Functies. Zet Doosjes bijhouden, Stroopwafels of SumUp uit, of eerst op Test (alleen beheerders zien het).', kb: 'functies' },
+    ],
+  },
+  {
     version: '3.24.0', date: '2026-11-28', title: 'Nieuwe app: Boodschappen',
     notes: [
       { app: 'groceries', text: 'Eén boodschappenlijst voor het hele gezin. Typ wat er bij moet ("2 uien") en vink af in de winkel. De lijst staat per afdeling en ververst vanzelf, ook als iemand anders iets toevoegt.', kb: 'boodschappen' },

@@ -505,3 +505,15 @@ Getest op de lokale database (25 nov 2026): schema twee keer achter elkaar, 17 r
 boeking, bedragen en aangifte; lid ziet huis en boeking maar geen bedragen of aangifte en kan niets wijzigen;
 annuleren zet `cancelled_at`, terugzetten wist hem; `team_id` ligt vast; vertrek vóór aankomst en meer volwassenen dan
 personen worden geweigerd).
+
+## Update naar voorraad, correcties en functies aan/uit (v3.25.0)
+Doe dit **vóór** je v3.25.0 pusht (anders kan de app tellingen en correcties niet opslaan):
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw in `stock_events`: kolom `moment` (telling vóór
+   (`start`) of na (`end`, leeg) de ronde), kolom `qty` (correctie, + of −) en soort `adjust`.
+   Controle: `select count(*) filter (where moment is not null), count(*) filter (where kind = 'adjust') from stock_events;` → 0, 0.
+2. **Eenmalige correctie**: voer [`fix-2026-11-28-count-moment.sql`](fix-2026-11-28-count-moment.sql) uit. Zet de telling
+   van 779 op wo 25 nov op "vóór de ronde"; daarna staat de voorraad 334 lager (de verkoop van die ronde gaat er weer af).
+   Geeft 1 rij terug.
+
+Functies aan/uit (`shared/features.js`) staan in `team_apps.settings.features` (jsonb, geen schemawijziging).

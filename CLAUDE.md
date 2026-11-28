@@ -34,6 +34,13 @@ Backend: Supabase (zie `supabase/`). Overzicht van bestanden: `README.md`.
   blijven in de app.
 - Inloggen gebeurt alleen in de hub (`shared/family.js`); apps sturen naar `../?login` als er geen sessie is.
 
+## Functies aan/uit (feature toggles)
+- Een losse functie of uitbreiding binnen een app (iets wat een gezin niet hoeft te gebruiken, of wat eerst getest moet
+  worden) krijgt een regel in `shared/features.js` (`app`, `id`, eventueel `parent` voor een uitbreiding, `def`).
+- Standen: `on`, `test` (alleen beheerders), `off`. Opslag per gezin in `team_apps.settings.features`; de app vraagt
+  het na met `ThuisFeatures.on(settings, app, id, isAdmin)`. Schakelaars staan in de app bij Instellingen → Functies.
+- Uitzetten verbergt alleen; gegevens blijven bewaard. `tests/features.test.mjs` controleert de lijst.
+
 ## Hoofdbeheer (alles buiten de gezinnen)
 - Rol `admin` in `platform_roles` (nu alleen de eigenaar van de app). Scherm Beheer in de hub.
 - Mag alleen aan/uit en verwijderen: apps voor alle gezinnen (`platform_apps`), gezinnen uitschakelen (`teams.disabled_at`)

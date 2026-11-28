@@ -392,7 +392,7 @@ Niet thuis verandert de afspraak niet: het adres komt op de volgende loopdag ter
   {
     slug: 'eggs-besteladvies', app: 'eggs', title: 'Hoe werkt de planning en het besteladvies?', updated: '2026-11-22', version: '3.12.1',
     body: `<p><b>Planning</b> bestaat uit drie delen: wat er ligt, wat eraan komt en wat je moet bestellen.</p>
-<ul><li><b>Voorraad</b>: wat er nu ligt. Geleverd min kapot min verkocht (de verkoop komt vanzelf uit de ronde). De oudste eieren gaan eerst. Klopt het niet, tik op <b>Voorraad tellen</b>.</li>
+<ul><li><b>Voorraad</b>: wat er nu ligt. Geleverd min kapot min verkocht (de verkoop komt vanzelf uit de ronde). De oudste eieren gaan eerst. Klopt het niet, tik op <b>Voorraad tellen</b> of <b>Voorraad corrigeren</b> (zie Voorraad bijhouden).</li>
 <li><b>Onderweg</b>: elke levering die nog niet binnen is, met datum, aantal en over hoeveel dagen. Tik erop om hem te wijzigen.
 Is hij binnen, tik dan op <b>Alles is binnen</b> en vul daarna de kapotte eieren in. Pas dan telt hij mee in de voorraad.</li>
 <li><b>Bestellen</b>: het advies voor de eerstvolgende levering waarvoor nog niets besteld is. Bestellen doe je op de besteldag (bijv. donderdag) voor de levering erna (bijv. woensdag).
@@ -409,6 +409,23 @@ De verwachte verkoop komt per adres uit de afspraken, de frequentie, de voorkeur
 <li>Tik op <b>Test: open SumUp</b>. Opent SumUp, dan werkt het.</li></ol>
 <p>Aan de deur: kies je een aantal eieren (of <b>Zoals afgesproken</b>), dan vraagt de app <b>Afrekenen in SumUp?</b> met het aantal en de doosjes (bijvoorbeeld 16 eieren: 1×10 + 1×6). Tik je op <b>Open SumUp</b>, dan opent SumUp. Het bedrag en de artikelen kies je in SumUp; daar staan de prijzen. Daarna ga je zelf terug naar Egg-sellent. Later afrekenen kan met de knop <b>Afrekenen in SumUp</b> bij het huis.</p>
 <p>Gaat SumUp niet open? Dan meldt de app dat. Controleer of de SumUp-app op de telefoon staat. Egg-sellent houdt niet bij of er betaald is; dat zie je in SumUp.</p>`,
+  },
+  {
+    slug: 'eggs-voorraad', app: 'eggs', title: 'Voorraad bijhouden: leveringen, tellingen en correcties', updated: '2026-11-28', version: '3.25.0',
+    body: `<p>De voorraad staat bij <b>Planning → Voorraad</b>. De app rekent hem zelf uit: geleverd, min kapot, min verkocht. <b>Elke verkoop gaat meteen van de voorraad af</b>, ook op de dag dat er een levering kwam. Bij de ronde zie je bovenaan hoeveel er nog op voorraad is.</p>
+<ul><li><b>Levering</b>: tik op <b>Levering van … ontvangen</b> en dan <b>Alles is binnen</b>. Vul daarna de kapotte eieren in. Je hoeft daarna niet te tellen.</li>
+<li><b>Voorraad tellen</b>: zet de voorraad op wat er echt ligt. Kies <b>Vóór de ronde</b> (wat je daarna verkoopt, gaat er nog af) of <b>Na de ronde</b> (de verkoop van die dag is er al af). De app kiest zelf <b>Vóór de ronde</b> als er die dag nog niets verkocht is of net een levering binnenkwam. Het verschil met de berekening zie je meteen.</li>
+<li><b>Voorraad corrigeren</b>: eieren <b>eraf</b> (kapot, eigen gebruik, weggegeven) of <b>erbij</b> (gevonden), met een reden. Gebruik dit als je weet wat er gebeurd is; tel als je het niet weet.</li></ul>
+<p><b>Achteraf wijzigen</b>: bij <b>Leveringen, tellingen en correcties</b> tik je op een regel en pas je de datum, de aantallen of de kapotte eieren aan, of verwijder je hem. Een levering of correctie voor een eerdere dag voeg je toe en zet je op die datum. De voorraad en het besteladvies worden meteen opnieuw berekend.</p>
+<p><b>Voorraad per dag</b> laat per dag zien: begin, geleverd, verkocht, correcties en tellingen, en wat er aan het eind lag. Zo zie je waar een verschil vandaan komt.</p>`,
+  },
+  {
+    slug: 'functies', app: 'hub', title: 'Functies aan- of uitzetten (of eerst testen)', updated: '2026-11-28', version: '3.25.0',
+    body: `<p>Sommige onderdelen van een app kun je per gezin aan- of uitzetten. Bijvoorbeeld in Egg-sellent: <b>Doosjes bijhouden</b>, <b>Stroopwafels</b> en <b>Afrekenen met SumUp</b>. Je vindt ze in de app bij <b>Instellingen → Functies</b>. Alleen de gezinsbeheerder kan ze wijzigen.</p>
+<ul><li><b>Aan</b>: iedereen in het gezin ziet het.</li>
+<li><b>Test</b>: alleen beheerders zien het. Zo probeer je iets uit voordat de rest het krijgt.</li>
+<li><b>Uit</b>: niemand ziet het. Wat al is ingevoerd, blijft bewaard; zet je het weer aan, dan is alles terug.</li></ul>
+<p>Een <b>uitbreiding</b> (met ↳ ervoor) hoort bij de functie erboven. Staat die functie uit, dan werkt de uitbreiding ook niet. Voorbeeld: <b>Aankondigen aan de deur</b> hoort bij <b>Stroopwafels</b>.</p>`,
   },
   {
     slug: 'financien-inlezen', app: 'finance', title: 'Financiën: transacties van je bank inlezen', updated: '2026-11-25', version: '3.19.0',

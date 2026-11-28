@@ -135,7 +135,7 @@ create table if not exists public.stock_events (
   team_id uuid not null references public.teams(id) on delete cascade,
   id text not null,
   date date not null default current_date,
-  kind text not null default 'delivery' check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount')),
+  kind text not null default 'delivery' check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount', 'adjust')),
   ordered int,
   delivered int,
   broken int not null default 0,
@@ -152,7 +152,13 @@ create index if not exists stock_events_sync on public.stock_events(team_id, ser
 alter table public.stock_events add column if not exists box6 int;
 alter table public.stock_events add column if not exists box10 int;
 alter table public.stock_events drop constraint if exists stock_events_kind_check;
-alter table public.stock_events add constraint stock_events_kind_check check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount'));
+alter table public.stock_events add constraint stock_events_kind_check check (kind in ('delivery', 'count', 'boxes', 'boxreturn', 'boxcount', 'wafelin', 'wafelcount', 'adjust'));
+-- Voorraad (v3.25): een telling geldt vóór ('start') of na ('end', leeg = na) de verkoop van die dag;
+-- een correctie (kind adjust) zet qty eieren erbij (+) of eraf (−), met de reden in note.
+alter table public.stock_events add column if not exists moment text;
+alter table public.stock_events add column if not exists qty int;
+alter table public.stock_events drop constraint if exists stock_events_moment_check;
+alter table public.stock_events add constraint stock_events_moment_check check (moment is null or moment in ('start', 'end'));
 -- Stroopwafels (v2.8): weken waarin ze verkocht worden (maandag van de week), hoeveel weken vooraf aankondigen,
 -- en per bezoek de verkochte en de afgesproken pakjes. Voorraad pakjes: stock_events wafelin (delivered) en wafelcount (counted).
 alter table public.teams add column if not exists stroop_weeks date[] not null default '{}';
