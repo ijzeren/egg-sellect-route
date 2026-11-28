@@ -333,6 +333,53 @@ Voorbeeld: 700 euro voor 7 nachten, 3 volwassenen en 1 kind. Per nacht 100 euro,
 <p>Staat er bij een soort wel een begroting maar nog geen enkele factuur, dan waarschuwt de app: het resultaat is dan te rooskleurig.</p>`,
   },
   {
+    slug: 'boodschappen', app: 'groceries', title: 'Boodschappen: de lijst, vaste boodschappen en het weekmenu', updated: '2026-11-28', version: '3.24.0',
+    body: `<p>In <b>Boodschappen</b> heeft het gezin één lijst. Iedereen die de app mag gebruiken, ziet dezelfde lijst en kan erop zetten en afvinken.
+De lijst ververst vanzelf, dus je kunt met twee mensen tegelijk in de winkel zijn.</p>
+<h3>De lijst</h3>
+<ol><li>Typ bovenaan wat er bij moet, met de hoeveelheid vooraan als je wilt: <i>2 uien</i>, <i>500 g gehakt</i>, <i>melk</i>. Tik op <b>Voeg toe</b>.</li>
+<li>Staat het er al? Dan telt de app de hoeveelheid erbij op (1 ui + 2 uien = 3 uien).</li>
+<li>De lijst staat per afdeling, in de volgorde van een ronde door de winkel. Klopt een afdeling niet? Tik op de boodschap en kies een andere. De app onthoudt dat.</li>
+<li>In de winkel tik je op het rondje: de boodschap gaat naar <b>In het mandje</b>. Per ongeluk? Tik nog een keer. Het mandje is de volgende dag vanzelf leeg, of tik op <b>Mandje leegmaken</b>.</li></ol>
+<h3>Vaste boodschappen</h3>
+<p>Wat je steeds weer koopt (melk, brood, wc-papier) zet je bij <b>Vaste boodschappen</b> met hoe vaak: elke week, om de 2 weken, enzovoort.
+De app zet het vanzelf op de lijst als het aan de beurt is, iets eerder dan precies na een week, zodat je het op tijd haalt.</p>
+<ul><li>Staat een vaste boodschap op de lijst, maar heb je nog genoeg? Tik erop en kies <b>Nog genoeg in huis</b>. Dan komt hij een paar dagen later terug.</li>
+<li>Koop je iets duidelijk vaker of minder vaak dan het ritme (minstens 4 keer gekocht)? Dan stelt de app een ander ritme voor. Er verandert niets tot je het zelf kiest.</li>
+<li>Een boodschap op de lijst kun je ook <b>vaste boodschap maken</b>: tik erop.</li></ul>
+<p>Bij <b>In huis</b> zet je wat je altijd in huis hebt, zoals olie, rijst of kruiden. Dat komt nooit vanzelf op de lijst en staat bij het weekmenu standaard uitgevinkt. Zout, peper en water ook.</p>
+<h3>Weekmenu</h3>
+<ol><li>Open <b>Weekmenu</b> en kies de week. Tik op <b>Gerecht toevoegen</b> en kies een gerecht uit de app Gerechten.</li>
+<li>Zet met − en + voor hoeveel personen. De hoeveelheden rekent de app om.</li>
+<li>Tik op <b>Ingrediënten op de lijst</b>. Je ziet alle ingrediënten van die gerechten bij elkaar opgeteld. Vink uit wat je al hebt en tik op <b>Zet … op de lijst</b>.</li></ol>
+<p>Voor het weekmenu moet ook de app <b>Gerechten</b> aan staan voor jou. Wat je koopt per stuk rondt de app naar boven af (anderhalve ui wordt 2 uien).</p>
+<p>Prijzen en aanbiedingen van Albert Heijn: zie het artikel <b>Boodschappen: prijzen van Albert Heijn, goedkoper en gezonder</b>. Picnic komt later.</p>`,
+  },
+  {
+    slug: 'boodschappen-prijzen', app: 'groceries', title: 'Boodschappen: prijzen van Albert Heijn, goedkoper en gezonder', updated: '2026-11-28', version: '3.24.0',
+    body: `<p>Bij elke boodschap kun je één keer kiezen welk product je bij <b>Albert Heijn</b> koopt. Daarna zie je op de lijst de prijs,
+de bonus van deze week en een goedkoper of gezonder alternatief.</p>
+<h3>Een product kiezen</h3>
+<ol><li>Tik op een boodschap op de lijst, bijvoorbeeld <i>halfvolle melk</i>.</li>
+<li>Tik bij <b>Albert Heijn</b> op <b>Kies een product bij AH</b>. De app zoekt op de naam van de boodschap; je kunt ook iets anders typen.</li>
+<li>Tik op het product dat je wilt. Je ziet de inhoud, de prijs, de prijs per kilo of liter, de Nutri-Score (A is het gezondst) en de bonus.</li></ol>
+<p>De keuze geldt voor het hele gezin en blijft bewaard. Staat er volgende week weer <i>melk</i> op de lijst (ook als vaste boodschap of uit het weekmenu), dan weet de app welk product het is.
+Een ander product kiezen kan altijd: tik op het product bij de boodschap. <b>Geen product kiezen</b> haalt de keuze weg.</p>
+<h3>Goedkoper en gezonder</h3>
+<ul><li><b>Goedkoper</b>: een product van hetzelfde soort (bijvoorbeeld halfvolle melk) dat minstens 10% minder kost. Staat er een hoeveelheid bij de boodschap (<i>500 g gehakt</i>), dan telt wat je echt betaalt: een pak van 1 kilo is dan niet goedkoper. Een goedkoper product heeft nooit een slechtere Nutri-Score.</li>
+<li><b>Gezonder</b>: een product van hetzelfde soort met een betere Nutri-Score.</li>
+<li>Tik op het voorstel om te wisselen. Er verandert niets vanzelf.</li>
+<li>Wil je een vast merk, zoals je favoriete pindakaas? Zet <b>Alleen dit merk</b> aan. Dan stelt de app geen goedkoper ander merk meer voor.</li></ul>
+<h3>Het totaal</h3>
+<p>Bovenaan de lijst staat wat de boodschappen met een gekozen product ongeveer kosten bij AH, en wat de bonus scheelt.
+De app rekent uit hoeveel verpakkingen je nodig hebt (750 g gehakt = 2 pakken van 500 g). Bij een actie als <i>1 + 1 gratis</i> telt de korting alleen als je er genoeg koopt; dat zie je bij het product.
+Boodschappen zonder gekozen product tellen niet mee.</p>
+<h3>Goed om te weten</h3>
+<ul><li>De prijzen worden één keer per dag bijgewerkt, als iemand de app opent. Het zijn de prijzen van de AH-webwinkel; in de winkel zijn ze bijna altijd gelijk.</li>
+<li>Albert Heijn heeft geen officiële koppeling. Werkt het even niet, dan blijft de lijst gewoon werken, alleen zonder nieuwe prijzen. Je ziet dan van welke dag de prijzen zijn.</li>
+<li>Je hoeft niet in te loggen bij AH. De app stuurt alleen zoekwoorden naar Albert Heijn, nooit je naam of je lijst.</li></ul>`,
+  },
+  {
     slug: 'eggs-ronde', app: 'eggs', title: 'Een ronde lopen', updated: '2026-11-22', version: '2.8.0',
     body: `<p>Het tabblad <b>Ronde</b> toont de adressen van vandaag in loopvolgorde, met het afgesproken aantal eieren.</p>
 <ol><li>Tik op <b>Start ronde</b> (of <b>Verder bij …</b>).</li>

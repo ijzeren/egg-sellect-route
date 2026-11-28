@@ -10,6 +10,18 @@
 // - Ingewikkelde functie? Schrijf er ook een kennisbankartikel bij (shared/kb.js) en verwijs ernaar met `kb`.
 export const RELEASES = [
   {
+    version: '3.24.0', date: '2026-11-28', title: 'Nieuwe app: Boodschappen',
+    notes: [
+      { app: 'groceries', text: 'Eén boodschappenlijst voor het hele gezin. Typ wat er bij moet ("2 uien") en vink af in de winkel. De lijst staat per afdeling en ververst vanzelf, ook als iemand anders iets toevoegt.', kb: 'boodschappen' },
+      { app: 'groceries', text: 'Vaste boodschappen: melk elke week, wc-papier om de 2 weken. Ze komen vanzelf op de lijst als ze aan de beurt zijn. Koop je iets vaker of minder vaak, dan stelt de app een ander ritme voor.', kb: 'boodschappen' },
+      { app: 'groceries', text: 'Weekmenu: kies gerechten uit Gerechten en voor hoeveel personen. Met één tik staan de ingrediënten op de lijst, opgeteld en omgerekend. Wat je altijd in huis hebt, slaat de app over.', kb: 'boodschappen' },
+      { app: 'groceries', text: 'Tik op een boodschap en kies het product bij Albert Heijn. Dan zie je de prijs, de bonus van deze week en de Nutri-Score. De keuze geldt voor het hele gezin.', kb: 'boodschappen-prijzen' },
+      { app: 'groceries', text: 'Is er een goedkoper of gezonder product van hetzelfde soort, dan zie je dat bij de boodschap. Eén tik en je wisselt. Wil je een vast merk? Zet "Alleen dit merk" aan.', kb: 'boodschappen-prijzen' },
+      { app: 'groceries', text: 'Bovenaan de lijst staat wat de boodschappen ongeveer kosten bij AH en wat de bonus scheelt.' },
+      { app: 'hub', text: 'Een beheerder zet Boodschappen aan bij Gezin → Apps.', kb: 'apps-aanzetten' },
+    ],
+  },
+  {
     version: '3.23.0', date: '2026-11-26', title: 'Rabobank koppelen in Financiën',
     notes: [
       { app: 'finance', text: 'Koppel je Rabobank-rekening: nieuwe transacties komen dan elke nacht vanzelf binnen, met het saldo. Geen export meer nodig.', kb: 'financien-bank' },

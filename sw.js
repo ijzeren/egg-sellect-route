@@ -1,7 +1,7 @@
 // Service worker van de familie-app (hub + alle apps eronder): offline werken en updates.
 // BIJ ELKE UPDATE: verhoog VERSION (en APP_VERSION in eggs/index.html als Egg-sellent verandert).
 // Nieuw bestand toegevoegd? Zet het in ASSETS, anders werkt het niet offline.
-const VERSION = '3.23.0';
+const VERSION = '3.24.0';
 const CACHE = 'familie-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './config.js', './icon-180.png', './icon-192.png', './icon-512.png',
@@ -14,6 +14,7 @@ const ASSETS = [
   './agenda/', './agenda/index.html', './agenda/agenda.css', './agenda/app.js', './agenda/plan.js',
   './finance/', './finance/index.html', './finance/finance.css', './finance/app.js', './finance/money.js', './finance/import.js', './finance/payouts.js',
   './rentals/', './rentals/index.html', './rentals/rentals.css', './rentals/app.js', './rentals/tax.js', './rentals/year.js',
+  './groceries/', './groceries/index.html', './groceries/groceries.css', './groceries/app.js', './groceries/plan.js', './groceries/prices.js',
 ];
 
 self.addEventListener('install', (e) => {

@@ -1906,3 +1906,208 @@ grant select, insert, update, delete on all tables in schema public to service_r
 grant usage, select on all sequences in schema public to service_role;
 alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
 alter default privileges in schema public grant usage, select on sequences to service_role;
+
+-- ---------- Boodschappen (familie-app, v3.18) ----------
+-- grocery_staples  vaste boodschappen van het gezin: every_days = ritme in dagen; null = "altijd in huis" (nooit vanzelf
+--                  op de lijst, overgeslagen bij gerechten). last_bought houdt de trigger hieronder bij (laatste keer
+--                  afgevinkt); snooze_until = "nog genoeg in huis", pas daarna weer op de lijst.
+-- grocery_items    de gedeelde lijst. checked_at = afgevinkt (in het mandje); deleted = van de lijst gehaald.
+--                  Afgevinkte regels blijven bestaan: daaruit leert de app het ritme en de afdeling per artikel.
+-- grocery_menu     weekmenu: gerecht + aantal personen per week (maandag); listed_at = ingrediënten op de lijst gezet.
+-- Wanneer een vaste boodschap aan de beurt is: hier in grocery_fill én in groceries/plan.js (dueDate). Houd die gelijk.
+create table if not exists public.grocery_staples (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 80),
+  qty numeric check (qty is null or (qty > 0 and qty < 100000)),
+  unit text not null default '' check (unit ~ '^[a-z]{0,12}$'),
+  section text not null default 'other' check (section ~ '^[a-z]{1,20}$'),
+  every_days int check (every_days is null or every_days between 1 and 365),
+  last_bought date,
+  snooze_until date,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists grocery_staples_team on public.grocery_staples(team_id);
+create table if not exists public.grocery_items (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null check (length(trim(name)) between 1 and 80),
+  qty numeric check (qty is null or (qty > 0 and qty < 100000)),
+  unit text not null default '' check (unit ~ '^[a-z]{0,12}$'),
+  section text not null default 'other' check (section ~ '^[a-z]{1,20}$'),
+  note text not null default '' check (length(note) <= 200),
+  source text not null default 'manual' check (source in ('manual', 'staple', 'recipe')),
+  staple_id uuid references public.grocery_staples(id) on delete set null,
+  recipe_ids uuid[] not null default '{}',
+  checked_at timestamptz,
+  checked_by uuid references auth.users(id) on delete set null,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists grocery_items_open on public.grocery_items(team_id) where not deleted;
+create index if not exists grocery_items_staple on public.grocery_items(staple_id, checked_at) where staple_id is not null;
+-- Hooguit één open regel per vaste boodschap (twee telefoons tegelijk vullen de lijst niet dubbel).
+create unique index if not exists grocery_items_open_staple on public.grocery_items(staple_id) where staple_id is not null and checked_at is null and not deleted;
+create table if not exists public.grocery_menu (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  week date not null check (extract(isodow from week) = 1),
+  recipe_id uuid not null references public.recipes(id) on delete cascade,
+  servings int not null default 4 check (servings between 1 and 30),
+  listed_at timestamptz,
+  deleted boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+create index if not exists grocery_menu_team on public.grocery_menu(team_id, week);
+
+create or replace function public.grocery_touch() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE' then new.team_id := old.team_id; new.created_by := old.created_by; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['grocery_staples', 'grocery_items', 'grocery_menu'] loop
+    execute format('drop trigger if exists grocery_touch on public.%I', t);
+    execute format('create trigger grocery_touch before insert or update on public.%I for each row execute function public.grocery_touch()', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists team_data on public.%I', t);
+    execute format('create policy team_data on public.%I for all using (public.has_app(team_id, ''groceries'')) with check (public.has_app(team_id, ''groceries''))', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+
+-- Regels: vaste boodschap en gerechten van hetzelfde gezin; afvinken met de tijd van de server en wie het deed.
+create or replace function public.grocery_items_guard() returns trigger
+language plpgsql as $$
+begin
+  if new.staple_id is not null and not exists (select 1 from public.grocery_staples s where s.id = new.staple_id and s.team_id = new.team_id) then
+    raise exception 'Onbekende vaste boodschap';
+  end if;
+  if new.checked_at is not null and (tg_op = 'INSERT' or old.checked_at is null) then
+    new.checked_at := now(); new.checked_by := auth.uid();
+  elsif new.checked_at is null then
+    new.checked_by := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists grocery_items_guard on public.grocery_items;
+create trigger grocery_items_guard before insert or update on public.grocery_items for each row execute function public.grocery_items_guard();
+create or replace function public.grocery_menu_guard() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.recipes r where r.id = new.recipe_id and r.team_id = new.team_id) then
+    raise exception 'Onbekend gerecht';
+  end if;
+  return new;
+end $$;
+drop trigger if exists grocery_menu_guard on public.grocery_menu;
+create trigger grocery_menu_guard before insert or update on public.grocery_menu for each row execute function public.grocery_menu_guard();
+
+-- Laatst gekocht = de laatste keer dat een regel van die vaste boodschap is afgevinkt (ook na weer uitvinken klopt het).
+create or replace function public.grocery_bought() returns trigger
+language plpgsql as $$
+declare s uuid;
+begin
+  foreach s in array array[case when tg_op <> 'INSERT' then old.staple_id end, new.staple_id] loop
+    if s is not null then
+      update public.grocery_staples set last_bought = (
+        select max((i.checked_at at time zone 'Europe/Amsterdam')::date) from public.grocery_items i where i.staple_id = s and i.checked_at is not null)
+      where id = s;
+    end if;
+  end loop;
+  return null;
+end $$;
+drop trigger if exists grocery_bought on public.grocery_items;
+create trigger grocery_bought after insert or update of checked_at, staple_id on public.grocery_items for each row execute function public.grocery_bought();
+
+-- Vaste boodschappen die aan de beurt zijn op de lijst zetten (de app roept dit aan bij het openen).
+-- Iets eerder dan precies na every_days dagen: least(3, round(every_days / 4)) dagen (zie groceries/plan.js → margin).
+create or replace function public.grocery_fill(p_team uuid) returns int
+language plpgsql set search_path = public as $$
+declare n int; d date := (now() at time zone 'Europe/Amsterdam')::date;
+begin
+  if not public.has_app(p_team, 'groceries') then raise exception 'Boodschappen staat niet aan voor jou in dit gezin'; end if;
+  insert into grocery_items (team_id, name, qty, unit, section, source, staple_id)
+    select s.team_id, s.name, s.qty, s.unit, s.section, 'staple', s.id from grocery_staples s
+    where s.team_id = p_team and not s.deleted and s.every_days is not null
+      and (s.last_bought is null or s.last_bought + s.every_days - least(3, round(s.every_days / 4.0))::int <= d)
+      and (s.snooze_until is null or s.snooze_until <= d)
+    on conflict (staple_id) where staple_id is not null and checked_at is null and not deleted do nothing;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.grocery_fill(uuid) from public, anon;
+grant execute on function public.grocery_fill(uuid) to authenticated;
+
+-- ---------- Boodschappen: producten en prijzen van Albert Heijn (v3.19) ----------
+-- grocery_choices      gekozen product per boodschap (naam) en per winkel, per gezin. name_key = de naam zoals
+--                      groceries/plan.js → nameKey hem maakt (enkelvoud/meervoud gelijk). brand_only = "alleen dit
+--                      merk": dan stelt de app geen goedkoper ander merk voor.
+-- grocery_products     cache van productgegevens per winkel (prijs, bonus, Nutri-Score, verpakking). Openbare
+--                      winkelgegevens, GEEN gezinsgegevens (geen team_id, geen zoektermen): iedereen die is ingelogd mag
+--                      lezen; alleen de Edge Function groceries-products schrijft (service role).
+-- grocery_store_state  alleen voor de server: het AH-token, wanneer een subcategorie is opgehaald, tellers per gezin.
+--                      NOOIT leesbaar vanuit de app.
+create table if not exists public.grocery_choices (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name_key text not null check (length(name_key) between 1 and 80),
+  store text not null default 'ah' check (store in ('ah')),
+  product_id text not null check (product_id ~ '^[A-Za-z0-9_-]{1,40}$'),
+  brand_only boolean not null default false,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (team_id, store, name_key)
+);
+drop trigger if exists grocery_touch on public.grocery_choices;
+create trigger grocery_touch before insert or update on public.grocery_choices for each row execute function public.grocery_touch();
+alter table public.grocery_choices enable row level security;
+drop policy if exists team_data on public.grocery_choices;
+create policy team_data on public.grocery_choices for all using (public.has_app(team_id, 'groceries')) with check (public.has_app(team_id, 'groceries'));
+revoke all on public.grocery_choices from anon;
+grant select, insert, update, delete on public.grocery_choices to authenticated;
+
+create table if not exists public.grocery_products (
+  store text not null check (store in ('ah')),
+  product_id text not null,
+  title text not null,
+  brand text not null default '',
+  size text not null default '',
+  price numeric,
+  price_was numeric,
+  bonus text not null default '',
+  bonus_until date,
+  unit text not null default 'st' check (unit in ('kg', 'l', 'st')),
+  unit_qty numeric,
+  nutriscore text check (nutriscore is null or nutriscore in ('A', 'B', 'C', 'D', 'E')),
+  category text not null default '',
+  sub_category text not null default '',
+  image text not null default '',
+  available boolean not null default true,
+  fetched_at timestamptz not null default now(),
+  primary key (store, product_id)
+);
+create index if not exists grocery_products_sub on public.grocery_products(store, sub_category);
+alter table public.grocery_products enable row level security;
+drop policy if exists read_all on public.grocery_products;
+create policy read_all on public.grocery_products for select to authenticated using (true);
+revoke all on public.grocery_products from anon, authenticated;
+grant select on public.grocery_products to authenticated;
+
+create table if not exists public.grocery_store_state (
+  key text primary key,
+  value jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
+alter table public.grocery_store_state enable row level security;
+revoke all on public.grocery_store_state from anon, authenticated;

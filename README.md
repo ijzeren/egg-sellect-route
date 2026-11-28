@@ -12,6 +12,7 @@ De huis-gezinsapp (voorheen "familie-app"). De apps van het gezin onder één ic
 | `/agenda/` | **Agenda** — schoolrooster, trainingen, wedstrijden en huiswerk van de kinderen |
 | `/finance/` | **Financiën** — bij- en afschrijvingen van de eigen bankrekeningen (export uit de bank), ingedeeld per soort; privé per rekening |
 | `/rentals/` | **Verhuur** — vakantiehuis: boekingen, eigen gebruik, de aangifte van de toeristenbelasting, kosten, begroting en jaaroverzicht |
+| `/groceries/` | **Boodschappen** — één lijst voor het gezin, vaste boodschappen met een ritme en een weekmenu uit Gerechten |
 
 Een gezin (in de database een *team*) heeft meerdere gebruikers met een rol (beheerder, lid, kind); aansluiten gaat
 met een code. Per gezin staan apps aan of uit, per lid regel je toegang en rol in een app. Inloggen, gezin, leden,
@@ -53,11 +54,12 @@ Engels, schermteksten in het Nederlands.
 | `agenda/` | Agenda: `app.js` (schermen, opslaan), `plan.js` (wat is er wanneer, rooster plakken, huiswerk; testbaar) |
 | `finance/` | Financiën: `app.js` (schermen, inlezen, opslaan), `import.js` (Rabobank CSV en CAMT.053 lezen; testbaar), `money.js` (overzicht, regels, vaste lasten; testbaar), `payouts.js` (uitbetalingen Booking.com/Airbnb koppelen aan Verhuur; testbaar). Bankkoppeling (Enable Banking): `supabase/functions/integrations/bank.mjs`, nepbank `scripts/mock-enablebanking.mjs`. Plan: `docs/plan-finance.md` |
 | `rentals/` | Verhuur: `app.js` (schermen, opslaan), `tax.js` (nachten, toeristenbelasting, aangifte per maand; testbaar), `year.js` (kosten per boeking, eigen gebruik, jaaroverzicht; testbaar). Eenmalige import van de oude spreadsheet: `scripts/rentals-import.mjs` (met `scripts/xlsx.mjs`). Plan en vervolg: `docs/plan-rentals.md` |
+| `groceries/` | Boodschappen: `app.js` (schermen, opslaan), `plan.js` (ingrediënten optellen, ritme, afdelingen; testbaar), `prices.js` (AH-prijzen, verpakkingen, bonus, goedkoper/gezonder; testbaar). Prijzen via de Edge Function `supabase/functions/groceries-products/` (`ah.mjs` testbaar). Plan voor AH en Picnic: [`docs/plan-groceries.md`](docs/plan-groceries.md) |
 | `sw.js` | offline werken en updates voor alles; **verhoog `VERSION` bij elke wijziging** en zet nieuwe bestanden in `ASSETS` |
 | `config.js` | koppeling met Supabase (leeg = alleen op deze telefoon) |
 | `manifest.webmanifest`, `icon-*.png` | naam en icoon op het beginscherm |
 | `supabase/` | databaseschema, mailtekst met inlogcode en [installatiehandleiding](supabase/README.md) |
-| `tests/` | `npm test`: versies en release notes, Pilates-inhoud en planning, Bio-circuit, gerechten, agenda |
+| `tests/` | `npm test`: versies en release notes, Pilates-inhoud en planning, Bio-circuit, gerechten, agenda, boodschappen |
 | `PLAN.md` | plan van Egg-sellent (schermafbeeldingen in `docs/design/`) |
 
 ## Training: trainingsdagen en bonus

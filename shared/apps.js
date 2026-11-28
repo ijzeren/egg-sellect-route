@@ -148,4 +148,21 @@ export const APPS = [
       return { line: 'Geen boekingen gepland', sub };
     },
   },
+  {
+    id: 'groceries',
+    name: 'Boodschappen',
+    route: 'groceries/',
+    icon: '🛒',
+    about: 'Eén boodschappenlijst voor het gezin, met vaste boodschappen en een weekmenu uit Gerechten.',
+    // Uit de kopie op de telefoon (groceries/app.js): wat er op de lijst staat en het weekmenu van deze week.
+    status({ today, account, storage }) {
+      const d = account && account.teamId ? storage.get('groceries', `${account.teamId}:data`) : null;
+      if (!d) return { line: 'Eén lijst voor het hele gezin', sub: '' };
+      // zelfde week als het weekmenu in de app: op zondag de week die komt
+      const open = (d.items || []).filter(it => !it.checked_at).length, ws = P.weekStart(P.dow(today) === 0 ? P.addDays(today, 1) : today);
+      const menu = (d.menu || []).filter(m => m.week === ws && !m.deleted).length;
+      const sub = menu ? plural(menu, 'gerecht', 'gerechten') + ' op het weekmenu' : '';
+      return { line: open ? plural(open, 'boodschap', 'boodschappen') + ' op de lijst' : 'De lijst is leeg', sub };
+    },
+  },
 ];

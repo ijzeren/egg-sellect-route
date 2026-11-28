@@ -347,7 +347,7 @@ function vAdminFamily() {
     'Uitschakelen: leden kunnen niet meer bij de gegevens, maar er wordt niets verwijderd. Weer aanzetten maakt alles terug zichtbaar.');
   h += sec('Verwijderen', grp(`<label class="cell field"><span class="fl">Typ de naam</span><input type="text" id="delConfirm" autocomplete="off" placeholder="${esc(f.name)}"></label>
     <button class="cell red center" data-a="familydelete" data-id="${esc(f.team_id)}">Gezin en alle gegevens verwijderen</button>`),
-    'Kan niet ongedaan worden gemaakt: leden, apps, adressen, bezoeken, trainingen, gerechten, agenda en vragen van dit gezin worden verwijderd. Accounts van de leden blijven bestaan.');
+    'Kan niet ongedaan worden gemaakt: leden, apps, adressen, bezoeken, trainingen, gerechten, agenda, boodschappen en vragen van dit gezin worden verwijderd. Accounts van de leden blijven bestaan.');
   return h + '</main>';
 }
 

@@ -443,3 +443,6 @@ verify_jwt = false
 
 [functions.integrations]
 verify_jwt = false
+
+[functions.groceries-products]
+verify_jwt = false

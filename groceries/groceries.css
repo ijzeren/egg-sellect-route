@@ -1,0 +1,33 @@
+/* Boodschappen — bovenop shared/theme.css en shared/ui.css. Eigen accentkleur: groen. */
+body{--tint:var(--green)}
+.card{background:var(--cell);border-radius:12px;padding:16px;margin:12px 0}
+.card h2{font-size:1.06rem;font-weight:700;margin:0 0 4px}
+.add{display:flex;gap:8px;align-items:center;background:var(--cell);border-radius:12px;padding:6px 6px 6px 14px;margin:4px 0 8px}
+.add input{flex:1;min-width:0;border:0;background:none;font:inherit;color:var(--label);padding:8px 0}
+.add input:focus{outline:none}
+.add button{flex:none;min-height:38px;padding:0 14px;border-radius:9px;background:var(--tint);color:var(--on-tint);font-weight:600}
+.cell.item{align-items:flex-start;gap:10px}
+.cell.item .tx{text-align:left;color:var(--label);min-width:0}
+.cell.item .amt{font-weight:600;margin-right:4px}
+.cell.item.done .tt{text-decoration:line-through;color:var(--label2)}
+.check{width:26px;height:26px;border-radius:50%;border:2px solid var(--label3);flex:none;margin-top:1px;position:relative}
+.check[aria-checked=true]{background:var(--tint);border-color:var(--tint)}
+.check[aria-checked=true]::after{content:"";position:absolute;left:7px;top:3px;width:6px;height:11px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+.pager{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;margin:4px 0 10px}
+.pager .nb{font-size:1.8rem;font-weight:300}
+.pager .lbl{display:flex;flex-direction:column;align-items:center;min-height:44px;justify-content:center}
+.pager .lbl span{font-size:.82rem;color:var(--label2)}
+.stepper{display:flex;align-items:center;gap:4px;flex:none}
+.stepper button{width:34px;height:34px;border-radius:50%;background:var(--fill);color:var(--tint);font-size:1.2rem;font-weight:600}
+.stepper b{min-width:1.6rem;text-align:center;font-variant-numeric:tabular-nums}
+.hint{display:inline-block;max-width:100%;margin-top:6px;padding:4px 10px;border-radius:12px;background:var(--green-s);color:var(--label);font-size:.82rem;font-weight:500}
+/* prijzen van Albert Heijn */
+.bonus{display:inline-block;padding:0 6px;border-radius:6px;background:var(--orange-s);color:var(--label);font-size:.78rem;font-weight:600;max-width:100%}
+.ns{display:inline-block;min-width:1.3em;padding:0 4px;border-radius:5px;color:#fff;font-size:.76rem;font-weight:700;text-align:center}
+.ns-A{background:#038141}.ns-B{background:#85bb2f}.ns-C{background:#e5a800}.ns-D{background:#e67e22}.ns-E{background:#e63e11}
+.total{margin:0 4px 6px}
+.cell.field input[type=checkbox]{flex:none;width:22px;height:22px;margin-left:auto;padding:0;-webkit-appearance:auto;appearance:auto;accent-color:var(--tint)}
+.search{width:100%;border:0;background:var(--cell);border-radius:10px;font:inherit;color:var(--label);padding:10px 12px;margin:4px 0 10px}
+.search:focus{outline:2px solid var(--tint)}
+select.sel{border:0;background:none;font:inherit;color:var(--label2);text-align:right;max-width:60%}
+.segc{flex-wrap:wrap}

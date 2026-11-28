@@ -370,6 +370,47 @@ Bij een koude start duurde de functie soms langer dan 5 seconden, en dan stond e
 Controle: `select jobname, position('timeout_milliseconds := 30000' in command) > 0 from cron.job;` → `true` bij
 `egg-sellent-push`.
 
+## Nieuwe app Boodschappen (v3.24.0)
+Doe dit **vóór** je v3.24.0 pusht. Alleen nieuwe tabellen; er verandert niets aan bestaande gegevens.
+
+1. **SQL Editor** (of `npx supabase db query --remote -f supabase/schema.sql`): voer [`schema.sql`](schema.sql) opnieuw uit.
+   Nieuw: `grocery_staples` (vaste boodschappen), `grocery_items` (de lijst), `grocery_menu` (weekmenu), de triggers
+   `grocery_items_guard`, `grocery_menu_guard` en `grocery_bought` (houdt `last_bought` bij) en de functie
+   `grocery_fill(team)` (zet vaste boodschappen die aan de beurt zijn op de lijst). Alleen voor wie Boodschappen mag
+   gebruiken in het gezin (`has_app(team_id, 'groceries')`). Controle: `select count(*) from grocery_items;` → 0.
+2. Een gezinsbeheerder zet de app aan bij **Gezin → Apps**. Het weekmenu gebruikt de gerechten uit Gerechten; wie
+   Gerechten niet mag gebruiken, ziet het weekmenu zonder gerechten (met uitleg).
+
+Getest op de lokale database (22 nov 2026): het nieuwe blok twee keer uitgevoerd; vaste boodschap komt één keer op de
+lijst (ook bij twee keer vullen); afvinken zet `last_bought` op vandaag en de tijd van de server; weer uitvinken zet
+`last_bought` terug; "altijd in huis" komt niet op de lijst; weekmenu op een dinsdag geweigerd; iemand buiten het gezin
+ziet niets en kan de lijst niet vullen. Daarna het hele `schema.sql` (met 3.15–3.17) één keer gedraaid zonder fouten.
+
+### Boodschappen: AH-prijzen (ook v3.24.0)
+Ook **vóór** de push, na de stap hierboven. Alleen nieuwe tabellen en een nieuwe functie.
+
+1. **SQL Editor**: voer [`schema.sql`](schema.sql) opnieuw uit. Nieuw: `grocery_choices` (gekozen AH-product per
+   boodschap, per gezin; RLS `has_app(team_id, 'groceries')`), `grocery_products` (cache van AH-prijzen; geen
+   gezinsgegevens, iedereen die is ingelogd mag lezen, alleen de server schrijft) en `grocery_store_state` (alleen de
+   server: AH-token, tellers). Controle:
+   `select has_table_privilege('authenticated', 'grocery_store_state', 'select');` → `false`.
+2. **Edge Function** uitrollen (Verify JWT uit; de functie controleert zelf of je Boodschappen mag gebruiken):
+   ```
+   npx supabase functions deploy groceries-products --project-ref istqegonfkfrkyddfajd --no-verify-jwt
+   ```
+   Geen geheimen nodig: de functie haalt zelf een anoniem AH-token (zonder account) en bewaart dat in
+   `grocery_store_state`.
+3. Controle na de push: open Boodschappen, tik op een boodschap → **Kies een product bij AH**. Je ziet producten met
+   prijs. In het logboek van de functie staan geen fouten (`ah …` met een statuscode betekent dat AH weigert).
+
+Werkt AH niet meer (de API is onofficieel): de lijst blijft werken, alleen zonder nieuwe prijzen. Eerst proberen:
+de app-versie in `AH_HEADERS` (index.ts) bijwerken naar de huidige AH-app.
+
+Getest lokaal (23 nov 2026, met `npx supabase functions serve`): zoeken geeft producten zonder online meerpakken;
+bijwerken haalt alleen wat nog niet van vandaag is en daarna dezelfde subcategorie (voor goedkoper en gezonder);
+de app kan `grocery_products` niet beschrijven en `grocery_store_state` niet lezen; functie uit → lijst werkt, met
+een melding in gewone taal. Het nieuwe blok twee keer gedraaid en daarna het hele `schema.sql` zonder fouten.
+
 ## Gezondheid: datum per meting (v3.17.2)
 Geen databasewijziging. Wel de functie opnieuw uitrollen, **vóór** de push (de nieuwe uitleg stuurt `weight_date` mee):
 `npx supabase functions deploy integrations --remote=istqegonfkfrkyddfajd --no-verify-jwt`.
